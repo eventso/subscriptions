@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj" />
+    <ProjectReference Include="..\src\Eventso.Subscription.Kafka.Insights\Eventso.Subscription.Kafka.Insights.csproj" />
+    <ProjectReference Include="..\src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
+    <ProjectReference Include="..\src\Eventso.Subscription.SpanJson\Eventso.Subscription.SpanJson.csproj" />
+  </ItemGroup>
+
+</Project>

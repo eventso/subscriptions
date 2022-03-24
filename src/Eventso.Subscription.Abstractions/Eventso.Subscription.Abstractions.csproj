@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>Eventso subscription interfaces for implementation in applications</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RootNamespace>Eventso.Subscription</RootNamespace>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,103 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.1.32210.238
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7BEB0A03-25BD-4B29-8496-8236790718F1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription", "src\Eventso.Subscription\Eventso.Subscription.csproj", "{B71ABE0C-6035-4C9C-93C9-F9F18107184A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Tests", "tests\Eventso.Subscription.Tests\Eventso.Subscription.Tests.csproj", "{0508B89F-C9B2-4962-941E-5D26AD06010D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Hosting", "src\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj", "{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Abstractions", "src\Eventso.Subscription.Abstractions\Eventso.Subscription.Abstractions.csproj", "{74AFA242-8020-4812-B120-B21DE949C7A1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Inbox", "src\Eventso.Subscription.Inbox\Eventso.Subscription.Inbox.csproj", "{92AEF0F1-A075-4C20-AB17-D8A79C43C172}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka", "src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj", "{CCE41456-CC65-451C-A635-6C19344F583A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.SpanJson", "src\Eventso.Subscription.SpanJson\Eventso.Subscription.SpanJson.csproj", "{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{25A31557-5D5D-4F43-AC5A-EF4A0D8C2013}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+		.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
+		.github\workflows\nuget-internal-publish.yml = .github\workflows\nuget-internal-publish.yml
+		.github\workflows\nuget-publish.yml = .github\workflows\nuget-publish.yml
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.InMemory", "src\Eventso.Subscription.InMemory\Eventso.Subscription.InMemory.csproj", "{EE1E8688-307B-4CA5-9497-13980C140D52}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka.Insights", "src\Eventso.Subscription.Kafka.Insights\Eventso.Subscription.Kafka.Insights.csproj", "{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleApplication", "SampleApplication\SampleApplication.csproj", "{EBDC7651-CA00-4132-9290-80886B05CDD8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B71ABE0C-6035-4C9C-93C9-F9F18107184A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B71ABE0C-6035-4C9C-93C9-F9F18107184A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B71ABE0C-6035-4C9C-93C9-F9F18107184A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B71ABE0C-6035-4C9C-93C9-F9F18107184A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0508B89F-C9B2-4962-941E-5D26AD06010D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0508B89F-C9B2-4962-941E-5D26AD06010D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0508B89F-C9B2-4962-941E-5D26AD06010D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0508B89F-C9B2-4962-941E-5D26AD06010D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{74AFA242-8020-4812-B120-B21DE949C7A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{74AFA242-8020-4812-B120-B21DE949C7A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{74AFA242-8020-4812-B120-B21DE949C7A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{74AFA242-8020-4812-B120-B21DE949C7A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCE41456-CC65-451C-A635-6C19344F583A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCE41456-CC65-451C-A635-6C19344F583A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCE41456-CC65-451C-A635-6C19344F583A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCE41456-CC65-451C-A635-6C19344F583A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE1E8688-307B-4CA5-9497-13980C140D52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE1E8688-307B-4CA5-9497-13980C140D52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE1E8688-307B-4CA5-9497-13980C140D52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE1E8688-307B-4CA5-9497-13980C140D52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B71ABE0C-6035-4C9C-93C9-F9F18107184A} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{0508B89F-C9B2-4962-941E-5D26AD06010D} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
+		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{74AFA242-8020-4812-B120-B21DE949C7A1} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{92AEF0F1-A075-4C20-AB17-D8A79C43C172} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{CCE41456-CC65-451C-A635-6C19344F583A} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{EE1E8688-307B-4CA5-9497-13980C140D52} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{EBDC7651-CA00-4132-9290-80886B05CDD8} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F4F1C631-F527-4416-AEED-8E8B09F7AE4D}
+	EndGlobalSection
+EndGlobal

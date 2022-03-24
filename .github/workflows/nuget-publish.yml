@@ -1,0 +1,27 @@
+on:
+  workflow_dispatch
+
+jobs:
+  build:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    name: Push to NuGet.org
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup .NET Core @ Latest
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '5.0.x'          
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}        
+          
+      - name: Build solution and generate NuGet package
+        run: 
+          dotnet build --configuration Release
+
+      - name: Push generated package to Nuget.org registry
+        run: dotnet nuget push "**/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{secrets.NUGET_KEY}} --skip-duplicate 
+    

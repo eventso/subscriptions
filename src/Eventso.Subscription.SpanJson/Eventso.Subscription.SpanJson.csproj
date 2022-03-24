@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>Eventso subscription JSON message deserializer using SpanJson library</Description>
+    <RootNamespace>Eventso.Subscription.SpanJson</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SpanJson" Version="3.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Eventso.Subscription.Abstractions\Eventso.Subscription.Abstractions.csproj" />
+  </ItemGroup>
+
+
+</Project>
