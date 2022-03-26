@@ -15,50 +15,50 @@ namespace Eventso.Subscription.Tests
     {
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
-        private readonly OrderedWithinKeyBatchHandler<TestMessage> _handler;
+        private readonly OrderedWithinKeyBatchHandler<TestEvent> _handler;
         private readonly Fixture _fixture = new();
 
         public OrderedWithinKeyBatchHandlerTests()
         {
             var action = Substitute.For<IMessageBatchPipelineAction>();
-            action.Invoke<RedEvent>(default, default)
+            action.Invoke<RedMessage>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
-                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedEvent>>());
-                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedEvent>>());
+                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedMessage>>());
+                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
                 });
 
-            action.Invoke<BlueEvent>(default, default)
+            action.Invoke<BlueMessage>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
-                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<BlueEvent>>());
-                    _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueEvent>>());
+                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<BlueMessage>>());
+                    _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueMessage>>());
                 });
 
-            action.Invoke<GreenEvent>(default, default)
+            action.Invoke<GreenMessage>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
-                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<GreenEvent>>());
-                    _handledBatches.Add(c.Arg<IReadOnlyCollection<GreenEvent>>());
+                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<GreenMessage>>());
+                    _handledBatches.Add(c.Arg<IReadOnlyCollection<GreenMessage>>());
                 });
 
-            _handler = new OrderedWithinKeyBatchHandler<TestMessage>(action);
+            _handler = new OrderedWithinKeyBatchHandler<TestEvent>(action);
         }
 
         [Fact]
         public async Task SingleTypeMessages_SameOrder()
         {
-            var events = _fixture.CreateMany<(RedEvent e, Guid k)>(10)
-                .Select(x => new TestMessage(x.k, x.e))
+            var events = _fixture.CreateMany<(RedMessage e, Guid k)>(10)
+                .Select(x => new TestEvent(x.k, x.e))
                 .ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
-                events.Select(x => x.GetPayload()),
+                events.Select(x => x.GetMessage()),
                 c => c.WithStrictOrdering());
 
             _handledBatches.Should().HaveCount(1);
@@ -73,9 +73,9 @@ namespace Eventso.Subscription.Tests
 
             var events = keys.SelectMany(k => new[]
             {
-                Create<RedEvent>(k, 0),
-                Create<BlueEvent>(k, 1),
-                Create<GreenEvent>(k, 2)
+                Create<RedMessage>(k, 0),
+                Create<BlueMessage>(k, 1),
+                Create<GreenMessage>(k, 2)
             }).ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
@@ -83,15 +83,15 @@ namespace Eventso.Subscription.Tests
             _handledEvents.Should().BeEquivalentTo(
                 events.OrderBy(x => x.BatchNumber)
                     .ThenBy(x => x.GetKey())
-                    .Select(x => x.GetPayload()),
+                    .Select(x => x.GetMessage()),
                 c => c.WithStrictOrdering());
 
             _handledBatches.Should().HaveCount(3);
             _handledBatches.SelectMany(x => x).Should().HaveSameCount(events);
 
-            _handledBatches[0].Should().AllBeOfType<RedEvent>();
-            _handledBatches[1].Should().AllBeOfType<BlueEvent>();
-            _handledBatches[2].Should().AllBeOfType<GreenEvent>();
+            _handledBatches[0].Should().AllBeOfType<RedMessage>();
+            _handledBatches[1].Should().AllBeOfType<BlueMessage>();
+            _handledBatches[2].Should().AllBeOfType<GreenMessage>();
         }
 
         [Fact]
@@ -103,15 +103,15 @@ namespace Eventso.Subscription.Tests
 
             var events = new[]
             {
-                Create<RedEvent>(keys[0], 0),
-                Create<BlueEvent>(keys[0], 1),
-                Create<RedEvent>(keys[1], 0),
-                Create<GreenEvent>(keys[0], 2),
-                Create<RedEvent>(keys[2], 0),
-                Create<BlueEvent>(keys[1], 1),
-                Create<BlueEvent>(keys[2], 1),
-                Create<GreenEvent>(keys[2], 2),
-                Create<GreenEvent>(keys[1], 2)
+                Create<RedMessage>(keys[0], 0),
+                Create<BlueMessage>(keys[0], 1),
+                Create<RedMessage>(keys[1], 0),
+                Create<GreenMessage>(keys[0], 2),
+                Create<RedMessage>(keys[2], 0),
+                Create<BlueMessage>(keys[1], 1),
+                Create<BlueMessage>(keys[2], 1),
+                Create<GreenMessage>(keys[2], 2),
+                Create<GreenMessage>(keys[1], 2)
             }.ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
@@ -119,15 +119,15 @@ namespace Eventso.Subscription.Tests
             _handledEvents.Should().BeEquivalentTo(
                 events.OrderBy(x => x.BatchNumber)
                     .ThenBy(x => x.GetKey())
-                    .Select(x => x.GetPayload()),
+                    .Select(x => x.GetMessage()),
                 c => c.WithStrictOrdering());
 
             _handledBatches.Should().HaveCount(3);
             _handledBatches.SelectMany(x => x).Should().HaveSameCount(events);
 
-            _handledBatches[0].Should().AllBeOfType<RedEvent>();
-            _handledBatches[1].Should().AllBeOfType<BlueEvent>();
-            _handledBatches[2].Should().AllBeOfType<GreenEvent>();
+            _handledBatches[0].Should().AllBeOfType<RedMessage>();
+            _handledBatches[1].Should().AllBeOfType<BlueMessage>();
+            _handledBatches[2].Should().AllBeOfType<GreenMessage>();
 
             Assert(events, keys);
         }
@@ -141,21 +141,21 @@ namespace Eventso.Subscription.Tests
 
             var events = new[]
             {
-                Create<RedEvent>(keys[0], 0),
-                Create<RedEvent>(keys[1], 0),
-                Create<BlueEvent>(keys[1], 2),
-                Create<RedEvent>(keys[0], 0),
-                Create<RedEvent>(keys[1], 4),
-                Create<GreenEvent>(keys[0], 1),
-                Create<BlueEvent>(keys[1], 5),
-                Create<RedEvent>(keys[2], 0),
-                Create<BlueEvent>(keys[0], 2),
-                Create<RedEvent>(keys[2], 0),
-                Create<GreenEvent>(keys[2], 1),
-                Create<GreenEvent>(keys[1], 6),
-                Create<RedEvent>(keys[2], 4),
-                Create<BlueEvent>(keys[0], 2),
-                Create<GreenEvent>(keys[0], 3),
+                Create<RedMessage>(keys[0], 0),
+                Create<RedMessage>(keys[1], 0),
+                Create<BlueMessage>(keys[1], 2),
+                Create<RedMessage>(keys[0], 0),
+                Create<RedMessage>(keys[1], 4),
+                Create<GreenMessage>(keys[0], 1),
+                Create<BlueMessage>(keys[1], 5),
+                Create<RedMessage>(keys[2], 0),
+                Create<BlueMessage>(keys[0], 2),
+                Create<RedMessage>(keys[2], 0),
+                Create<GreenMessage>(keys[2], 1),
+                Create<GreenMessage>(keys[1], 6),
+                Create<RedMessage>(keys[2], 4),
+                Create<BlueMessage>(keys[0], 2),
+                Create<GreenMessage>(keys[0], 3),
             }.ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
@@ -172,18 +172,18 @@ namespace Eventso.Subscription.Tests
 
             var events = new[]
             {
-                Create<GreenEvent>(keys[0], 0),
-                Create<RedEvent>(keys[1], 3),
-                Create<BlueEvent>(keys[2], 1),
-                Create<BlueEvent>(keys[0], 1),
-                Create<RedEvent>(keys[1], 3),
-                Create<GreenEvent>(keys[2], 2),
-                Create<GreenEvent>(keys[0], 2),
-                Create<RedEvent>(keys[1], 3),
-                Create<BlueEvent>(keys[2], 4),
-                Create<GreenEvent>(keys[2], 5),
-                Create<RedEvent>(keys[0], 3),
-                Create<BlueEvent>(keys[1], 4),
+                Create<GreenMessage>(keys[0], 0),
+                Create<RedMessage>(keys[1], 3),
+                Create<BlueMessage>(keys[2], 1),
+                Create<BlueMessage>(keys[0], 1),
+                Create<RedMessage>(keys[1], 3),
+                Create<GreenMessage>(keys[2], 2),
+                Create<GreenMessage>(keys[0], 2),
+                Create<RedMessage>(keys[1], 3),
+                Create<BlueMessage>(keys[2], 4),
+                Create<GreenMessage>(keys[2], 5),
+                Create<RedMessage>(keys[0], 3),
+                Create<BlueMessage>(keys[1], 4),
             }.ToConvertibleCollection();
 
 
@@ -207,41 +207,41 @@ namespace Eventso.Subscription.Tests
                 .OrderBy(x => x)
                 .ToArray();
 
-            var events = _fixture.CreateMany<RedEvent>(30)
+            var events = _fixture.CreateMany<RedMessage>(30)
                 .Cast<object>()
-                .Concat(_fixture.CreateMany<BlueEvent>(30))
-                .Concat(_fixture.CreateMany<GreenEvent>(40))
-                .Select((e, i) => new TestMessage(keys[i % keys.Length], e))
+                .Concat(_fixture.CreateMany<BlueMessage>(30))
+                .Concat(_fixture.CreateMany<GreenMessage>(40))
+                .Select((e, i) => new TestEvent(keys[i % keys.Length], e))
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
 
             var lookup = _handledEvents
-                .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetPayload(), ev))))
+                .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetMessage(), ev))))
                 .ToLookup(x => x.Item2.GetKey(), x => x.ev);
 
             foreach (var key in keys)
             {
                 lookup[key].Should().BeEquivalentTo(
                     events.Where(e => e.GetKey() == key)
-                        .Select(x => x.GetPayload()),
+                        .Select(x => x.GetMessage()),
                     c => c.WithStrictOrdering()
                 );
             }
         }
 
-        private void Assert(IEnumerable<TestMessage> events, Guid[] keys)
+        private void Assert(IEnumerable<TestEvent> events, Guid[] keys)
         {
             var lookup = _handledEvents
-                .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetPayload(), ev))))
+                .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetMessage(), ev))))
                 .ToLookup(x => x.Item2.GetKey(), x => x.ev);
 
             foreach (var key in keys)
             {
                 lookup[key].Should().BeEquivalentTo(
                     events.Where(e => e.GetKey() == key)
-                        .Select(x => x.GetPayload()),
+                        .Select(x => x.GetMessage()),
                     c => c.WithStrictOrdering()
                 );
             }
@@ -252,12 +252,12 @@ namespace Eventso.Subscription.Tests
                     .BeEquivalentTo(
                         events.Where(e => e.BatchNumber == i)
                             .OrderBy(x => x.GetKey())
-                            .Select(x => x.GetPayload()),
+                            .Select(x => x.GetMessage()),
                         c => c.WithStrictOrdering());
             }
         }
 
-        private TestMessage Create<T>(Guid key, int batchNumber = 0) =>
-            new TestMessage(key, _fixture.Create<T>(), batchNumber);
+        private TestEvent Create<T>(Guid key, int batchNumber = 0) =>
+            new TestEvent(key, _fixture.Create<T>(), batchNumber);
     }
 }

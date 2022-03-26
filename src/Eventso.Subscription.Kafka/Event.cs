@@ -4,7 +4,7 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka
 {
-    public readonly struct Message : IMessage
+    public readonly struct Event : IEvent
     {
         private readonly ConsumedMessage _value;
         private readonly Guid _key;
@@ -12,7 +12,7 @@ namespace Eventso.Subscription.Kafka
         internal readonly Partition Partition;
         internal readonly Offset Offset;
 
-        public Message(ConsumeResult<Guid, ConsumedMessage> @event, string topic)
+        public Event(ConsumeResult<Guid, ConsumedMessage> @event, string topic)
         {
             _value = @event.Message.Value;
             _key = @event.Message.Key;
@@ -25,7 +25,7 @@ namespace Eventso.Subscription.Kafka
 
         public Guid GetKey() => _key;
 
-        public object GetPayload() => _value.Message
+        public object GetMessage() => _value.Message
                                       ?? throw new InvalidOperationException("Unknown message");
 
         public string GetIdentity() => $"{Topic} [{Partition}] @{Offset}";

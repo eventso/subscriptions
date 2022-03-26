@@ -14,15 +14,15 @@ using Xunit;
 
 namespace Eventso.Subscription.Tests
 {
-    public sealed class MessageObserverTests
+    public sealed class EventObserverTests
     {
         private readonly Fixture _fixture;
         private readonly TestConsumer _consumer;
-        private readonly List<TestMessage> _handledMessages = new();
+        private readonly List<TestEvent> _handledEvents = new();
         private readonly IMessageHandlersRegistry _handlersRegistry;
         private readonly IMessagePipelineAction _pipelineAction;
 
-        public MessageObserverTests()
+        public EventObserverTests()
         {
             _fixture = new Fixture();
             _fixture.Customize(new AutoNSubstituteCustomization { ConfigureMembers = true });
@@ -37,108 +37,108 @@ namespace Eventso.Subscription.Tests
 
             _pipelineAction = Substitute.For<IMessagePipelineAction>();
             _pipelineAction
-                .Invoke<TestMessage>(default, default)
+                .Invoke<TestEvent>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
-                .AndDoes(c => _handledMessages.Add(c.Arg<TestMessage>()));
+                .AndDoes(c => _handledEvents.Add(c.Arg<TestEvent>()));
 
             _consumer = new TestConsumer();
         }
 
         [Fact]
-        public async Task ObservingMessages_AllAcknowledged()
+        public async Task ObservingEvents_AllAcknowledged()
         {
             _fixture.Inject(DeserializationStatus.Success);
 
-            var observer = new MessageObserver<TestMessage>(
+            var observer = new EventObserver<TestEvent>(
                 _pipelineAction,
                 _consumer,
                 _handlersRegistry,
                 true,
                 DeferredAckConfiguration.Disabled,
-                NullLogger<MessageObserver<TestMessage>>.Instance);
+                NullLogger<EventObserver<TestEvent>>.Instance);
 
-            var messages = _fixture.CreateMany<TestMessage>(56).ToArray();
+            var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
-            _handledMessages.Should().HaveSameCount(messages);
+            _handledEvents.Should().HaveSameCount(events);
         }
 
         [Fact]
-        public async Task ObservingSkippedByDeserializerMessages_AllAcknowledged()
+        public async Task ObservingSkippedByDeserializerEvents_AllAcknowledged()
         {
             _fixture.Inject(DeserializationStatus.Skipped);
 
-            var observer = new MessageObserver<TestMessage>(
+            var observer = new EventObserver<TestEvent>(
                 _pipelineAction,
                 _consumer,
                 _handlersRegistry,
                 true,
                 DeferredAckConfiguration.Disabled,
-                NullLogger<MessageObserver<TestMessage>>.Instance);
+                NullLogger<EventObserver<TestEvent>>.Instance);
 
-            var messages = _fixture.CreateMany<TestMessage>(56).ToArray();
+            var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
-            _handledMessages.Should().BeEmpty();
+            _handledEvents.Should().BeEmpty();
         }
 
         [Fact]
-        public async Task ObservingMixedMessages_AllAcknowledged()
+        public async Task ObservingMixedEvents_AllAcknowledged()
         {
-            var skippedMessages = Enumerable.Repeat(0, 25)
+            var skippedEvents = Enumerable.Repeat(0, 25)
                 .Select(_ =>
                 {
-                    var msg = Substitute.For<TestMessage>();
+                    var msg = Substitute.For<TestEvent>();
                     msg.DeserializationResult.Returns(DeserializationStatus.Skipped);
                     return msg;
                 }).ToArray();
 
-            var payloadMessages = Enumerable.Repeat(0, 25)
+            var successEvents = Enumerable.Repeat(0, 25)
                 .Select(_ =>
                 {
-                    var msg = Substitute.For<TestMessage>();
-                    msg.DeserializationResult.Returns(DeserializationStatus.Success);
+                    var @event = Substitute.For<TestEvent>();
+                    @event.DeserializationResult.Returns(DeserializationStatus.Success);
 
-                    return msg;
+                    return @event;
                 }).ToArray();
 
-            var observer = new MessageObserver<TestMessage>(
+            var observer = new EventObserver<TestEvent>(
                 _pipelineAction,
                 _consumer,
                 _handlersRegistry,
                 true,
                 DeferredAckConfiguration.Disabled,
-                NullLogger<MessageObserver<TestMessage>>.Instance);
+                NullLogger<EventObserver<TestEvent>>.Instance);
 
-            var messages = skippedMessages.Concat(payloadMessages)
+            var events = skippedEvents.Concat(successEvents)
                 .OrderBy(_ => Guid.NewGuid())
                 .ToArray();
 
-            foreach (var message in messages)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
-            _handledMessages.Should()
+            _handledEvents.Should()
                 .BeEquivalentTo(
-                    payloadMessages,
+                    successEvents,
                     c => c.WithStrictOrdering());
         }
 
@@ -150,7 +150,7 @@ namespace Eventso.Subscription.Tests
             const int batchTimeoutMs = 300;
             const int eventsCount = 56;
 
-            var observer = new MessageObserver<TestMessage>(
+            var observer = new EventObserver<TestEvent>(
                 _pipelineAction,
                 _consumer,
                 _handlersRegistry,
@@ -160,23 +160,23 @@ namespace Eventso.Subscription.Tests
                     Timeout = TimeSpan.FromMilliseconds(batchTimeoutMs),
                     MaxBufferSize = eventsCount * 2
                 },
-                NullLogger<MessageObserver<TestMessage>>.Instance);
+                NullLogger<EventObserver<TestEvent>>.Instance);
 
-            var messages = _fixture.CreateMany<TestMessage>(eventsCount).ToArray();
+            var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
 
-            foreach (var message in messages)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
             await Task.Delay(batchTimeoutMs + 50);
 
-            await observer.OnMessageTimeout(CancellationToken.None);
+            await observer.OnEventTimeout(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
-            _handledMessages.Should().BeEmpty();
+            _handledEvents.Should().BeEmpty();
         }
 
         [Fact]
@@ -186,7 +186,7 @@ namespace Eventso.Subscription.Tests
 
             const int eventsCount = 56;
 
-            var observer = new MessageObserver<TestMessage>(
+            var observer = new EventObserver<TestEvent>(
                 _pipelineAction,
                 _consumer,
                 _handlersRegistry,
@@ -196,46 +196,46 @@ namespace Eventso.Subscription.Tests
                     Timeout = Timeout.InfiniteTimeSpan,
                     MaxBufferSize = eventsCount - 10
                 },
-                NullLogger<MessageObserver<TestMessage>>.Instance);
+                NullLogger<EventObserver<TestEvent>>.Instance);
 
-            var messages = _fixture.CreateMany<TestMessage>(eventsCount).ToArray();
+            var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
 
-            foreach (var message in messages)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
-            await observer.OnMessageTimeout(CancellationToken.None);
+            await observer.OnEventTimeout(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages.SkipLast(10),
+                    events.SkipLast(10),
                     c => c.WithStrictOrdering());
 
-            _handledMessages.Should().BeEmpty();
+            _handledEvents.Should().BeEmpty();
         }
 
-        private sealed class TestConsumer : IConsumer<TestMessage>
+        private sealed class TestConsumer : IConsumer<TestEvent>
         {
-            public readonly List<TestMessage> Acks = new();
+            public readonly List<TestEvent> Acks = new();
             public readonly CancellationTokenSource CancellationTokenSource = new();
 
             public CancellationToken CancellationToken => CancellationTokenSource.Token;
 
             public string Subscription { get; } = "Some";
 
-            public void Acknowledge(in TestMessage message) =>
-                Acks.Add(message);
+            public void Acknowledge(in TestEvent events) =>
+                Acks.Add(events);
 
-            public void Acknowledge(IReadOnlyList<TestMessage> messages) =>
-                Acks.AddRange(messages);
+            public void Acknowledge(IReadOnlyList<TestEvent> events) =>
+                Acks.AddRange(events);
 
             public void Cancel() => CancellationTokenSource.Cancel();
         }
 
-        public class TestMessage : IMessage
+        public class TestEvent : IEvent
         {
             public virtual DeserializationStatus DeserializationResult { get; set; }
             public Guid GetKey() => throw new NotImplementedException();
-            public object GetPayload() => this;
+            public object GetMessage() => this;
             public string GetIdentity() => throw new NotImplementedException();
 
             public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()

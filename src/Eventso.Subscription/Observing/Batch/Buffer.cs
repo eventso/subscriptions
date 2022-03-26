@@ -6,15 +6,15 @@ using System.Threading.Tasks.Dataflow;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    internal sealed class Buffer<T>
+    internal sealed class Buffer<TEvent>
     {
         private readonly int _maxBatchSize;
         private readonly int _maxBufferSize;
         private readonly TimeSpan _timeout;
         private readonly ITargetBlock<Batch> _target;
 
-        private PooledList<BufferedMessage> _messages;
-        private int _payloadMessagesCount;
+        private PooledList<BufferedEvent> _events;
+        private int _toBeHandledEventsCount;
         private DateTime _batchStartTime;
         private DateTime _bufferStartTime;
 
@@ -32,10 +32,10 @@ namespace Eventso.Subscription.Observing.Batch
             _timeout = timeout;
             _target = target;
 
-            _messages = new PooledList<BufferedMessage>(maxBatchSize);
+            _events = new PooledList<BufferedEvent>(maxBatchSize);
         }
 
-        public async Task Add(T message, bool skipped, CancellationToken token)
+        public async Task Add(TEvent @event, bool skipped, CancellationToken token)
         {
             if (_target.Completion.IsFaulted)
                 await _target.Completion;
@@ -43,17 +43,17 @@ namespace Eventso.Subscription.Observing.Batch
             if (_target.Completion.IsCompleted)
                 throw new InvalidOperationException("Target already completed.");
 
-            await AddMessage(new BufferedMessage(message, skipped), token);
+            await AddEvent(new BufferedEvent(@event, skipped), token);
 
             await CheckTimeout(token);
         }
 
         public Task CheckTimeout(CancellationToken token)
         {
-            if (_messages.Count == 0 || _timeout == Timeout.InfiniteTimeSpan)
+            if (_events.Count == 0 || _timeout == Timeout.InfiniteTimeSpan)
                 return Task.CompletedTask;
 
-            var checkTimeoutStartTime = _payloadMessagesCount == 0
+            var checkTimeoutStartTime = _toBeHandledEventsCount == 0
                 ? _bufferStartTime
                 : _batchStartTime;
 
@@ -64,48 +64,48 @@ namespace Eventso.Subscription.Observing.Batch
 
         public async Task TriggerSend(CancellationToken token)
         {
-            if (_messages.Count == 0)
+            if (_events.Count == 0)
                 return;
 
-            var batch = new Batch(_messages, _payloadMessagesCount);
+            var batch = new Batch(_events, _toBeHandledEventsCount);
 
-            _messages = new PooledList<BufferedMessage>(_maxBatchSize);
-            _payloadMessagesCount = 0;
+            _events = new PooledList<BufferedEvent>(_maxBatchSize);
+            _toBeHandledEventsCount = 0;
 
             if (!await _target.SendAsync(batch, token))
                 throw new InvalidOperationException("Unable to send data to target");
         }
 
-        private Task AddMessage(BufferedMessage message, CancellationToken token)
+        private Task AddEvent(BufferedEvent @event, CancellationToken token)
         {
-            if (_messages.Count == 0)
+            if (_events.Count == 0)
                 _bufferStartTime = DateTime.UtcNow;
 
-            _messages.Add(message);
+            _events.Add(@event);
 
-            if (!message.Skipped)
+            if (!@event.Skipped)
             {
-                if (_payloadMessagesCount == 0)
+                if (_toBeHandledEventsCount == 0)
                     _batchStartTime = DateTime.UtcNow;
 
-                ++_payloadMessagesCount;
+                ++_toBeHandledEventsCount;
             }
 
-            if (_payloadMessagesCount >= _maxBatchSize || _messages.Count >= _maxBufferSize)
+            if (_toBeHandledEventsCount >= _maxBatchSize || _events.Count >= _maxBufferSize)
                 return TriggerSend(token);
 
             return Task.CompletedTask;
         }
 
         [StructLayout(LayoutKind.Auto)]
-        public readonly struct BufferedMessage
+        public readonly struct BufferedEvent
         {
-            public readonly T Message;
+            public readonly TEvent Event;
             public readonly bool Skipped;
 
-            public BufferedMessage(T message, bool skipped)
+            public BufferedEvent(TEvent @event, bool skipped)
             {
-                Message = message;
+                Event = @event;
                 Skipped = skipped;
             }
         }
@@ -113,13 +113,13 @@ namespace Eventso.Subscription.Observing.Batch
         [StructLayout(LayoutKind.Auto)]
         public readonly struct Batch
         {
-            public readonly PooledList<BufferedMessage> Messages;
-            public readonly int PayloadMessageCount;
+            public readonly PooledList<BufferedEvent> Events;
+            public readonly int ToBeHandledEventCount;
 
-            public Batch(PooledList<BufferedMessage> messages, int payloadMessageCount)
+            public Batch(PooledList<BufferedEvent> events, int toBeHandledEventCount)
             {
-                Messages = messages;
-                PayloadMessageCount = payloadMessageCount;
+                Events = events;
+                ToBeHandledEventCount = toBeHandledEventCount;
             }
         }
     }

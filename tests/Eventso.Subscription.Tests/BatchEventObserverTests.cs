@@ -14,29 +14,29 @@ using Xunit;
 
 namespace Eventso.Subscription.Tests
 {
-    public sealed class BatchMessageObserverTests
+    public sealed class BatchEventObserverTests
     {
         private readonly Fixture _fixture;
-        private readonly BatchMessageObserver<IMessage> _observer;
+        private readonly BatchEventObserver<IEvent> _observer;
         private readonly TestConsumer _consumer;
-        private readonly List<IReadOnlyCollection<IMessage>> _handledBatches = new();
+        private readonly List<IReadOnlyCollection<IEvent>> _handledBatches = new();
         private readonly IMessageHandlersRegistry _handlersRegistry;
 
-        public BatchMessageObserverTests()
+        public BatchEventObserverTests()
         {
             _fixture = new Fixture();
             _fixture.Customize(new AutoNSubstituteCustomization {ConfigureMembers = true});
 
             _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
-            var batchHandler = Substitute.For<IBatchHandler<IMessage>>();
+            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
             batchHandler.Handle(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
-                .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IMessage>>().ToArray()));
+                .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
 
             _consumer = new TestConsumer();
 
-            _observer = new BatchMessageObserver<IMessage>(
+            _observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 10 },
                 batchHandler,
                 _consumer,
@@ -44,148 +44,148 @@ namespace Eventso.Subscription.Tests
         }
 
         [Fact]
-        public async Task ObservingMessages_AllAcknowledged()
+        public async Task ObservingEvents_AllAcknowledged()
         {
             _handlersRegistry.ContainsHandlersFor(default, out _)
                 .ReturnsForAnyArgs(true);
             _fixture.Inject(DeserializationStatus.Success);
 
-            var messages = _fixture.CreateMany<IMessage>(56).ToArray();
+            var events = _fixture.CreateMany<IEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await _observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await _observer.OnEventAppeared(@event, CancellationToken.None);
 
             await _observer.Complete(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
             _handledBatches.SelectMany(x => x)
-                .Should().HaveSameCount(messages);
+                .Should().HaveSameCount(events);
         }
 
         [Fact]
-        public async Task ObservingSkippedWithoutHandlerMessages_AllAcknowledged()
+        public async Task ObservingSkippedWithoutHandlerEvents_AllAcknowledged()
         {
             _handlersRegistry.ContainsHandlersFor(default, out _)
                 .ReturnsForAnyArgs(false);
 
-            var messages = _fixture.CreateMany<IMessage>(56).ToArray();
+            var events = _fixture.CreateMany<IEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await _observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await _observer.OnEventAppeared(@event, CancellationToken.None);
 
             await _observer.Complete(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
             _handledBatches.Should().BeEmpty();
         }
 
         [Fact]
-        public async Task ObservingSkippedByDeserializerMessages_AllAcknowledged()
+        public async Task ObservingSkippedByDeserializerEvents_AllAcknowledged()
         {
             _handlersRegistry.ContainsHandlersFor(default, out _)
                 .ReturnsForAnyArgs(true);
 
             _fixture.Inject(DeserializationStatus.Skipped);
 
-            var messages = _fixture.CreateMany<IMessage>(56).ToArray();
+            var events = _fixture.CreateMany<IEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await _observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await _observer.OnEventAppeared(@event, CancellationToken.None);
 
             await _observer.Complete(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
             _handledBatches.Should().BeEmpty();
         }
 
         [Fact]
-        public async Task ObservingSkippedUnknownTypeMessages_AllAcknowledged()
+        public async Task ObservingSkippedUnknownTypeEvents_AllAcknowledged()
         {
             _handlersRegistry.ContainsHandlersFor(default, out _)
                 .ReturnsForAnyArgs(true);
 
             _fixture.Inject(DeserializationStatus.UnknownType);
 
-            var messages = _fixture.CreateMany<IMessage>(56).ToArray();
+            var events = _fixture.CreateMany<IEvent>(56).ToArray();
 
-            foreach (var message in messages)
-                await _observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await _observer.OnEventAppeared(@event, CancellationToken.None);
 
             await _observer.Complete(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
             _handledBatches.Should().BeEmpty();
         }
 
         [Fact]
-        public async Task ObservingMixedMessages_AllAcknowledged()
+        public async Task ObservingMixedEvents_AllAcknowledged()
         {
             _handlersRegistry.ContainsHandlersFor(default, out _)
                 .ReturnsForAnyArgs(true);
 
-            var skippedMessages = Enumerable.Repeat(0, 25)
+            var skippedEvents = Enumerable.Repeat(0, 25)
                 .Select(_ =>
                 {
-                    var msg = Substitute.For<IMessage>();
+                    var msg = Substitute.For<IEvent>();
                     msg.DeserializationResult.Returns(DeserializationStatus.Skipped);
                     return msg;
                 }).ToArray();
 
-            var payloadMessages = Enumerable.Repeat(0, 25)
+            var successEvents = Enumerable.Repeat(0, 25)
                 .Select(_ =>
                 {
-                    var msg = Substitute.For<IMessage>();
+                    var msg = Substitute.For<IEvent>();
                     msg.DeserializationResult.Returns(DeserializationStatus.Success);
-                    msg.GetPayload().Returns(new object());
+                    msg.GetMessage().Returns(new object());
 
                     return msg;
                 }).ToArray();
 
-            var messages = skippedMessages.Concat(payloadMessages)
+            var events = skippedEvents.Concat(successEvents)
                 .OrderBy(_ => Guid.NewGuid())
                 .ToArray();
 
-            foreach (var message in messages)
-                await _observer.OnMessageAppeared(message, CancellationToken.None);
+            foreach (var @event in events)
+                await _observer.OnEventAppeared(@event, CancellationToken.None);
 
             await _observer.Complete(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
-                    messages,
+                    events,
                     c => c.WithStrictOrdering());
 
             _handledBatches.SelectMany(x => x).Should()
                 .BeEquivalentTo(
-                    payloadMessages,
+                    successEvents,
                     c => c.WithStrictOrdering());
         }
 
         [Fact]
         public async Task ObservingCompleted_Throws()
         {
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             await _observer.Complete(CancellationToken.None);
 
-            Func<Task> act = () => _observer.OnMessageAppeared(
-                message, CancellationToken.None);
+            Func<Task> act = () => _observer.OnEventAppeared(
+                @event, CancellationToken.None);
 
             await act.Should()
                 .ThrowAsync<InvalidOperationException>()
@@ -199,31 +199,31 @@ namespace Eventso.Subscription.Tests
                 .ReturnsForAnyArgs(true);
             _fixture.Inject(DeserializationStatus.Success);
 
-            using var sempahore = new SemaphoreSlim(0);
+            using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IMessage>>();
+            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
             batchHandler.Handle(default, default)
                 .ThrowsForAnyArgs(new TestException())
-                .AndDoes(_ => sempahore.Release());
+                .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
-            var observer = new BatchMessageObserver<IMessage>(
+            var observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
                 _handlersRegistry);
 
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             for (var i = 0; i < batchCount; i++)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
-            await sempahore.WaitAsync();
+            await semaphore.WaitAsync();
             await Task.Delay(100);
 
-            Func<Task> act = () => observer.OnMessageAppeared(
-                message, CancellationToken.None);
+            Func<Task> act = () => observer.OnEventAppeared(
+                @event, CancellationToken.None);
 
             await act.Should().ThrowAsync<TestException>();
         }
@@ -231,18 +231,18 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task ObservingDisposed_Throws()
         {
-            var observer = new BatchMessageObserver<IMessage>(
+            var observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 2 },
-                Substitute.For<IBatchHandler<IMessage>>(),
+                Substitute.For<IBatchHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             observer.Dispose();
 
-            Func<Task> act = () => observer.OnMessageAppeared(
-                message, CancellationToken.None);
+            Func<Task> act = () => observer.OnEventAppeared(
+                @event, CancellationToken.None);
 
             Func<Task> actComplete = () => observer.Complete(CancellationToken.None);
 
@@ -257,27 +257,27 @@ namespace Eventso.Subscription.Tests
                 .ReturnsForAnyArgs(true);
             _fixture.Inject(DeserializationStatus.Success);
 
-            using var sempahore = new SemaphoreSlim(0);
+            using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IMessage>>();
+            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
             batchHandler.Handle(default, default)
                 .ThrowsForAnyArgs(new TestException())
-                .AndDoes(_ => sempahore.Release());
+                .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
-            var observer = new BatchMessageObserver<IMessage>(
+            var observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
                 _handlersRegistry);
 
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             for (var i = 0; i < batchCount; i++)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
-            await sempahore.WaitAsync();
+            await semaphore.WaitAsync();
             await Task.Delay(100);
 
             Func<Task> act = () => observer.Complete(CancellationToken.None);
@@ -292,27 +292,27 @@ namespace Eventso.Subscription.Tests
                 .ReturnsForAnyArgs(true);
             _fixture.Inject(DeserializationStatus.Success);
 
-            using var sempahore = new SemaphoreSlim(0);
+            using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IMessage>>();
+            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
             batchHandler.Handle(default, default)
                 .ThrowsForAnyArgs(new TestException())
-                .AndDoes(_ => sempahore.Release());
+                .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
-            var observer = new BatchMessageObserver<IMessage>(
+            var observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
                 _handlersRegistry);
 
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             for (var i = 0; i < batchCount; i++)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
-            await sempahore.WaitAsync();
+            await semaphore.WaitAsync();
             await Task.Delay(100);
 
             observer.Dispose();
@@ -328,16 +328,16 @@ namespace Eventso.Subscription.Tests
 
             const int batchCount = 2;
 
-            var observer = new BatchMessageObserver<IMessage>(
+            var observer = new BatchEventObserver<IEvent>(
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
-                Substitute.For<IBatchHandler<IMessage>>(),
+                Substitute.For<IBatchHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 
-            var message = _fixture.Create<IMessage>();
+            var @event = _fixture.Create<IEvent>();
 
             for (var i = 0; i < batchCount; i++)
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+                await observer.OnEventAppeared(@event, CancellationToken.None);
 
             observer.Dispose();
             observer.Dispose();
@@ -347,20 +347,20 @@ namespace Eventso.Subscription.Tests
         {
         }
 
-        private sealed class TestConsumer : IConsumer<IMessage>
+        private sealed class TestConsumer : IConsumer<IEvent>
         {
-            public readonly List<IMessage> Acks = new();
+            public readonly List<IEvent> Acks = new();
             public readonly CancellationTokenSource CancellationTokenSource = new();
 
             public CancellationToken CancellationToken => CancellationTokenSource.Token;
 
             public string Subscription { get; } = "Some";
 
-            public void Acknowledge(in IMessage message) =>
-                Acks.Add(message);
+            public void Acknowledge(in IEvent events) =>
+                Acks.Add(events);
 
-            public void Acknowledge(IReadOnlyList<IMessage> messages) =>
-                Acks.AddRange(messages);
+            public void Acknowledge(IReadOnlyList<IEvent> events) =>
+                Acks.AddRange(events);
 
             public void Cancel() => CancellationTokenSource.Cancel();
         }

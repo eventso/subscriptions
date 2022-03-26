@@ -112,35 +112,35 @@ namespace Eventso.Subscription.Kafka
 
         private async Task Observe(
             ConsumeResult<Guid, ConsumedMessage> result,
-            IObserver<Message> observer,
+            IObserver<Event> observer,
             CancellationToken token)
         {
-            var message = new Message(result, _settings.Topic);
+            var @event = new Event(result, _settings.Topic);
 
             try
             {
-                await observer.OnMessageAppeared(message, token);
+                await observer.OnEventAppeared(@event, token);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                throw new MessageHandlingException(
+                throw new EventHandlingException(
                     result.TopicPartitionOffset.ToString(),
-                    "Message observing failed",
+                    "Event observing failed",
                     ex);
             }
         }
 
-        private async Task ObserveTimeout(IObserver<Message> observer, CancellationToken token)
+        private async Task ObserveTimeout(IObserver<Event> observer, CancellationToken token)
         {
             try
             {
-                await observer.OnMessageTimeout(token);
+                await observer.OnEventTimeout(token);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                throw new MessageHandlingException(
+                throw new EventHandlingException(
                     _settings.Topic,
-                    "OnMessageTimeout failed",
+                    "OnEventTimeout failed",
                     ex);
             }
         }

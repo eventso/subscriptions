@@ -3,13 +3,14 @@ using System.Threading;
 
 namespace Eventso.Subscription
 {
-    public interface IConsumer<T>
+    public interface IConsumer<TEvent>
+        where TEvent : IEvent
     {
         CancellationToken CancellationToken { get; }
         string Subscription { get; }
 
-        void Acknowledge(in T message);
-        void Acknowledge(IReadOnlyList<T> messages);
+        void Acknowledge(in TEvent events);
+        void Acknowledge(IReadOnlyList<TEvent> events);
 
         void Cancel();
     }

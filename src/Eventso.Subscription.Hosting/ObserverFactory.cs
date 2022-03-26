@@ -26,13 +26,13 @@ namespace Eventso.Subscription.Hosting
         }
 
         public IObserver<T> Create<T>(IConsumer<T> consumer)
-            where T : IMessage
+            where T : IEvent
         {
             var pipelineAction = _messagePipelineFactory.Create(_configuration.HandlerConfig);
 
             if (_configuration.BatchProcessingRequired)
             {
-                return new BatchMessageObserver<T>(
+                return new BatchEventObserver<T>(
                     _configuration.BatchConfiguration,
                     GetBatchHandler(),
                     consumer,
@@ -40,13 +40,13 @@ namespace Eventso.Subscription.Hosting
                     _configuration.SkipUnknownMessages);
             }
 
-            return new MessageObserver<T>(
+            return new EventObserver<T>(
                 pipelineAction,
                 consumer,
                 _messageHandlersRegistry,
                 _configuration.SkipUnknownMessages,
                 _configuration.DeferredAckConfiguration,
-                _loggerFactory.CreateLogger<MessageObserver<T>>());
+                _loggerFactory.CreateLogger<EventObserver<T>>());
 
             IBatchHandler<T> GetBatchHandler()
             {

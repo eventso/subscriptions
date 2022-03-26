@@ -6,31 +6,31 @@ using System.Threading.Tasks;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    public sealed class OrderedWithinKeyBatchHandler<T> : IBatchHandler<T>
-        where T : IMessage
+    public sealed class OrderedWithinKeyBatchHandler<TEvent> : IBatchHandler<TEvent>
+        where TEvent : IEvent
     {
         private readonly IMessageBatchPipelineAction _pipelineAction;
-        private readonly SingleTypeBatchHandler<T> _singleTypeHandler;
+        private readonly SingleTypeBatchHandler<TEvent> _singleTypeHandler;
 
         public OrderedWithinKeyBatchHandler(IMessageBatchPipelineAction pipelineAction)
         {
             _pipelineAction = pipelineAction;
-            _singleTypeHandler = new SingleTypeBatchHandler<T>(_pipelineAction);
+            _singleTypeHandler = new SingleTypeBatchHandler<TEvent>(_pipelineAction);
         }
 
-        public async Task Handle(IConvertibleCollection<T> messages, CancellationToken token)
+        public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
-            if (messages.Count == 0)
+            if (events.Count == 0)
                 return;
 
-            if (messages.OnlyContainsSame(m => m.GetPayload().GetType()))
+            if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
             {
-                await _singleTypeHandler.Handle(messages, token);
+                await _singleTypeHandler.Handle(events, token);
 
                 return;
             }
 
-            using var batches = GetBatches(messages);
+            using var batches = GetBatches(events);
 
             foreach (var batch in batches)
             {
@@ -40,17 +40,17 @@ namespace Eventso.Subscription.Observing.Batch
             }
         }
 
-        private async Task HandleTyped<TPayload>(
-            TPayload sample,
-            IConvertibleCollection<object> payloads,
+        private async Task HandleTyped<TMessage>(
+            TMessage sample,
+            IConvertibleCollection<object> messages,
             CancellationToken token)
         {
-            await _pipelineAction.Invoke(payloads.Convert(m => (TPayload)m), token);
+            await _pipelineAction.Invoke(messages.Convert(m => (TMessage)m), token);
         }
         
-        private static PooledList<TypedBatch> GetBatches(IEnumerable<T> messages)
+        private static PooledList<TypedBatch> GetBatches(IEnumerable<TEvent> messages)
         {
-            var streams = messages.GroupBy(m => m.GetKey(), m => m.GetPayload());
+            var streams = messages.GroupBy(m => m.GetKey(), m => m.GetMessage());
             var batches = new PooledList<TypedBatch>(4);
 
             foreach (var stream in streams)

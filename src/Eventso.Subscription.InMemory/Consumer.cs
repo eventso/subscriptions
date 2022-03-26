@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace Eventso.Subscription.InMemory
 {
-    public sealed class Consumer : IConsumer<Message>
+    public sealed class Consumer : IConsumer<Event>
     {
         public Consumer(string topic) =>
             Subscription = topic;
@@ -12,11 +12,11 @@ namespace Eventso.Subscription.InMemory
         
         public string Subscription { get; }
 
-        public void Acknowledge(in Message message)
+        public void Acknowledge(in Event events)
         {
         }
 
-        public void Acknowledge(IReadOnlyList<Message> messages)
+        public void Acknowledge(IReadOnlyList<Event> events)
         {
         }
 

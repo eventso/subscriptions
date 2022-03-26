@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Eventso.Subscription.Inbox
 {
     public sealed class ParkingEventObserver<T> : IObserver<T>
-        where T : IMessage
+        where T : IEvent
     {
         private readonly InboxConfiguration _inboxConfiguration;
         private readonly IObserver<T> _observer;
@@ -23,22 +23,22 @@ namespace Eventso.Subscription.Inbox
             IMessageHandlersRegistry messageHandlersRegistry)
         {
             _inboxConfiguration = inboxConfiguration;
-            _observer = new MessageObserver<T>(
+            _observer = new EventObserver<T>(
                 pipelineFactory.Create(configuration), 
                 consumer,
                 messageHandlersRegistry,
                 true, 
                 new DeferredAckConfiguration(),
-                loggerFactory.CreateLogger<MessageObserver<T>>());
+                loggerFactory.CreateLogger<EventObserver<T>>());
 
             _logger = loggerFactory.CreateLogger<ParkingEventObserver<T>>();
         }
 
-        public async Task OnMessageAppeared(T message, CancellationToken token)
+        public async Task OnEventAppeared(T @event, CancellationToken token)
         {
             try
             {
-                await _observer.OnMessageAppeared(message, token);
+                await _observer.OnEventAppeared(@event, token);
             }
             catch (OperationCanceledException)
             {
@@ -49,7 +49,7 @@ namespace Eventso.Subscription.Inbox
                 if (token.IsCancellationRequested)
                     throw;
 
-                await Park(message.GetKey(), message.GetPayload(), ex);
+                await Park(@event.GetKey(), @event.GetMessage(), ex);
             }
         }
 
