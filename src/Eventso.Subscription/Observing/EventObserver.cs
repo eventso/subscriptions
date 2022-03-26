@@ -7,26 +7,26 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Observing
 {
-    public sealed class MessageObserver<T> : IObserver<T>
-        where T : IMessage
+    public sealed class EventObserver<TEvent> : IObserver<TEvent>
+        where TEvent : IEvent
     {
         private readonly IMessagePipelineAction _pipelineAction;
-        private readonly IConsumer<T> _consumer;
+        private readonly IConsumer<TEvent> _consumer;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
         private readonly bool _skipUnknown;
         private readonly DeferredAckConfiguration _deferredAckConfiguration;
-        private readonly ILogger<MessageObserver<T>> _logger;
-        private readonly List<T> _skipped = new();
+        private readonly ILogger<EventObserver<TEvent>> _logger;
+        private readonly List<TEvent> _skipped = new();
         private DateTime _deferredAckStartTime;
 
-        public MessageObserver(
+        public EventObserver(
             IMessagePipelineAction pipelineAction,
-            IConsumer<T> consumer,
+            IConsumer<TEvent> consumer,
             IMessageHandlersRegistry messageHandlersRegistry,
             bool skipUnknown,
             DeferredAckConfiguration deferredAckConfiguration,
-            ILogger<MessageObserver<T>> logger)
+            ILogger<EventObserver<TEvent>> logger)
         {
             _pipelineAction = pipelineAction;
             _consumer = consumer;
@@ -36,24 +36,24 @@ namespace Eventso.Subscription.Observing
             _logger = logger;
         }
 
-        public async Task OnMessageAppeared(T message, CancellationToken token)
+        public async Task OnEventAppeared(TEvent @event, CancellationToken token)
         {
-            if (message.CanSkip(_skipUnknown))
+            if (@event.CanSkip(_skipUnknown))
             {
-                DeferAck(message);
+                DeferAck(@event);
                 return;
             }
 
             var hasHandler = _messageHandlersRegistry.ContainsHandlersFor(
-                message.GetPayload().GetType(), out var handlerKind);
+                @event.GetMessage().GetType(), out var handlerKind);
 
             if (!hasHandler)
             {
-                DeferAck(message);
+                DeferAck(@event);
                 return;
             }
 
-            var metadata = message.GetMetadata();
+            var metadata = @event.GetMetadata();
 
             using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
 
@@ -63,14 +63,14 @@ namespace Eventso.Subscription.Observing
                 throw new InvalidOperationException(
                     $"There is no single message handler for subscription {_consumer.Subscription}");
 
-            dynamic payload = message.GetPayload();
+            dynamic message = @event.GetMessage();
 
-            await _pipelineAction.Invoke(payload, token);
+            await _pipelineAction.Invoke(message, token);
 
-            _consumer.Acknowledge(message);
+            _consumer.Acknowledge(@event);
         }
 
-        public Task OnMessageTimeout(CancellationToken token)
+        public Task OnEventTimeout(CancellationToken token)
         {
             if (_skipped.Count > 0 && IsDeferredAckThresholdCrossed())
                 AckDeferredMessages();
@@ -78,7 +78,7 @@ namespace Eventso.Subscription.Observing
             return Task.CompletedTask;
         }
 
-        private void DeferAck(in T skippedMessage)
+        private void DeferAck(in TEvent skippedMessage)
         {
             if (_deferredAckConfiguration.MaxBufferSize == 0)
             {

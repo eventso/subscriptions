@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    public sealed class OrderedWithinTypeBatchHandler<T> : IBatchHandler<T>
-        where T : IMessage
+    public sealed class OrderedWithinTypeBatchHandler<TEvent> : IBatchHandler<TEvent>
+        where TEvent : IEvent
     {
         private readonly IMessageBatchPipelineAction _pipelineAction;
 
@@ -15,14 +15,14 @@ namespace Eventso.Subscription.Observing.Batch
             _pipelineAction = pipelineAction;
         }
 
-        public async Task Handle(IConvertibleCollection<T> messages, CancellationToken token)
+        public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
-            if (messages.Count == 0)
+            if (events.Count == 0)
                 return;
 
-            var groupedByType = messages.GroupBy(
-                m => m.GetPayload().GetType(),
-                m => m.GetPayload());
+            var groupedByType = events.GroupBy(
+                m => m.GetMessage().GetType(),
+                m => m.GetMessage());
 
             foreach (var group in groupedByType)
                 await HandleTyped((dynamic)group.First(), @group, token);

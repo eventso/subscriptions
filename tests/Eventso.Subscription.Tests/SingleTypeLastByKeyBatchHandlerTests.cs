@@ -15,21 +15,21 @@ namespace Eventso.Subscription.Tests
     {
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
-        private readonly SingleTypeLastByKeyBatchHandler<TestMessage> _handler;
+        private readonly SingleTypeLastByKeyBatchHandler<TestEvent> _handler;
         private readonly Fixture _fixture = new();
 
         public SingleTypeLastByKeyBatchHandlerTests()
         {
             var action = Substitute.For<IMessageBatchPipelineAction>();
-            action.Invoke<RedEvent>(default, default)
+            action.Invoke<RedMessage>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
-                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedEvent>>());
-                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedEvent>>());
+                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedMessage>>());
+                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
                 });
 
-            _handler = new SingleTypeLastByKeyBatchHandler<TestMessage>(action);
+            _handler = new SingleTypeLastByKeyBatchHandler<TestEvent>(action);
         }
 
         [Fact]
@@ -37,8 +37,8 @@ namespace Eventso.Subscription.Tests
         {
             var keys = _fixture.CreateMany<Guid>(3).ToArray();
 
-            var events = keys.SelectMany(k => _fixture.CreateMany<RedEvent>(10)
-                    .Select(e => new TestMessage(k, e)))
+            var events = keys.SelectMany(k => _fixture.CreateMany<RedMessage>(10)
+                    .Select(e => new TestEvent(k, e)))
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
@@ -47,7 +47,7 @@ namespace Eventso.Subscription.Tests
             _handledEvents.Should().BeEquivalentTo(
                 events
                     .GroupBy(x => x.GetKey())
-                    .Select(x => x.Last().GetPayload()));
+                    .Select(x => x.Last().GetMessage()));
 
             _handledBatches.Should().HaveCount(1);
         }

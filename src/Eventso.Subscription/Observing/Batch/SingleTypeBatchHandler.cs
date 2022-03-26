@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    public sealed class SingleTypeBatchHandler<T> : IBatchHandler<T>
-        where T : IMessage
+    public sealed class SingleTypeBatchHandler<TEvent> : IBatchHandler<TEvent>
+        where TEvent : IEvent
     {
         private readonly IMessageBatchPipelineAction _pipelineAction;
 
@@ -13,17 +13,17 @@ namespace Eventso.Subscription.Observing.Batch
             _pipelineAction = pipelineAction;
         }
 
-        public Task Handle(IConvertibleCollection<T> messages, CancellationToken token)
+        public Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
-            if (messages.Count == 0)
+            if (events.Count == 0)
                 return Task.CompletedTask;
 
-            return HandleTyped((dynamic)messages[0].GetPayload(), messages, token);
+            return HandleTyped((dynamic)events[0].GetMessage(), events, token);
         }
 
-        private Task HandleTyped<TPayload>(TPayload sample, IConvertibleCollection<T> convertibles, CancellationToken token)
+        private Task HandleTyped<TPayload>(TPayload sample, IConvertibleCollection<TEvent> convertibles, CancellationToken token)
         {
-            return _pipelineAction.Invoke(convertibles.Convert(m => (TPayload)m.GetPayload()), token);
+            return _pipelineAction.Invoke(convertibles.Convert(m => (TPayload)m.GetMessage()), token);
         }
     }
 }

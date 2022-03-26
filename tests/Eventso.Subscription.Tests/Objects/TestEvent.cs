@@ -3,16 +3,16 @@ using System.Collections.Generic;
 
 namespace Eventso.Subscription.Tests
 {
-    public readonly struct TestMessage : IMessage
+    public readonly struct TestEvent : IEvent
     {
         private readonly Guid _key;
-        private readonly object _payload;
+        private readonly object _message;
 
-        public TestMessage(Guid key, object payload, int batchNumber = 0)
+        public TestEvent(Guid key, object message, int batchNumber = 0)
         {
             BatchNumber = batchNumber;
             _key = key;
-            _payload = payload;
+            _message = message;
         }
 
         public int BatchNumber { get; }
@@ -21,7 +21,7 @@ namespace Eventso.Subscription.Tests
 
         public Guid GetKey() => _key;
 
-        public object GetPayload() => _payload;
+        public object GetMessage() => _message;
 
         public string GetIdentity() => Guid.NewGuid().ToString();
 

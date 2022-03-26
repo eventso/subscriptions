@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    public interface IBatchHandler<in T>
-        where T : IMessage
+    public interface IBatchHandler<in TEvent>
+        where TEvent : IEvent
     {
-        Task Handle(IConvertibleCollection<T> messages, CancellationToken token);
+        Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token);
     }
 }

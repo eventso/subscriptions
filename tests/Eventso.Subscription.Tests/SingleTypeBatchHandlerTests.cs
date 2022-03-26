@@ -15,34 +15,34 @@ namespace Eventso.Subscription.Tests
     {
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
-        private readonly SingleTypeBatchHandler<TestMessage> _handler;
+        private readonly SingleTypeBatchHandler<TestEvent> _handler;
         private readonly Fixture _fixture = new();
 
         public SingleTypeBatchHandlerTests()
         {
             var action = Substitute.For<IMessageBatchPipelineAction>();
-            action.Invoke<RedEvent>(default, default)
+            action.Invoke<RedMessage>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
-                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedEvent>>());
-                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedEvent>>());
+                    _handledEvents.AddRange(c.Arg<IReadOnlyCollection<RedMessage>>());
+                    _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
                 });
 
-            _handler = new SingleTypeBatchHandler<TestMessage>(action);
+            _handler = new SingleTypeBatchHandler<TestEvent>(action);
         }
 
         [Fact]
         public async Task SingleTypeMessages_SameOrder()
         {
-            var events = _fixture.CreateMany<(RedEvent e, Guid k)>(10)
-                .Select(x => new TestMessage(x.k, x.e))
+            var events = _fixture.CreateMany<(RedMessage e, Guid k)>(10)
+                .Select(x => new TestEvent(x.k, x.e))
                 .ToConvertibleCollection();
 
             await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
-                events.Select(x => x.GetPayload()),
+                events.Select(x => x.GetMessage()),
                 c => c.WithStrictOrdering());
 
             _handledBatches.Should().HaveCount(1);
@@ -52,7 +52,7 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task EmptyMessages_NoBatches()
         {
-            await _handler.Handle(Array.Empty<TestMessage>().ToConvertibleCollection(),
+            await _handler.Handle(Array.Empty<TestEvent>().ToConvertibleCollection(),
                 CancellationToken.None);
 
             _handledEvents.Should().BeEmpty();
@@ -63,10 +63,10 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task MultiTypeMessages_Throws()
         {
-            var events = _fixture.CreateMany<(RedEvent e, Guid k)>(10)
-                .Select(x => new TestMessage(x.k, x.e))
-                .Concat(_fixture.CreateMany<(BlueEvent e, Guid k)>(10)
-                    .Select(x => new TestMessage(x.k, x.e)))
+            var events = _fixture.CreateMany<(RedMessage e, Guid k)>(10)
+                .Select(x => new TestEvent(x.k, x.e))
+                .Concat(_fixture.CreateMany<(BlueMessage e, Guid k)>(10)
+                    .Select(x => new TestEvent(x.k, x.e)))
                 .ToConvertibleCollection();
 
             Func<Task> act = () => _handler.Handle(events, CancellationToken.None);

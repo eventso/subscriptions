@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Eventso.Subscription.Observing.Batch
 {
-    public sealed class SingleTypeLastByKeyBatchHandler<T> : IBatchHandler<T>
-        where T : IMessage
+    public sealed class SingleTypeLastByKeyBatchHandler<TEvent> : IBatchHandler<TEvent>
+        where TEvent : IEvent
     {
         private readonly IMessageBatchPipelineAction _pipelineAction;
 
@@ -15,22 +15,22 @@ namespace Eventso.Subscription.Observing.Batch
             _pipelineAction = pipelineAction;
         }
 
-        public Task Handle(IConvertibleCollection<T> messages, CancellationToken token)
+        public Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
-            if (messages.Count == 0)
+            if (events.Count == 0)
                 return Task.CompletedTask;
 
-            return HandleTyped((dynamic)messages[0].GetPayload(), messages, token);
+            return HandleTyped((dynamic)events[0].GetMessage(), events, token);
         }
 
-        private Task HandleTyped<TPayload>(TPayload sample, IReadOnlyList<T> messages, CancellationToken token)
+        private Task HandleTyped<TPayload>(TPayload sample, IReadOnlyList<TEvent> messages, CancellationToken token)
         {
             var dictionary = new Dictionary<Guid, TPayload>(messages.Count);
 
             for (var i = 0; i < messages.Count; ++i)
             {
                 var message = messages[i];
-                dictionary[message.GetKey()] = (TPayload)message.GetPayload();
+                dictionary[message.GetKey()] = (TPayload)message.GetMessage();
             }
 
             return _pipelineAction.Invoke(dictionary.Values, token);

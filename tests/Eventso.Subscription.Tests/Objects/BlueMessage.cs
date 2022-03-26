@@ -2,11 +2,11 @@ using System;
 
 namespace Eventso.Subscription.Tests
 {
-    public sealed class BlueEvent
+    public sealed class BlueMessage
     {
         public Guid Id { get; }
 
-        public BlueEvent(Guid id)
+        public BlueMessage(Guid id)
         {
             Id = id;
         }

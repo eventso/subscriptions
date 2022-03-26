@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 namespace Eventso.Subscription.InMemory
 {
-    public sealed class Message : IMessage
+    public sealed class Event : IEvent
     {
         private readonly ConsumedMessage _consumedMessage;
 
-        public Message(ConsumedMessage consumedMessage) => _consumedMessage = consumedMessage;
+        public Event(ConsumedMessage consumedMessage) => _consumedMessage = consumedMessage;
 
         public DeserializationStatus DeserializationResult => _consumedMessage.Status;
 
@@ -15,7 +15,7 @@ namespace Eventso.Subscription.InMemory
 
         public Guid GetKey() => Guid.NewGuid();
 
-        public object GetPayload() =>
+        public object GetMessage() =>
             _consumedMessage.Message ?? throw new InvalidOperationException("Unknown message");
 
         public string GetIdentity() => _consumedMessage.Message.GetHashCode().ToString();

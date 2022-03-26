@@ -36,9 +36,9 @@ namespace Eventso.Subscription.Kafka.Insights
                 configuration.Settings.Config.BootstrapServers,
                 valueObjectDeserializer);
 
-            var messageOffset = new TopicPartitionOffset(topic, partition, offset);
+            var requestedOffset = new TopicPartitionOffset(topic, partition, offset);
 
-            var result = consumer.Consume(messageOffset, token);
+            var result = consumer.Consume(requestedOffset, token);
 
             if (result == null)
                 return null;
@@ -56,9 +56,9 @@ namespace Eventso.Subscription.Kafka.Insights
                 configuration.Settings.Config.BootstrapServers,
                 Deserializers.Utf8);
 
-            var messageOffset = new TopicPartitionOffset(topic, partition, offset);
+            var requestedOffset = new TopicPartitionOffset(topic, partition, offset);
 
-            var result = consumer.Consume(messageOffset, token);
+            var result = consumer.Consume(requestedOffset, token);
 
             if (result == null)
                 return null;

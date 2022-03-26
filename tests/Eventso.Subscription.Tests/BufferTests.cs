@@ -12,28 +12,28 @@ namespace Eventso.Subscription.Tests
     public sealed class BufferTests
     {
         private readonly Fixture _fixture = new();
-        private readonly BufferBlock<Buffer<RedEvent>.Batch> _bufferBlock = new();
+        private readonly BufferBlock<Buffer<RedMessage>.Batch> _bufferBlock = new();
 
         [Fact]
         public async Task AddingItemToFaultedBuffer_Throws()
         {
-            var faultedBlock = new ActionBlock<Buffer<RedEvent>.Batch>(
+            var faultedBlock = new ActionBlock<Buffer<RedMessage>.Batch>(
                 _ => throw new TestException(),
                 new ExecutionDataflowBlockOptions { BoundedCapacity = 1 });
 
-            var buffer = new Buffer<RedEvent>(
+            var buffer = new Buffer<RedMessage>(
                 maxBatchSize: 2,
                 Timeout.InfiniteTimeSpan,
                 faultedBlock,
                 maxBufferSize: 6);
 
-            foreach (var redEvent in _fixture.CreateMany<RedEvent>(2))
+            foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
                 await buffer.Add(redEvent, false, CancellationToken.None);
 
             Task.WaitAny(faultedBlock.Completion);
 
             Func<Task> act = () =>
-                buffer.Add(_fixture.Create<RedEvent>(), false, CancellationToken.None);
+                buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
             await act.Should().ThrowAsync<TestException>();
         }
@@ -41,13 +41,13 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task AddingItemToBufferWithCompletedTarget_Throws()
         {
-            var buffer = new Buffer<RedEvent>(
+            var buffer = new Buffer<RedMessage>(
                 maxBatchSize: 2,
                 Timeout.InfiniteTimeSpan,
                 _bufferBlock,
                 maxBufferSize: 6);
 
-            foreach (var redEvent in _fixture.CreateMany<RedEvent>(2))
+            foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
                 await buffer.Add(redEvent, false, CancellationToken.None);
 
             _bufferBlock.Complete();
@@ -55,7 +55,7 @@ namespace Eventso.Subscription.Tests
             await _bufferBlock.Completion;
 
             Func<Task> act = () =>
-                buffer.Add(_fixture.Create<RedEvent>(), false, CancellationToken.None);
+                buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
             await act.Should().ThrowAsync<InvalidOperationException>();
         }

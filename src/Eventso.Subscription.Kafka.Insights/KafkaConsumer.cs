@@ -15,11 +15,11 @@ namespace Eventso.Subscription.Kafka.Insights
             _errorWatcher = errorWatcher;
         }
 
-        public ConsumeResult<string, T> Consume(TopicPartitionOffset messageOffset, CancellationToken token)
+        public ConsumeResult<string, T> Consume(TopicPartitionOffset offset, CancellationToken token)
         {
             try
             {
-                _consumer.Assign(messageOffset);
+                _consumer.Assign(offset);
 
                 using var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(
                     _errorWatcher.OnErrorToken, token);
@@ -28,7 +28,7 @@ namespace Eventso.Subscription.Kafka.Insights
                 {
                     var result = _consumer.Consume(tokenSource.Token);
 
-                    if (result != null && !result.TopicPartitionOffset.Equals(messageOffset))
+                    if (result != null && !result.TopicPartitionOffset.Equals(offset))
                         throw new InvalidOperationException("Consumed message offset doesn't match requested one.");
 
                     return result;

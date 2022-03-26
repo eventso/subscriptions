@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace Eventso.Subscription
 {
-    public interface IMessage
+    public interface IEvent
     {
         DeserializationStatus DeserializationResult { get; }
 
         Guid GetKey();
-        object GetPayload();
+        object GetMessage();
 
         string GetIdentity();
 

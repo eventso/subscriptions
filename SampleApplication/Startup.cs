@@ -28,7 +28,7 @@ namespace SampleApplication
                         {
                             Topic = "some-topic"
                         },
-                        new JsonMessageDeserializer<Event>()),
+                        new JsonMessageDeserializer<Message>()),
                 types => types.FromAssemblyOf<Startup>());
 
             services.AddMvc()
@@ -56,13 +56,13 @@ namespace SampleApplication
             app.UseSwaggerUI();
         }
 
-        public record Event(string @event, DateTime date, long id);
+        public record Message(string message, DateTime date, long id);
 
-        public class EventHandler : IMessageHandler<Event>
+        public class MessageHandler : IMessageHandler<Message>
         {
-            public Task Handle(Event message, CancellationToken token)
+            public Task Handle(Message message, CancellationToken token)
             {
-                Console.WriteLine($"Event received {message.@event}, {message.date}, {message.id}");
+                Console.WriteLine($"Message received {message.message}, {message.date}, {message.id}");
                 return Task.CompletedTask;
             }
         }

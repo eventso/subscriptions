@@ -29,7 +29,7 @@ namespace Eventso.Subscription.Kafka
             }
             catch (Exception ex)
             {
-                throw new InvalidMessageException(
+                throw new InvalidEventException(
                     context.Topic,
                     $"Can't deserialize message. Deserializer type {_deserializer.GetType().Name}",
                     ex);

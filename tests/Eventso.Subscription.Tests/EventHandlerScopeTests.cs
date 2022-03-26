@@ -14,30 +14,30 @@ namespace Eventso.Subscription.Tests
         public void Test()
         {
             var builder = new ServiceCollection();
-            builder.AddScoped<IMessageHandler<RedEvent>, RedMessageHandler>();
-            builder.AddScoped<IMessageHandler<RedEvent>, AnotherRedMessageHandler>();
+            builder.AddScoped<IMessageHandler<RedMessage>, RedMessageHandler>();
+            builder.AddScoped<IMessageHandler<RedMessage>, AnotherRedMessageHandler>();
 
             var provider = builder.BuildServiceProvider();
 
             var scope = new MessageHandlerScopeFactory(provider.GetRequiredService<IServiceScopeFactory>())
                 .BeginScope();
 
-            var service = scope.Resolve<RedEvent>();
+            var service = scope.Resolve<RedMessage>();
 
             service.Should().NotBeNull().And.HaveCount(2);
         }
 
-        public class RedMessageHandler : IMessageHandler<RedEvent>
+        public class RedMessageHandler : IMessageHandler<RedMessage>
         {
-            public Task Handle(RedEvent message, CancellationToken token)
+            public Task Handle(RedMessage message, CancellationToken token)
             {
                 throw new NotImplementedException();
             }
         }
 
-        public class AnotherRedMessageHandler : IMessageHandler<RedEvent>
+        public class AnotherRedMessageHandler : IMessageHandler<RedMessage>
         {
-            public Task Handle(RedEvent message, CancellationToken token)
+            public Task Handle(RedMessage message, CancellationToken token)
             {
                 throw new NotImplementedException();
             }

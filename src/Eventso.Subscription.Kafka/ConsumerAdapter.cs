@@ -6,7 +6,7 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka
 {
-    public sealed class ConsumerAdapter : IConsumer<Message>
+    public sealed class ConsumerAdapter : IConsumer<Event>
     {
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly IConsumer<Guid, ConsumedMessage> _consumer;
@@ -24,39 +24,39 @@ namespace Eventso.Subscription.Kafka
 
         public string Subscription { get; }
 
-        public void Acknowledge(in Message message)
+        public void Acknowledge(in Event events)
         {
             var offset = new TopicPartitionOffset[]
             {
-                new(message.Topic, message.Partition, message.Offset + 1)
+                new(events.Topic, events.Partition, events.Offset + 1)
             };
 
             _consumer.Commit(offset);
         }
 
-        public void Acknowledge(IReadOnlyList<Message> messages)
+        public void Acknowledge(IReadOnlyList<Event> events)
         {
-            if (messages.Count == 0)
+            if (events.Count == 0)
                 return;
 
-            if (messages.Count == 1)
+            if (events.Count == 1)
             {
-                Acknowledge(messages[0]);
+                Acknowledge(events[0]);
                 return;
             }
 
-            _consumer.Commit(GetLatestOffsets(messages));
+            _consumer.Commit(GetLatestOffsets(events));
 
-            static IEnumerable<TopicPartitionOffset> GetLatestOffsets(IReadOnlyList<Message> messages)
+            static IEnumerable<TopicPartitionOffset> GetLatestOffsets(IReadOnlyList<Event> events)
             {
                 var offsets = new Dictionary<(string, Partition), Offset>(4);
 
-                for (var i = 0; i < messages.Count; i++)
+                for (var i = 0; i < events.Count; i++)
                 {
-                    var current = messages[i];
-                    var isLastMessage = i == messages.Count - 1;
+                    var current = events[i];
+                    var isLastMessage = i == events.Count - 1;
 
-                    if (isLastMessage || !EqualPartition(current, messages[i + 1]))
+                    if (isLastMessage || !EqualPartition(current, events[i + 1]))
                     {
                         var key = (current.Topic, current.Partition);
                         offsets[key] = current.Offset;
@@ -66,7 +66,7 @@ namespace Eventso.Subscription.Kafka
                 return offsets.Select(o => 
                     new TopicPartitionOffset(o.Key.Item1, o.Key.Item2, o.Value + 1));
 
-                static bool EqualPartition(Message left, Message right)
+                static bool EqualPartition(Event left, Event right)
                     => left.Partition == right.Partition &&
                        left.Topic.Equals(right.Topic);
             }

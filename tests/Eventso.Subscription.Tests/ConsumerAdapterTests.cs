@@ -45,7 +45,7 @@ namespace Eventso.Subscription.Tests
                                 .With(e => e.Partition, new Partition(partition))
                                 .With(e => e.Offset, offset)
                                 .Create())
-                ).Select(r => new Message(r, topic))
+                ).Select(r => new Event(r, topic))
                 .ToArray();
 
             adapter.Acknowledge(messages);
@@ -81,7 +81,7 @@ namespace Eventso.Subscription.Tests
                         .With(e => e.Partition, new Partition(offset % 4))
                         .With(e => e.Offset, offset)
                         .Create()
-                ).Select(r => new Message(r, topic))
+                ).Select(r => new Event(r, topic))
                 .ToArray();
 
             adapter.Acknowledge(messages);
@@ -119,7 +119,7 @@ namespace Eventso.Subscription.Tests
                         .With(e => e.Partition, new Partition(rnd.Next(0, 4)))
                         .With(e => e.Offset, offset)
                         .Create()
-                ).Select(r => new Message(r, topic))
+                ).Select(r => new Event(r, topic))
                 .ToArray();
 
             adapter.Acknowledge(messages);

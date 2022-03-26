@@ -12,7 +12,7 @@ namespace Eventso.Subscription.InMemory
     [ApiController]
     public sealed class InMemoryBusController : ControllerBase
     {
-        private static readonly ConcurrentDictionary<string, IObserver<Message>> BatchObserverByTopicMapping = new();
+        private static readonly ConcurrentDictionary<string, IObserver<Event>> BatchObserverByTopicMapping = new();
 
         private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
@@ -49,7 +49,7 @@ namespace Eventso.Subscription.InMemory
             var consumer = new Consumer(topic);
             var observer = observerFactory.Create(consumer);
 
-            var message = new Message(consumedMessage);
+            var message = new Event(consumedMessage);
 
             if (subscriptionConfiguration.BatchProcessingRequired)
             {
@@ -63,10 +63,10 @@ namespace Eventso.Subscription.InMemory
                         return observer;
                     });
 
-                var _ = mappedObserver.OnMessageAppeared(message, CancellationToken.None);
+                var _ = mappedObserver.OnEventAppeared(message, CancellationToken.None);
             }
             else
-                await observer.OnMessageAppeared(message, CancellationToken.None);
+                await observer.OnEventAppeared(message, CancellationToken.None);
 
             return Ok();
         }
@@ -85,7 +85,7 @@ namespace Eventso.Subscription.InMemory
                 await Task.Delay(timeout);
 
                 if (BatchObserverByTopicMapping.TryRemove(topic, out var observer))
-                    await observer.OnMessageTimeout(CancellationToken.None);
+                    await observer.OnEventTimeout(CancellationToken.None);
             });
         }
 
@@ -111,7 +111,7 @@ namespace Eventso.Subscription.InMemory
                 }
                 catch (Exception exception)
                 {
-                    throw new InvalidMessageException(
+                    throw new InvalidEventException(
                         topic,
                         $"Can't deserialize message. Deserializer type {_deserializer.GetType().Name}",
                         exception);
