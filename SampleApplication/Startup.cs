@@ -31,6 +31,18 @@ namespace SampleApplication
                         new JsonMessageDeserializer<Message>()),
                 types => types.FromAssemblyOf<Startup>());
 
+            // services.AddKafkaListener(
+            //     kafka => kafka
+            //         .AddSubscriptions((subs, _) =>
+            //             subs.Add(
+            //                 new ConsumerSettings("kafka:9092", "test-group-id", autoOffsetReset: AutoOffsetReset.Latest)
+            //                 {
+            //                     Topic = "some-topic"
+            //                 },
+            //                 new JsonMessageDeserializer<Message>()))
+            //         .ConfigureHandlersSelector(types => types.FromAssemblyOf<Startup>())
+            //         .ConfigureDeadLetterQueue(e => e.UsePostgresStore(default(IConnectionFactory))));
+            
             services.AddMvc()
                 .AddKafkaInsights();
 
