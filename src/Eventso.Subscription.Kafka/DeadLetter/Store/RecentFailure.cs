@@ -1,18 +1,17 @@
-using System;
 using System.Runtime.InteropServices;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
     [StructLayout(LayoutKind.Auto)]
-    public readonly struct StoredFailure
+    public readonly struct RecentFailure
     {
-        public StoredFailure(DateTime timestamp, string reason)
+        public RecentFailure(PartitionOffset partitionOffset, string reason)
         {
-            Timestamp = timestamp;
+            PartitionOffset = partitionOffset;
             Reason = reason;
         }
 
-        public DateTime Timestamp { get; }
+        public PartitionOffset PartitionOffset { get; }
 
         public string Reason { get; }
     }
