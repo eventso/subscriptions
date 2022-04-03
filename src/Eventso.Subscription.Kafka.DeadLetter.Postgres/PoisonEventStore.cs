@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,14 +12,25 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
     public sealed class PoisonEventStore : IPoisonEventStore
     {
         private readonly IConnectionFactory _connectionFactory;
+        private readonly int _maxAllowedFailureCount;
+        private readonly TimeSpan _minIntervalBetweenRetries;
 
         public PoisonEventStore(
-            IConnectionFactory connectionFactory)
+            IConnectionFactory connectionFactory,
+            // TODO receive from settings
+            int? maxAllowedFailureCount = default,
+            TimeSpan? minIntervalBetweenRetries = default)
         {
             _connectionFactory = connectionFactory;
+            _maxAllowedFailureCount = maxAllowedFailureCount ?? 10;
+            _minIntervalBetweenRetries = minIntervalBetweenRetries ?? TimeSpan.FromMinutes(1);
         }
 
-        public static async Task Install(IConnectionFactory connectionFactory)
+        public static async Task<PoisonEventStore> Initialize(
+            IConnectionFactory connectionFactory,
+            // TODO receive from settings
+            int? maxAllowedFailureCount = default,
+            TimeSpan? minIntervalBetweenRetries = default)
         {
             await using var connection = connectionFactory.ReadWrite();
             
@@ -46,6 +58,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             await connection.OpenAsync();
             
             await command.ExecuteNonQueryAsync();
+
+            return new PoisonEventStore(connectionFactory);
         }
 
         public async Task<long> Count(string topic, CancellationToken cancellationToken)
@@ -96,6 +110,14 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
         {
             await using var connection = _connectionFactory.ReadOnly();
 
+            const string keysParameterName = "keys";
+            NpgsqlParameter keysParameter = keys switch
+            {
+                Guid[] array => new NpgsqlParameter<Guid[]>(keysParameterName, array),
+                List<Guid> list => new NpgsqlParameter<List<Guid>>(keysParameterName, list),
+                _ => new NpgsqlParameter<Guid[]>(keysParameterName, keys.ToArray())
+            };
+
             await using var command = new NpgsqlCommand(
                 "SELECT DISTINCT key FROM eventso_dlq.poison_events WHERE topic = @topic AND key = ANY(@keys);",
                 connection)
@@ -103,7 +125,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                 Parameters =
                 {
                     new NpgsqlParameter<string>("topic", topic),
-                    new NpgsqlParameter<IReadOnlyCollection<Guid>>("keys", keys)
+                    keysParameter
                 }
             };
 
@@ -114,7 +136,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                 yield return reader.GetGuid(0);
         }
 
-        public async Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> poisonEvents, CancellationToken token)
+        public async Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
         {
             await using var connection = _connectionFactory.ReadWrite();
 
@@ -152,7 +174,7 @@ VALUES (
     @headerValues,
     @lastFailureTimestamp,
     @lastFailureReason,
-    @totalFailureCount);",
+    1);",
                 connection)
             {
                 Parameters = {
@@ -165,15 +187,14 @@ VALUES (
                     headerKeysParameter,
                     headerValuesParameter,
                     new NpgsqlParameter<DateTime>("lastFailureTimestamp", timestamp),
-                    lastFailureReasonParameter,
-                    new NpgsqlParameter<int>("totalFailureCount", 1),
+                    lastFailureReasonParameter
                 }
             };
 
             await connection.OpenAsync(token);
             await command.PrepareAsync(token);
 
-            foreach (var poisonEvent in poisonEvents)
+            foreach (var poisonEvent in events)
             {
                 var headerKeys = new string[poisonEvent.Headers.Count];
                 var headerValues = new ReadOnlyMemory<byte>[poisonEvent.Headers.Count];
@@ -200,7 +221,7 @@ VALUES (
         public async Task AddFailures(
             string topic,
             DateTime timestamp,
-            IReadOnlyCollection<RecentFailure> failures,
+            IReadOnlyCollection<OccuredFailure> failures,
             CancellationToken token)
         {
             var partitions = new int[failures.Count];
@@ -217,13 +238,13 @@ VALUES (
 
             await using var command = new NpgsqlCommand(
                 @"
-UPDATE eventso_dlq.poison_events
+UPDATE eventso_dlq.poison_events pe
 SET
     last_failure_timestamp = @timestamp,
-    last_failure_reason = @reason,
+    last_failure_reason = input.reason,
     total_failure_count = total_failure_count + 1
 FROM UNNEST(@partitions, @offsets, @reasons) AS input(partition, ""offset"", reason)
-WHERE topic = @topic AND partition = input.partition AND ""offset"" = input.""offset"";",
+WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
                 connection)
             {
                 Parameters =
@@ -256,9 +277,8 @@ WHERE topic = @topic AND partition = input.partition AND ""offset"" = input.""of
             await using var command = new NpgsqlCommand(
                 @"
 DELETE FROM eventso_dlq.poison_events pe
-JOIN UNNEST (@partitions, @offsets) AS input(partition, ""offset"")
-ON pe.partition = input.partition AND pe.""offset"" = input.""offset""
-WHERE topic = @topic;",
+USING UNNEST (@partitions, @offsets) AS input(partition, ""offset"")
+WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
                 connection)
             {
                 Parameters =
@@ -310,8 +330,8 @@ WHERE
                 Parameters =
                 {
                     new NpgsqlParameter<string>("topic", topic),
-                    new NpgsqlParameter<int>("maxAllowedFailureCount", 20), // TODO from settings
-                    new NpgsqlParameter<TimeSpan>("minIntervalBetweenRetries", TimeSpan.FromMinutes(1))  // TODO from settings
+                    new NpgsqlParameter<int>("maxAllowedFailureCount", _maxAllowedFailureCount),
+                    new NpgsqlParameter<TimeSpan>("minIntervalBetweenRetries", _minIntervalBetweenRetries)
                 }
             };
 

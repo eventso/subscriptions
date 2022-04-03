@@ -22,10 +22,10 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         public IAsyncEnumerable<Guid> GetStoredKeys(string topic, IReadOnlyCollection<Guid> keys, CancellationToken cancellationToken)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> poisonEvents, CancellationToken token)
+        public Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task AddFailures(string topic, DateTime timestamp, IReadOnlyCollection<RecentFailure> failures, CancellationToken token)
+        public Task AddFailures(string topic, DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
         public Task Remove(string topic, IReadOnlyCollection<PartitionOffset> partitionOffsets, CancellationToken token)
