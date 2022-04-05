@@ -12,9 +12,11 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
         //     this IDeadLetterQueueOptions options,
         //     IConnectionFactory connectionFactory)
         // {
-        //     options.KafkaListener.Services.Replace(
-        //         ServiceDescriptor.Singleton<IPoisonEventStore>(new PoisonEventStore(connectionFactory)));
         //
+        //     var store = PoisonEventStore.Initialize(database.ConnectionFactory).GetAwaiter().GetResult(); 
+        //     options.KafkaListener.Services.Replace(
+        // //         ServiceDescriptor.Singleton<IPoisonEventStore>(store));
+
         //     return options;
         // }
     }

@@ -7,9 +7,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
     public interface IPoisonEventStore
     {
-        IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(string topic, CancellationToken token);
-
         Task<long> Count(string topic, CancellationToken token);
+
+        IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(string topic, CancellationToken token);
 
         Task<bool> IsKeyStored(string topic, Guid key, CancellationToken token);
 
@@ -21,13 +21,13 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         Task Add(
             string topic,
             DateTime timestamp,
-            IReadOnlyCollection<OpeningPoisonEvent> poisonEvents,
+            IReadOnlyCollection<OpeningPoisonEvent> events,
             CancellationToken token);
 
         Task AddFailures(
             string topic,
             DateTime timestamp,
-            IReadOnlyCollection<RecentFailure> failures,
+            IReadOnlyCollection<OccuredFailure> failures,
             CancellationToken token);
 
         Task Remove(
