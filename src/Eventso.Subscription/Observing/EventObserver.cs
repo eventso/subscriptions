@@ -10,7 +10,8 @@ namespace Eventso.Subscription.Observing
     public sealed class EventObserver<TEvent> : IObserver<TEvent>
         where TEvent : IEvent
     {
-        private readonly IMessagePipelineAction _pipelineAction;
+        private readonly string _topic;
+        private readonly IEventHandler<TEvent> _eventHandler;
         private readonly IConsumer<TEvent> _consumer;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
@@ -21,14 +22,16 @@ namespace Eventso.Subscription.Observing
         private DateTime _deferredAckStartTime;
 
         public EventObserver(
-            IMessagePipelineAction pipelineAction,
+            string topic,
+            IEventHandler<TEvent> eventHandler,
             IConsumer<TEvent> consumer,
             IMessageHandlersRegistry messageHandlersRegistry,
             bool skipUnknown,
             DeferredAckConfiguration deferredAckConfiguration,
             ILogger<EventObserver<TEvent>> logger)
         {
-            _pipelineAction = pipelineAction;
+            _topic = topic;
+            _eventHandler = eventHandler;
             _consumer = consumer;
             _messageHandlersRegistry = messageHandlersRegistry;
             _skipUnknown = skipUnknown;
@@ -65,7 +68,7 @@ namespace Eventso.Subscription.Observing
 
             dynamic message = @event.GetMessage();
 
-            await _pipelineAction.Invoke(message, token);
+            await _eventHandler.Handle(_topic, message, token);
 
             _consumer.Acknowledge(@event);
         }

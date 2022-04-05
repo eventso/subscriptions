@@ -10,28 +10,11 @@ namespace Eventso.Subscription.Inbox
     public sealed class ParkingEventObserver<T> : IObserver<T>
         where T : IEvent
     {
-        private readonly InboxConfiguration _inboxConfiguration;
         private readonly IObserver<T> _observer;
-        private ILogger<ParkingEventObserver<T>> _logger;
 
-        public ParkingEventObserver(
-            ILoggerFactory loggerFactory,
-            IMessagePipelineFactory pipelineFactory,
-            HandlerConfiguration configuration,
-            InboxConfiguration inboxConfiguration,
-            IConsumer<T> consumer,
-            IMessageHandlersRegistry messageHandlersRegistry)
+        public ParkingEventObserver(IObserver<T> observer)
         {
-            _inboxConfiguration = inboxConfiguration;
-            _observer = new EventObserver<T>(
-                pipelineFactory.Create(configuration), 
-                consumer,
-                messageHandlersRegistry,
-                true, 
-                new DeferredAckConfiguration(),
-                loggerFactory.CreateLogger<EventObserver<T>>());
-
-            _logger = loggerFactory.CreateLogger<ParkingEventObserver<T>>();
+            _observer = observer;
         }
 
         public async Task OnEventAppeared(T @event, CancellationToken token)

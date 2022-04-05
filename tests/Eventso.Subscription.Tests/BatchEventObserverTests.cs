@@ -16,6 +16,8 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class BatchEventObserverTests
     {
+        private const string Topic = "WOOF-WOOF";
+
         private readonly Fixture _fixture;
         private readonly BatchEventObserver<IEvent> _observer;
         private readonly TestConsumer _consumer;
@@ -29,14 +31,15 @@ namespace Eventso.Subscription.Tests
 
             _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(Topic, default(IConvertibleCollection<IEvent>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
 
             _consumer = new TestConsumer();
 
             _observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 10 },
                 batchHandler,
                 _consumer,
@@ -201,14 +204,15 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(Topic, default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
             var observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
@@ -232,8 +236,9 @@ namespace Eventso.Subscription.Tests
         public async Task ObservingDisposed_Throws()
         {
             var observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 2 },
-                Substitute.For<IBatchHandler<IEvent>>(),
+                Substitute.For<IEventHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 
@@ -259,14 +264,15 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(Topic, default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
             var observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
@@ -294,14 +300,15 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(Topic, default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
             const int batchCount = 2;
 
             var observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
                 batchHandler,
                 _consumer,
@@ -329,8 +336,9 @@ namespace Eventso.Subscription.Tests
             const int batchCount = 2;
 
             var observer = new BatchEventObserver<IEvent>(
+                Topic,
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
-                Substitute.For<IBatchHandler<IEvent>>(),
+                Substitute.For<IEventHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 

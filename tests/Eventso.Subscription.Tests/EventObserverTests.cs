@@ -16,11 +16,13 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class EventObserverTests
     {
+        private const string Topic = "NUMA NUMA";
+
         private readonly Fixture _fixture;
         private readonly TestConsumer _consumer;
         private readonly List<TestEvent> _handledEvents = new();
         private readonly IMessageHandlersRegistry _handlersRegistry;
-        private readonly IMessagePipelineAction _pipelineAction;
+        private readonly IEventHandler<TestEvent> _eventHandler;
 
         public EventObserverTests()
         {
@@ -35,11 +37,13 @@ namespace Eventso.Subscription.Tests
                     return true;
                 });
 
-            _pipelineAction = Substitute.For<IMessagePipelineAction>();
-            _pipelineAction
+            var pipelineAction = Substitute.For<IMessagePipelineAction>();
+            pipelineAction
                 .Invoke<TestEvent>(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _handledEvents.Add(c.Arg<TestEvent>()));
+
+            _eventHandler = new Observing.EventHandler<TestEvent>(_handlersRegistry, pipelineAction);
 
             _consumer = new TestConsumer();
         }
@@ -50,7 +54,8 @@ namespace Eventso.Subscription.Tests
             _fixture.Inject(DeserializationStatus.Success);
 
             var observer = new EventObserver<TestEvent>(
-                _pipelineAction,
+                Topic,
+                _eventHandler,
                 _consumer,
                 _handlersRegistry,
                 true,
@@ -76,7 +81,8 @@ namespace Eventso.Subscription.Tests
             _fixture.Inject(DeserializationStatus.Skipped);
 
             var observer = new EventObserver<TestEvent>(
-                _pipelineAction,
+                Topic,
+                _eventHandler,
                 _consumer,
                 _handlersRegistry,
                 true,
@@ -117,7 +123,8 @@ namespace Eventso.Subscription.Tests
                 }).ToArray();
 
             var observer = new EventObserver<TestEvent>(
-                _pipelineAction,
+                Topic,
+                _eventHandler,
                 _consumer,
                 _handlersRegistry,
                 true,
@@ -151,7 +158,8 @@ namespace Eventso.Subscription.Tests
             const int eventsCount = 56;
 
             var observer = new EventObserver<TestEvent>(
-                _pipelineAction,
+                Topic,
+                _eventHandler,
                 _consumer,
                 _handlersRegistry,
                 true,
@@ -187,7 +195,8 @@ namespace Eventso.Subscription.Tests
             const int eventsCount = 56;
 
             var observer = new EventObserver<TestEvent>(
-                _pipelineAction,
+                Topic,
+                _eventHandler,
                 _consumer,
                 _handlersRegistry,
                 true,
