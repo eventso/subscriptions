@@ -67,7 +67,8 @@ namespace Eventso.Subscription.Observing.DeadLetter
                     poison.Add(poisonEvent);
             }
 
-            await _poisonEventInbox.Add(poison, token);
+            if (poison?.Count > 0)
+                await _poisonEventInbox.Add(poison, token);
 
             withoutPoison?.Dispose();
             poison?.Dispose();
@@ -89,8 +90,12 @@ namespace Eventso.Subscription.Observing.DeadLetter
             for (var i = 0; i < events.Count; i++)
             {
                 var @event = events[i];
+
                 if (!poisonKeys.Contains(@event.GetKey()))
+                {
+                    withoutPoison?.Add(@event);
                     continue;
+                }
 
                 if (withoutPoison == null)
                 {
@@ -98,8 +103,6 @@ namespace Eventso.Subscription.Observing.DeadLetter
                     for (var j = 0; j < i; j++)
                         withoutPoison.Add(events[j]);
                 }
-
-                withoutPoison.Add(@event);
 
                 poison ??= new PooledList<PoisonEvent<TEvent>>(1);
                 poison.Add(new PoisonEvent<TEvent>(topic, @event, PredecessorParkedReason));

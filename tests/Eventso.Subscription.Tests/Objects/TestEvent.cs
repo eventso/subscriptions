@@ -19,6 +19,8 @@ namespace Eventso.Subscription.Tests
 
         public DeserializationStatus DeserializationResult => DeserializationStatus.Success;
 
+        public Guid Key => _key; // for test output
+
         public Guid GetKey() => _key;
 
         public object GetMessage() => _message;
