@@ -8,8 +8,6 @@ namespace Eventso.Subscription.Kafka
 {
     public sealed class KafkaConsumer : IDisposable
     {
-        private static readonly IDeserializer<Guid> KeyDeserializer = new KeyGuidDeserializer();
-
         private readonly IObserverFactory _observerFactory;
         private readonly ConsumerSettings _settings;
         private readonly int _maxObserveInterval;
@@ -40,7 +38,7 @@ namespace Eventso.Subscription.Kafka
                 throw new InvalidOperationException("Group Id is not specified.");
 
             _consumer = new ConsumerBuilder<Guid, ConsumedMessage>(settings.Config)
-                .SetKeyDeserializer(KeyDeserializer)
+                .SetKeyDeserializer(KeyGuidDeserializer.Instance)
                 .SetValueDeserializer(deserializer)
                 .SetErrorHandler((_, e) => _logger.LogError(
                     $"KafkaConsumer internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
