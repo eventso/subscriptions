@@ -55,17 +55,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 .Build();
         }
 
-        public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
-        {
-            await EnsureInboxThreshold(cancellationToken);
-
-            _logger.LogInformation($"event {new TopicPartitionOffset(@event.Event.Topic, @event.Event.Partition, @event.Event.Offset)} is first poison");
-            await _eventStore.Add(
-                CreateStoredEvent(@event, cancellationToken),
-                new StoredFailure(DateTime.UtcNow, @event.Reason),
-                cancellationToken);
-        }
-
         public async Task Add(IReadOnlyCollection<PoisonEvent<Event>> events, CancellationToken cancellationToken)
         {
             if (events.Count == 0)
@@ -73,15 +62,14 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
             await EnsureInboxThreshold(cancellationToken);
 
-            var now = DateTime.UtcNow;
             foreach (var @event in events)
-            {
                 _logger.LogInformation($"event {new TopicPartitionOffset(@event.Event.Topic, @event.Event.Partition, @event.Event.Offset)} is first poison");
-                await _eventStore.Add(
-                    CreateStoredEvent(@event, cancellationToken),
-                    new StoredFailure(now, @event.Reason),
-                    cancellationToken);
-            }
+
+            await _eventStore.Add(
+                _topic,
+                DateTime.UtcNow,
+                events.Select(e => CreateOpeningPoisonEvent(e, cancellationToken)).ToArray(),
+                cancellationToken);
         }
 
         private async Task EnsureInboxThreshold(CancellationToken cancellationToken)
@@ -97,7 +85,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
         }
 
         public Task<bool> Contains(string topic, Guid key, CancellationToken cancellationToken)
-            => _eventStore.Any(topic, key, cancellationToken);
+            => _eventStore.IsKeyStored(topic, key, cancellationToken);
 
         public async Task<IReadOnlySet<Guid>> GetContainedKeys(
             string topic,
@@ -116,7 +104,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             _deadMessageConsumer.Dispose();
         }
 
-        private StoredEvent CreateStoredEvent(
+        private OpeningPoisonEvent CreateOpeningPoisonEvent(
             PoisonEvent<Event> @event,
             CancellationToken cancellationToken)
         {
@@ -124,15 +112,16 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 new TopicPartitionOffset(@event.Topic, @event.Event.Partition, @event.Event.Offset), 
                 cancellationToken);
 
-            return new StoredEvent(
-                new TopicPartitionOffset(rawEvent.Topic, @event.Event.Partition, @event.Event.Offset),
+            return new OpeningPoisonEvent(
+                new PartitionOffset(@event.Event.Partition, @event.Event.Offset),
                 rawEvent.Message.Key,
                 rawEvent.Message.Value,
                 rawEvent.Message.Timestamp.UtcDateTime,
                 rawEvent.Message
                     .Headers
-                    .Select(c => new StoredEventHeader(c.Key, c.GetValueBytes()))
-                    .ToArray());
+                    .Select(c => new EventHeader(c.Key, c.GetValueBytes()))
+                    .ToArray(),
+                @event.Reason);
         }
 
         private ConsumeResult<Guid, byte[]> Consume(

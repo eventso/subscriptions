@@ -30,7 +30,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
             if (await _poisonEventInbox.Contains(topic, @event.GetKey(), cancellationToken))
             {
                 await _poisonEventInbox.Add(
-                    new PoisonEvent<TEvent>(topic, @event, PredecessorParkedReason),
+                    new [] { new PoisonEvent<TEvent>(topic, @event, PredecessorParkedReason) },
                     cancellationToken);
                 return;
             }
