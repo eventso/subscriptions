@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,19 +24,19 @@ namespace Eventso.Subscription.Observing.DeadLetter
             _inner = inner;
         }
 
-        public async Task Handle(string topic, TEvent @event, CancellationToken cancellationToken)
+        public async Task Handle(TEvent @event, CancellationToken cancellationToken)
         {
-            if (await _poisonEventInbox.Contains(topic, @event.GetKey(), cancellationToken))
+            if (await _poisonEventInbox.IsStreamPoisoned(@event, cancellationToken))
             {
                 await _poisonEventInbox.Add(
-                    new [] { new PoisonEvent<TEvent>(topic, @event, PredecessorParkedReason) },
+                    new [] { new PoisonEvent<TEvent>(@event, PredecessorParkedReason) },
                     cancellationToken);
                 return;
             }
 
-            using var dlqScope = _deadLetterQueueScopeFactory.Create(topic, @event);
+            using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
 
-            await _inner.Handle(topic, @event, cancellationToken);
+            await _inner.Handle(@event, cancellationToken);
 
             var poisonEvents = dlqScope.GetPoisonEvents();
             if (poisonEvents.Count == 0)
@@ -46,18 +45,15 @@ namespace Eventso.Subscription.Observing.DeadLetter
             await _poisonEventInbox.Add(poisonEvents, cancellationToken);
         }
 
-        public async Task Handle(string topic, IConvertibleCollection<TEvent> events, CancellationToken token)
+        public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
-            var poisonKeys = await _poisonEventInbox.GetContainedKeys(
-                topic,
-                events.Convert(e => e.GetKey()),
-                token);
+            var poisonStreamsEvents = await _poisonEventInbox.GetPoisonStreamsEvents(events, token);
 
-            FilterPoisonEvents(topic, events, poisonKeys, out var withoutPoison, out var poison);
+            FilterPoisonEvents(events, poisonStreamsEvents, out var withoutPoison, out var poison);
 
             var healthyEvents = withoutPoison ?? events;
-            using var dlqScope = _deadLetterQueueScopeFactory.Create(topic, healthyEvents);
-            await _inner.Handle(topic, healthyEvents, token);
+            using var dlqScope = _deadLetterQueueScopeFactory.Create(healthyEvents);
+            await _inner.Handle(healthyEvents, token);
 
             var userDefinedPoison = dlqScope.GetPoisonEvents();
             if (userDefinedPoison.Count > 0)
@@ -75,37 +71,28 @@ namespace Eventso.Subscription.Observing.DeadLetter
         }
 
         private static void FilterPoisonEvents(
-            string topic,
             IConvertibleCollection<TEvent> events,
-            IReadOnlySet<Guid> poisonKeys,
+            IReadOnlySet<TEvent> poisonStreamsEvents,
             out PooledList<TEvent> withoutPoison,
             out PooledList<PoisonEvent<TEvent>> poison)
         {
             poison = null;
             withoutPoison = null;
 
-            if (poisonKeys.Count == 0)
+            if (poisonStreamsEvents.Count == 0)
                 return;
 
-            for (var i = 0; i < events.Count; i++)
+            withoutPoison = new PooledList<TEvent>(events.Count - poisonStreamsEvents.Count);
+            poison = new PooledList<PoisonEvent<TEvent>>(poisonStreamsEvents.Count);
+            foreach (var @event in events)
             {
-                var @event = events[i];
-
-                if (!poisonKeys.Contains(@event.GetKey()))
+                if (!poisonStreamsEvents.Contains(@event))
                 {
-                    withoutPoison?.Add(@event);
+                    withoutPoison.Add(@event);
                     continue;
                 }
 
-                if (withoutPoison == null)
-                {
-                    withoutPoison = new PooledList<TEvent>(events.Count - 1);
-                    for (var j = 0; j < i; j++)
-                        withoutPoison.Add(events[j]);
-                }
-
-                poison ??= new PooledList<PoisonEvent<TEvent>>(1);
-                poison.Add(new PoisonEvent<TEvent>(topic, @event, PredecessorParkedReason));
+                poison.Add(new PoisonEvent<TEvent>(@event, PredecessorParkedReason));
             }
         }
     }

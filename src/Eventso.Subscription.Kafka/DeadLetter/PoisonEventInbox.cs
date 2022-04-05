@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
@@ -12,13 +13,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 {
     public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
     {
-        // TODO const -> settings
-        private const int MaxNumberOfPoisonedEventsInTopic = 1000;
-
         private readonly IPoisonEventStore _eventStore;
-        private readonly ILogger<PoisonEventInbox> _logger;
         private readonly IConsumer<Guid, byte[]> _deadMessageConsumer;
-        private readonly string _topic;
 
         public PoisonEventInbox(
             IPoisonEventStore eventStore,
@@ -26,14 +22,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             ILogger<PoisonEventInbox> logger)
         {
             _eventStore = eventStore;
-            _logger = logger;
-            _topic = settings.Topic;
 
             if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
                 throw new InvalidOperationException("Brokers are not specified.");
-
-            if (string.IsNullOrEmpty(settings.Topic))
-                throw new InvalidOperationException("Topics are not specified.");
 
             if (string.IsNullOrEmpty(settings.Config.GroupId))
                 throw new InvalidOperationException("Group Id is not specified.");
@@ -60,42 +51,38 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             if (events.Count == 0)
                 return;
 
-            await EnsureInboxThreshold(cancellationToken);
-
+            var inboxThresholdChecker = new InboxThresholdChecker(_eventStore);
+            var openingPoisonEvents = new PooledList<OpeningPoisonEvent>(events.Count);
             foreach (var @event in events)
-                _logger.LogInformation($"event {new TopicPartitionOffset(@event.Event.Topic, @event.Event.Partition, @event.Event.Offset)} is first poison");
+            {
+                await inboxThresholdChecker.EnsureThreshold(@event.Event.Topic, cancellationToken);
+                openingPoisonEvents.Add(CreateOpeningPoisonEvent(@event, cancellationToken));
+            }
 
-            await _eventStore.Add(
-                _topic,
-                DateTime.UtcNow,
-                events.Select(e => CreateOpeningPoisonEvent(e, cancellationToken)).ToArray(),
-                cancellationToken);
+            await _eventStore.Add(DateTime.UtcNow, openingPoisonEvents, cancellationToken);
         }
 
-        private async Task EnsureInboxThreshold(CancellationToken cancellationToken)
-        {
-            var alreadyPoisoned = await _eventStore.Count(_topic, cancellationToken);
-            if (alreadyPoisoned < MaxNumberOfPoisonedEventsInTopic)
-                return;
+        public Task<bool> IsStreamPoisoned(Event @event, CancellationToken cancellationToken)
+            => _eventStore.IsStreamStored(@event.Topic, @event.GetKey(), cancellationToken);
 
-            throw new EventHandlingException(
-                _topic,
-                $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
-                null);
-        }
-
-        public Task<bool> Contains(string topic, Guid key, CancellationToken cancellationToken)
-            => _eventStore.IsKeyStored(topic, key, cancellationToken);
-
-        public async Task<IReadOnlySet<Guid>> GetContainedKeys(
-            string topic,
-            IReadOnlyCollection<Guid> keys,
+        public async Task<IReadOnlySet<Event>> GetPoisonStreamsEvents(
+            IReadOnlyCollection<Event> events,
             CancellationToken cancellationToken)
         {
-            var result = new HashSet<Guid>();
-            await foreach (var storedKey in _eventStore.GetStoredKeys(topic, keys, cancellationToken))
-                result.Add(storedKey);
-            return result;
+            using var streamIds = new PooledList<StreamId>(events.Count);
+            foreach (var @event in events)
+                streamIds.Add(new StreamId(@event.Topic, @event.GetKey()));
+            
+            HashSet<StreamId> poisonStreamIds = null;
+            await foreach (var streamId in _eventStore.GetStoredStreams(streamIds, cancellationToken))
+            {
+                poisonStreamIds ??= new HashSet<StreamId>();
+                poisonStreamIds.Add(streamId);
+            }
+
+            return poisonStreamIds != null
+                ? events.Where(e => poisonStreamIds.Contains(new StreamId(e.Topic, e.GetKey()))).ToHashSet()
+                : null;
         }
 
         public void Dispose()
@@ -108,12 +95,12 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             PoisonEvent<Event> @event,
             CancellationToken cancellationToken)
         {
-            var rawEvent = Consume(
-                new TopicPartitionOffset(@event.Topic, @event.Event.Partition, @event.Event.Offset), 
-                cancellationToken);
+            var topicPartitionOffset = @event.Event.GetTopicPartitionOffset();
+
+            var rawEvent = Consume(topicPartitionOffset, cancellationToken);
 
             return new OpeningPoisonEvent(
-                new PartitionOffset(@event.Event.Partition, @event.Event.Offset),
+                topicPartitionOffset,
                 rawEvent.Message.Key,
                 rawEvent.Message.Value,
                 rawEvent.Message.Timestamp.UtcDateTime,
@@ -145,6 +132,49 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             finally
             {
                 _deadMessageConsumer.Unassign();
+            }
+        }
+
+        [StructLayout(LayoutKind.Auto)]
+        private struct InboxThresholdChecker
+        {
+            // TODO const -> settings
+            private const int MaxNumberOfPoisonedEventsInTopic = 1000;
+
+            private readonly IPoisonEventStore _eventStore;
+            private string _singleTopic;
+            private List<string> _topics;
+
+            public InboxThresholdChecker(IPoisonEventStore eventStore)
+            {
+                _eventStore = eventStore;
+                _singleTopic = null;
+                _topics = null;
+            }
+
+            public async ValueTask EnsureThreshold(string topic, CancellationToken cancellationToken)
+            {
+                if (_singleTopic == topic)
+                    return;
+
+                if (_topics?.Contains(topic) == true)
+                    return;
+
+                var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
+                if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
+                    throw new EventHandlingException(
+                        topic,
+                        $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
+                        null);
+
+                if (_singleTopic == null)
+                {
+                    _singleTopic = topic;
+                    return;
+                }
+
+                _topics ??= new List<string>(1);
+                _topics.Add(topic);
             }
         }
     }

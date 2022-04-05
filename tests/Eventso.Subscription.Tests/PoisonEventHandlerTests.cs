@@ -13,8 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class PoisonEventHandlerTests
     {
-        private const string Topic = "RIP";
-        
         // copied from PoisonEventHandler (tests will break on change - be aware)
         private const string PredecessorParkedReason = "Predecessor of event is poison and parked.";
         
@@ -39,7 +37,7 @@ namespace Eventso.Subscription.Tests
         {
             var @event = TestEvent();
 
-            await _underTestHandler.Handle(Topic, @event, CancellationToken.None);
+            await _underTestHandler.Handle(@event, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEmpty();
             _scopePoisonEvents.Should().BeEmpty();
@@ -51,7 +49,7 @@ namespace Eventso.Subscription.Tests
         {
             var events = Enumerable.Range(0, 9).Select(_ => TestEvent()).ToConvertibleCollection();
 
-            await _underTestHandler.Handle(Topic, events, CancellationToken.None);
+            await _underTestHandler.Handle(events, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEmpty();
             _scopePoisonEvents.Should().BeEmpty();
@@ -67,7 +65,7 @@ namespace Eventso.Subscription.Tests
             _inboxPoisonEvents.Add(predecessorInInbox);
 
             var @event = TestEvent(key);
-            await _underTestHandler.Handle(Topic, @event, CancellationToken.None);
+            await _underTestHandler.Handle(@event, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
                 new[] { predecessorInInbox, PoisonEvent(@event, PredecessorParkedReason) });
@@ -89,7 +87,7 @@ namespace Eventso.Subscription.Tests
             var toPoisonEvents = new[] { TestEvent(key1), TestEvent(key2), TestEvent(key3), TestEvent(key2) };
             var events = healthyEvents.Concat(toPoisonEvents).OrderBy(_ => Guid.NewGuid()).ToConvertibleCollection();
 
-            await _underTestHandler.Handle(Topic, events, CancellationToken.None);
+            await _underTestHandler.Handle(events, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
                 predecessors.Concat(toPoisonEvents.Select(e => PoisonEvent(e, PredecessorParkedReason))));
@@ -103,7 +101,7 @@ namespace Eventso.Subscription.Tests
             var poisonEvent = PoisonEvent();
             _scopePoisonEvents.Add(poisonEvent);
 
-            await _underTestHandler.Handle(Topic, poisonEvent.Event, CancellationToken.None);
+            await _underTestHandler.Handle(poisonEvent.Event, CancellationToken.None);
 
             _inboxPoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
             _scopePoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
@@ -121,7 +119,7 @@ namespace Eventso.Subscription.Tests
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
-            await _underTestHandler.Handle(Topic, events, CancellationToken.None);
+            await _underTestHandler.Handle(events, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(poisonEvents);
             _scopePoisonEvents.Should().BeEquivalentTo(poisonEvents);
@@ -149,7 +147,7 @@ namespace Eventso.Subscription.Tests
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
-            await _underTestHandler.Handle(Topic, events, CancellationToken.None);
+            await _underTestHandler.Handle(events, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
                 poisonPredecessors
@@ -165,13 +163,13 @@ namespace Eventso.Subscription.Tests
             poisonEventInbox.Add(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _inboxPoisonEvents.AddRange(c.Arg<IReadOnlyCollection<PoisonEvent<TestEvent>>>()));
-            poisonEventInbox.Contains(Topic, default, default)
-                .ReturnsForAnyArgs(c => Task.FromResult(_inboxPoisonEvents.Any(e => e.Event.GetKey() == c.Arg<Guid>())));
-            poisonEventInbox.GetContainedKeys(Topic, default, default)
+            poisonEventInbox.IsStreamPoisoned(default, default)
+                .ReturnsForAnyArgs(c => Task.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
+            poisonEventInbox.GetPoisonStreamsEvents(default, default)
                 .ReturnsForAnyArgs(c =>
-                    Task.FromResult<IReadOnlySet<Guid>>(_inboxPoisonEvents
-                        .Select(e => e.Event.GetKey())
-                        .Where(e => c.Arg<IReadOnlyCollection<Guid>>().Contains(e)).ToHashSet()));
+                    Task.FromResult<IReadOnlySet<TestEvent>>(c.Arg<IReadOnlyCollection<TestEvent>>()
+                        .Where(e => _inboxPoisonEvents.Any(ee => e.Key == ee.Event.Key))
+                        .ToHashSet()));
 
             return poisonEventInbox;
         }
@@ -179,9 +177,9 @@ namespace Eventso.Subscription.Tests
         private IDeadLetterQueueScopeFactory CreateDeadLetterQueueScopeFactory()
         {
             var deadLetterQueueScopeFactory = Substitute.For<IDeadLetterQueueScopeFactory>();
-            deadLetterQueueScopeFactory.Create(Topic, default(TestEvent))
+            deadLetterQueueScopeFactory.Create(default(TestEvent))
                 .ReturnsForAnyArgs(_ => CreateScope());
-            deadLetterQueueScopeFactory.Create(Topic, default(IReadOnlyCollection<TestEvent>))
+            deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<TestEvent>))
                 .ReturnsForAnyArgs(_ => CreateScope());
 
             return deadLetterQueueScopeFactory;
@@ -197,10 +195,10 @@ namespace Eventso.Subscription.Tests
         private IEventHandler<TestEvent> CreteInnerHandler()
         {
             var innerHandler = Substitute.For<IEventHandler<TestEvent>>();
-            innerHandler.Handle(Topic, default(TestEvent), default)
+            innerHandler.Handle(default(TestEvent), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()));
-            innerHandler.Handle(Topic, default(IConvertibleCollection<TestEvent>), default)
+            innerHandler.Handle(default(IConvertibleCollection<TestEvent>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _innerHandlerEvents.AddRange(c.Arg<IConvertibleCollection<TestEvent>>()));
 
@@ -211,9 +209,9 @@ namespace Eventso.Subscription.Tests
             => new(key != default ? key : _fixture.Create<Guid>(), _fixture.Create<RedMessage>());
 
         private PoisonEvent<TestEvent> PoisonEvent(Guid key = default, string reason = null)
-            => new(Topic, TestEvent(key), reason ?? _fixture.Create<string>());
+            => new(TestEvent(key), reason ?? _fixture.Create<string>());
 
         private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string reason = null)
-            => new(Topic, @event, reason ?? _fixture.Create<string>());
+            => new(@event, reason ?? _fixture.Create<string>());
     }
 }

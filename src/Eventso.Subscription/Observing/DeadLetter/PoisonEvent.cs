@@ -7,19 +7,16 @@ namespace Eventso.Subscription.Observing.DeadLetter
     public readonly struct PoisonEvent<TEvent>
         where TEvent : IEvent
     {
-        public PoisonEvent(string topic, TEvent @event, string reason)
+        public PoisonEvent(TEvent @event, string reason)
         {
-            Topic = topic;
             Event = @event;
             Reason = reason;
         }
 
-        public PoisonEvent(string topic, TEvent @event, IEnumerable<string> reasons)
-            : this(topic, @event, string.Join("<-- REASON END -->", reasons))
+        public PoisonEvent(TEvent @event, IEnumerable<string> reasons)
+            : this(@event, string.Join("<-- REASON END -->", reasons))
         {
         }
-
-        public string Topic { get; }
 
         public TEvent Event { get; }
 

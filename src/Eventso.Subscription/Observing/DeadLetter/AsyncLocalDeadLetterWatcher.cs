@@ -11,13 +11,13 @@ namespace Eventso.Subscription.Observing.DeadLetter
 
         private readonly AsyncLocal<IDeadLetterQueue> _localContext = new();
 
-        public IDeadLetterQueueScope<TEvent> Create<TEvent>(string topic, TEvent @event)
+        public IDeadLetterQueueScope<TEvent> Create<TEvent>(TEvent @event)
             where TEvent : IEvent
-            => Create(new SingleEventContext<TEvent>(topic, @event));
+            => Create(new SingleEventContext<TEvent>(@event));
 
-        public IDeadLetterQueueScope<TEvent> Create<TEvent>(string topic, IReadOnlyCollection<TEvent> events)
+        public IDeadLetterQueueScope<TEvent> Create<TEvent>(IReadOnlyCollection<TEvent> events)
             where TEvent : IEvent
-            => Create(new BatchEventContext<TEvent>(topic, events));
+            => Create(new BatchEventContext<TEvent>(events));
 
         public void Enqueue(Subscription.DeadLetter message)
             => _localContext.Value?.Enqueue(message);
@@ -46,14 +46,10 @@ namespace Eventso.Subscription.Observing.DeadLetter
         private sealed class SingleEventContext<TEvent> : IEventContext<TEvent>
             where TEvent : IEvent
         {
-            private readonly string _topic;
             private readonly TEvent _event;
 
-            public SingleEventContext(string topic, TEvent @event)
-            {
-                _event = @event;
-                _topic = topic;
-            }
+            public SingleEventContext(TEvent @event)
+                => _event = @event;
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
                 IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
@@ -67,21 +63,17 @@ namespace Eventso.Subscription.Observing.DeadLetter
                         "Expected 1 poison event, but found 0 (event message and dead message mismatch).");
 
                 // occurs rare, assuming we can afford array with 1 element here :)
-                return new[] { new PoisonEvent<TEvent>(_topic, _event, reasons) };
+                return new[] { new PoisonEvent<TEvent>(_event, reasons) };
             }
         }
         
         private sealed class BatchEventContext<TEvent> : IEventContext<TEvent>
             where TEvent : IEvent
         {
-            private readonly string _topic;
             private readonly IReadOnlyCollection<TEvent> _events;
 
-            public BatchEventContext(string topic, IReadOnlyCollection<TEvent> events)
-            {
-                _topic = topic;
-                _events = events;
-            }
+            public BatchEventContext(IReadOnlyCollection<TEvent> events)
+                => _events = events;
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
                 IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
@@ -95,7 +87,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
                     if (!deadLetters.TryGetValue(@event.GetMessage(), out var reasons))
                         continue;
 
-                    poisonEvents.Add(new PoisonEvent<TEvent>(_topic, @event, reasons));
+                    poisonEvents.Add(new PoisonEvent<TEvent>(@event, reasons));
                 }
 
                 if (poisonEvents.Count != deadLetters.Count)

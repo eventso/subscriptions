@@ -10,9 +10,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
     {
         Task Add(IReadOnlyCollection<PoisonEvent<TEvent>> events, CancellationToken cancellationToken);
 
-        Task<bool> Contains(string topic, Guid key, CancellationToken cancellationToken);
-        Task<IReadOnlySet<Guid>> GetContainedKeys(string topic,
-            IReadOnlyCollection<Guid> keys,
-            CancellationToken cancellationToken);
+        Task<bool> IsStreamPoisoned(TEvent @event, CancellationToken cancellationToken);
+        Task<IReadOnlySet<TEvent>> GetPoisonStreamsEvents(IReadOnlyCollection<TEvent> events, CancellationToken cancellationToken);
     }
 }
