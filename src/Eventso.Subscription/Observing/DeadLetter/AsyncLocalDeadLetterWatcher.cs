@@ -39,7 +39,8 @@ namespace Eventso.Subscription.Observing.DeadLetter
         private interface IEventContext<TEvent>
             where TEvent : IEvent
         {
-            IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(IReadOnlyCollection<Subscription.DeadLetter> deadLetters);
+            IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
+                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters);
         }
         
         private sealed class SingleEventContext<TEvent> : IEventContext<TEvent>
@@ -55,18 +56,18 @@ namespace Eventso.Subscription.Observing.DeadLetter
             }
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
-                IReadOnlyCollection<Subscription.DeadLetter> deadLetters)
+                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
             {
                 if (deadLetters.Count == 0)
                     return Array.Empty<PoisonEvent<TEvent>>();
 
-                var deadLetter = deadLetters.Single();
-                if (!Subscription.DeadLetter.MessageComparer.Equals(deadLetter.Message, _event.GetMessage()))
+                var (message, reasons) = deadLetters.Single();
+                if (!Subscription.DeadLetter.MessageComparer.Equals(message, _event.GetMessage()))
                     throw new ApplicationException(
                         "Expected 1 poison event, but found 0 (event message and dead message mismatch).");
 
-                // aanikin occurs rare, assuming we can afford array with 1 element here :)
-                return new[] { new PoisonEvent<TEvent>(_topic, _event, deadLetter.Reason) };
+                // occurs rare, assuming we can afford array with 1 element here :)
+                return new[] { new PoisonEvent<TEvent>(_topic, _event, reasons) };
             }
         }
         
@@ -83,23 +84,18 @@ namespace Eventso.Subscription.Observing.DeadLetter
             }
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
-                IReadOnlyCollection<Subscription.DeadLetter> deadLetters)
+                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
             {
                 if (deadLetters.Count == 0)
                     return Array.Empty<PoisonEvent<TEvent>>();
 
-                var deadLetterReasons = deadLetters.ToDictionary(
-                    d => d.Message,
-                    d => d.Reason,
-                    Subscription.DeadLetter.MessageComparer);
-
-                var poisonEvents = new List<PoisonEvent<TEvent>>(deadLetterReasons.Count);
+                var poisonEvents = new List<PoisonEvent<TEvent>>(deadLetters.Count);
                 foreach (var @event in _events)
                 {
-                    if (!deadLetterReasons.TryGetValue(@event.GetMessage(), out var reason))
+                    if (!deadLetters.TryGetValue(@event.GetMessage(), out var reasons))
                         continue;
 
-                    poisonEvents.Add(new PoisonEvent<TEvent>(_topic, @event, reason));
+                    poisonEvents.Add(new PoisonEvent<TEvent>(_topic, @event, reasons));
                 }
 
                 if (poisonEvents.Count != deadLetters.Count)

@@ -1,24 +1,25 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Eventso.Subscription.Observing.DeadLetter
 {
     public sealed class DeadLetterQueue : IDeadLetterQueue
     {
+        private static readonly Dictionary<object, IReadOnlySet<string>> EmptyDeadLetters = new(); 
+        
         private readonly object _lockObject = new();
 
-        private Dictionary<object, HashSet<string>> _knownDeadLetters;
+        private Dictionary<object, IReadOnlySet<string>> _knownDeadLetters;
 
         public void Enqueue(Subscription.DeadLetter deadLetter)
         {
             lock (_lockObject)
             {
-                _knownDeadLetters ??= new Dictionary<object, HashSet<string>>(1, Subscription.DeadLetter.MessageComparer);
+                _knownDeadLetters ??= new Dictionary<object, IReadOnlySet<string>>(1, Subscription.DeadLetter.MessageComparer);
                 if (!_knownDeadLetters.TryGetValue(deadLetter.Message, out var reasons))
                     _knownDeadLetters[deadLetter.Message] = reasons = new HashSet<string>(1);
 
-                reasons.Add(deadLetter.Reason);
+                AddReason(reasons, deadLetter.Reason);
             }
         }
 
@@ -26,25 +27,32 @@ namespace Eventso.Subscription.Observing.DeadLetter
         {
             lock (_lockObject)
             {
-                _knownDeadLetters ??= new Dictionary<object, HashSet<string>>(1, Subscription.DeadLetter.MessageComparer);
+                _knownDeadLetters ??= new Dictionary<object, IReadOnlySet<string>>(1, Subscription.DeadLetter.MessageComparer);
                 foreach (var deadLetter in deadLetters)
                 {
                     if (!_knownDeadLetters.TryGetValue(deadLetter.Message, out var reasons))
                         _knownDeadLetters[deadLetter.Message] = reasons = new HashSet<string>(1);
 
-                    reasons.Add(deadLetter.Reason);
+                    AddReason(reasons, deadLetter.Reason);
                 }
-
             }
         }
 
-        public IReadOnlyCollection<Subscription.DeadLetter> GetDeadLetters()
+        public IReadOnlyDictionary<object, IReadOnlySet<string>> GetDeadLetters()
         {
             // this method will be called after all Enqueue methods in not concurrent conditions
             // ReSharper disable once InconsistentlySynchronizedField
-            return _knownDeadLetters?
-                .Select(p => new Subscription.DeadLetter(p.Key, string.Join("<-- REASON END -->", p.Value)))
-                .ToArray() ?? Array.Empty<Subscription.DeadLetter>();
+            return _knownDeadLetters ?? EmptyDeadLetters;
+        }
+
+        private static void AddReason(IReadOnlySet<string> reasons, string reason)
+        {
+            // dirty hack with cast but we are sure that it is a hashset and it gives us clearer public api
+            if (reasons is not HashSet<string> hashSet)
+                throw new InvalidOperationException(
+                    $"Expected {typeof(HashSet<string>).FullName} object with reasons, but got {reasons.GetType().FullName}");
+
+            hashSet.Add(reason);
         }
     }
 }
