@@ -20,6 +20,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         public Task<bool> Any(string topic, Guid key, CancellationToken cancellationToken)
             => throw new NotImplementedException(ErrorMessage);
 
+        public IAsyncEnumerable<Guid> GetStoredKeys(string topic, IReadOnlyCollection<Guid> keys, CancellationToken cancellationToken)
+            => throw new NotImplementedException(ErrorMessage);
+
         public Task Add(StoredEvent @event, StoredFailure failure, CancellationToken cancellationToken)
             => throw new NotImplementedException(ErrorMessage);
 

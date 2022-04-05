@@ -156,6 +156,31 @@ WHERE topic = @topic AND partition = @partition AND ""offset"" = @offset;",
             return result != null && (bool)result;
         }
 
+        public async IAsyncEnumerable<Guid> GetStoredKeys(
+            string topic,
+            IReadOnlyCollection<Guid> keys,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await using var connection = _connectionFactory.ReadOnly();
+
+            await using var command = new NpgsqlCommand(
+                "SELECT DISTINCT key FROM eventso_dlq.poison_events WHERE topic = @topic AND key = ANY(@keys);",
+                connection)
+            {
+                Parameters =
+                {
+                    new NpgsqlParameter<string>("topic", topic),
+                    new NpgsqlParameter<IReadOnlyCollection<Guid>>("keys", keys)
+                }
+            };
+
+            await connection.OpenAsync(cancellationToken);
+
+            var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                yield return reader.GetGuid(0);
+        }
+
         public async Task Remove(TopicPartitionOffset topicPartitionOffset, CancellationToken cancellationToken)
         {
             await using var connection = _connectionFactory.ReadWrite();

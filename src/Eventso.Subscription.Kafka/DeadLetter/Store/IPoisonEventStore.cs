@@ -14,6 +14,11 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 
         Task<bool> Any(string topic, Guid key, CancellationToken cancellationToken);
 
+        IAsyncEnumerable<Guid> GetStoredKeys(
+            string topic,
+            IReadOnlyCollection<Guid> keys,
+            CancellationToken cancellationToken);
+
         Task Add(
             StoredEvent @event,
             StoredFailure failure,
