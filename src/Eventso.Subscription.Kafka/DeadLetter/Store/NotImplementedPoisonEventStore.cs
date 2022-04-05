@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
@@ -16,19 +17,19 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         public Task<long> Count(string topic, CancellationToken cancellationToken)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task<bool> IsKeyStored(string topic, Guid key, CancellationToken cancellationToken)
+        public Task<bool> IsStreamStored(string topic, Guid key, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
-        public IAsyncEnumerable<Guid> GetStoredKeys(string topic, IReadOnlyCollection<Guid> keys, CancellationToken cancellationToken)
+        public IAsyncEnumerable<StreamId> GetStoredStreams(IReadOnlyCollection<StreamId> streamIds, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
+        public Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task AddFailures(string topic, DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token)
+        public Task AddFailures(DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
-        public Task Remove(string topic, IReadOnlyCollection<PartitionOffset> partitionOffsets, CancellationToken token)
+        public Task Remove(IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
     }
 }

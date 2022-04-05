@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Npgsql;
 
@@ -82,7 +83,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             return result != null ? (long)result : 0;
         }
 
-        public async Task<bool> IsKeyStored(string topic, Guid key, CancellationToken cancellationToken)
+
+        public async Task<bool> IsStreamStored(string topic, Guid key, CancellationToken token)
         {
             await using var connection = _connectionFactory.ReadOnly();
 
@@ -97,49 +99,54 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                 }
             };
 
-            await connection.OpenAsync(cancellationToken);
+            await connection.OpenAsync(token);
 
-            var result = await command.ExecuteScalarAsync(cancellationToken);
+            var result = await command.ExecuteScalarAsync(token);
             return result != null && (bool)result;
         }
 
-        public async IAsyncEnumerable<Guid> GetStoredKeys(
-            string topic,
-            IReadOnlyCollection<Guid> keys,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<StreamId> GetStoredStreams(
+            IReadOnlyCollection<StreamId> streamIds,
+            [EnumeratorCancellation] CancellationToken token)
         {
             await using var connection = _connectionFactory.ReadOnly();
 
-            const string keysParameterName = "keys";
-            NpgsqlParameter keysParameter = keys switch
+            
+            var topics = new string[streamIds.Count];
+            var keys = new Guid[streamIds.Count];
+            foreach (var (index, streamId) in Enumerate(streamIds))
             {
-                Guid[] array => new NpgsqlParameter<Guid[]>(keysParameterName, array),
-                List<Guid> list => new NpgsqlParameter<List<Guid>>(keysParameterName, list),
-                _ => new NpgsqlParameter<Guid[]>(keysParameterName, keys.ToArray())
-            };
+                topics[index] = streamId.Topic;
+                keys[index] = streamId.Key;
+            }
 
             await using var command = new NpgsqlCommand(
-                "SELECT DISTINCT key FROM eventso_dlq.poison_events WHERE topic = @topic AND key = ANY(@keys);",
+                @"
+SELECT DISTINCT pe.topic, pe.key
+FROM eventso_dlq.poison_events pe
+INNER JOIN UNNEST(@topics, @keys) AS input(topic, key) 
+ON pe.topic = input.topic AND pe.key = input.key;",
                 connection)
             {
                 Parameters =
                 {
-                    new NpgsqlParameter<string>("topic", topic),
-                    keysParameter
+                    new NpgsqlParameter<string[]>("topics", topics),
+                    new NpgsqlParameter<Guid[]>("keys", keys)
                 }
             };
 
-            await connection.OpenAsync(cancellationToken);
+            await connection.OpenAsync(token);
 
-            var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-                yield return reader.GetGuid(0);
+            var reader = await command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token))
+                yield return new StreamId(reader.GetString(0), reader.GetGuid(1));
         }
 
-        public async Task Add(string topic, DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
+        public async Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
         {
             await using var connection = _connectionFactory.ReadWrite();
 
+            var topicParameter = new NpgsqlParameter<string> { ParameterName = "topic" };
             var partitionParameter = new NpgsqlParameter<int> { ParameterName = "partition" };
             var offsetParameter = new NpgsqlParameter<long> { ParameterName = "offset" };
             var keyParameter = new NpgsqlParameter<Guid> { ParameterName = "key" };
@@ -178,7 +185,7 @@ VALUES (
                 connection)
             {
                 Parameters = {
-                    new NpgsqlParameter<string>("topic", topic),
+                    topicParameter,
                     partitionParameter,
                     offsetParameter,
                     keyParameter,
@@ -205,8 +212,9 @@ VALUES (
                     headerValues[index] = header.Data;
                 }
 
-                partitionParameter.TypedValue = poisonEvent.PartitionOffset.Partition.Value;
-                offsetParameter.TypedValue = poisonEvent.PartitionOffset.Offset.Value;
+                topicParameter.TypedValue = poisonEvent.TopicPartitionOffset.Topic;
+                partitionParameter.TypedValue = poisonEvent.TopicPartitionOffset.Partition.Value;
+                offsetParameter.TypedValue = poisonEvent.TopicPartitionOffset.Offset.Value;
                 keyParameter.TypedValue = poisonEvent.Key;
                 valueParameter.TypedValue = poisonEvent.Value;
                 creationTimestampParameter.TypedValue = poisonEvent.CreationTimestamp;
@@ -219,18 +227,19 @@ VALUES (
         }
 
         public async Task AddFailures(
-            string topic,
             DateTime timestamp,
             IReadOnlyCollection<OccuredFailure> failures,
             CancellationToken token)
         {
+            var topics = new String[failures.Count];
             var partitions = new int[failures.Count];
             var offsets = new long[failures.Count];
             var reasons = new string[failures.Count];
             foreach (var (index, failure) in Enumerate(failures))
             {
-                partitions[index] = failure.PartitionOffset.Partition.Value;
-                offsets[index] = failure.PartitionOffset.Offset.Value;
+                topics[index] = failure.TopicPartitionOffset.Topic;
+                partitions[index] = failure.TopicPartitionOffset.Partition.Value;
+                offsets[index] = failure.TopicPartitionOffset.Offset.Value;
                 reasons[index] = failure.Reason;
             }
             
@@ -243,13 +252,13 @@ SET
     last_failure_timestamp = @timestamp,
     last_failure_reason = input.reason,
     total_failure_count = total_failure_count + 1
-FROM UNNEST(@partitions, @offsets, @reasons) AS input(partition, ""offset"", reason)
-WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
+FROM UNNEST(@topics, @partitions, @offsets, @reasons) AS input(topic, partition, ""offset"", reason)
+WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
                 connection)
             {
                 Parameters =
                 {
-                    new NpgsqlParameter<string>("topic", topic),
+                    new NpgsqlParameter<string[]>("topics", topics),
                     new NpgsqlParameter<int[]>("partitions", partitions),
                     new NpgsqlParameter<long[]>("offsets", offsets),
                     new NpgsqlParameter<DateTime>("timestamp", timestamp),
@@ -262,14 +271,16 @@ WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = inpu
             await command.ExecuteNonQueryAsync(token);
         }
 
-        public async Task Remove(string topic, IReadOnlyCollection<PartitionOffset> partitionOffsets, CancellationToken token)
+        public async Task Remove(IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets, CancellationToken token)
         {
-            var partitions = new int[partitionOffsets.Count];
-            var offsets = new long[partitionOffsets.Count];
-            foreach (var (index, partitionOffset) in Enumerate(partitionOffsets))
+            var topics = new string[topicPartitionOffsets.Count];
+            var partitions = new int[topicPartitionOffsets.Count];
+            var offsets = new long[topicPartitionOffsets.Count];
+            foreach (var (index, topicPartitionOffset) in Enumerate(topicPartitionOffsets))
             {
-                partitions[index] = partitionOffset.Partition.Value;
-                offsets[index] = partitionOffset.Offset.Value;
+                topics[index] = topicPartitionOffset.Topic;
+                partitions[index] = topicPartitionOffset.Partition.Value;
+                offsets[index] = topicPartitionOffset.Offset.Value;
             }
 
             await using var connection = _connectionFactory.ReadWrite();
@@ -277,13 +288,13 @@ WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = inpu
             await using var command = new NpgsqlCommand(
                 @"
 DELETE FROM eventso_dlq.poison_events pe
-USING UNNEST (@partitions, @offsets) AS input(partition, ""offset"")
-WHERE topic = @topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
+USING UNNEST (@topics, @partitions, @offsets) AS input(topic, partition, ""offset"")
+WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
                 connection)
             {
                 Parameters =
                 {
-                    new NpgsqlParameter<string>("topic", topic),
+                    new NpgsqlParameter<string[]>("topics", topics),
                     new NpgsqlParameter<int[]>("partitions", partitions),
                     new NpgsqlParameter<long[]>("offsets", offsets),
                 }
@@ -350,7 +361,8 @@ WHERE
                     headers[i] = new EventHeader(headerKeys[i], headerValues[i]);
 
                 yield return new StoredPoisonEvent(
-                    new PartitionOffset(reader.GetFieldValue<int>(0), reader.GetFieldValue<long>(1)),
+                    reader.GetFieldValue<int>(0),
+                    reader.GetFieldValue<long>(1),
                     reader.GetGuid(2),
                     reader.GetFieldValue<byte[]>(3),
                     reader.GetDateTime(4),

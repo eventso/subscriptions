@@ -1,17 +1,18 @@
 using System.Runtime.InteropServices;
+using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
     [StructLayout(LayoutKind.Auto)]
     public readonly struct OccuredFailure
     {
-        public OccuredFailure(PartitionOffset partitionOffset, string reason)
+        public OccuredFailure(TopicPartitionOffset topicPartitionOffset, string reason)
         {
-            PartitionOffset = partitionOffset;
+            TopicPartitionOffset = topicPartitionOffset;
             Reason = reason;
         }
 
-        public PartitionOffset PartitionOffset { get; }
+        public TopicPartitionOffset TopicPartitionOffset { get; }
 
         public string Reason { get; }
     }

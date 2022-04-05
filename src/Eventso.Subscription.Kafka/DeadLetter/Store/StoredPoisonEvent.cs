@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
+using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
     public sealed class StoredPoisonEvent
     {
         public StoredPoisonEvent(
-            PartitionOffset partitionOffset,
+            Partition partition,
+            Offset offset,
             Guid key,
             ReadOnlyMemory<byte> value,
             DateTime creationTimestamp,
@@ -15,7 +17,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
             string reason,
             int totalFailureCount)
         {
-            PartitionOffset = partitionOffset;
+            Partition = partition;
+            Offset = offset;
             Key = key;
             Value = value;
             CreationTimestamp = creationTimestamp;
@@ -25,7 +28,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
             TotalFailureCount = totalFailureCount;
         }
 
-        public PartitionOffset PartitionOffset { get; }
+        public Partition Partition { get; }
+
+        public Offset Offset { get; }
 
         public Guid Key { get; }
 

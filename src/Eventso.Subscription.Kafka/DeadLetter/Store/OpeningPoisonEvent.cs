@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
@@ -8,14 +9,14 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
     public readonly struct OpeningPoisonEvent
     {
         public OpeningPoisonEvent(
-            PartitionOffset partitionOffset,
+            TopicPartitionOffset topicPartitionOffset,
             Guid key,
             ReadOnlyMemory<byte> value,
             DateTime creationTimestamp,
             IReadOnlyCollection<EventHeader> headers,
             string failureReason)
         {
-            PartitionOffset = partitionOffset;
+            TopicPartitionOffset = topicPartitionOffset;
             Key = key;
             Value = value;
             CreationTimestamp = creationTimestamp;
@@ -23,7 +24,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
             FailureReason = failureReason;
         }
 
-        public PartitionOffset PartitionOffset { get; }
+        public TopicPartitionOffset TopicPartitionOffset { get; }
 
         public Guid Key { get; }
 

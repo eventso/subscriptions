@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
@@ -11,28 +12,24 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 
         IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(string topic, CancellationToken token);
 
-        Task<bool> IsKeyStored(string topic, Guid key, CancellationToken token);
+        Task<bool> IsStreamStored(string topic, Guid key, CancellationToken token);
 
-        IAsyncEnumerable<Guid> GetStoredKeys(
-            string topic,
-            IReadOnlyCollection<Guid> keys,
+        IAsyncEnumerable<StreamId> GetStoredStreams(
+            IReadOnlyCollection<StreamId> streamIds,
             CancellationToken token);
 
         Task Add(
-            string topic,
             DateTime timestamp,
             IReadOnlyCollection<OpeningPoisonEvent> events,
             CancellationToken token);
 
         Task AddFailures(
-            string topic,
             DateTime timestamp,
             IReadOnlyCollection<OccuredFailure> failures,
             CancellationToken token);
 
         Task Remove(
-            string topic,
-            IReadOnlyCollection<PartitionOffset> partitionOffsets,
+            IReadOnlyCollection<TopicPartitionOffset> partitionOffsets,
             CancellationToken token);
     }
 }
