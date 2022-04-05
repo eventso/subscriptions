@@ -13,8 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class EventHandlerTests
     {
-        private const string Topic = "TLDR;";
-        
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
         private readonly Observing.EventHandler<TestEvent> _handler;
@@ -48,7 +46,7 @@ namespace Eventso.Subscription.Tests
                 .Select(x => new TestEvent(x.k, x.e))
                 .ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events.Select(x => x.GetMessage()),
@@ -61,7 +59,7 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task EmptyMessages_NoBatches()
         {
-            await _handler.Handle(Topic, Array.Empty<TestEvent>().ToConvertibleCollection(),
+            await _handler.Handle(Array.Empty<TestEvent>().ToConvertibleCollection(),
                 CancellationToken.None);
 
             _handledEvents.Should().BeEmpty();
@@ -78,7 +76,7 @@ namespace Eventso.Subscription.Tests
                     .Select(x => new TestEvent(x.k, x.e)))
                 .ToConvertibleCollection();
 
-            Func<Task> act = () => _handler.Handle(Topic, events, CancellationToken.None);
+            Func<Task> act = () => _handler.Handle(events, CancellationToken.None);
 
             await act.Should().ThrowAsync<Exception>();
         }

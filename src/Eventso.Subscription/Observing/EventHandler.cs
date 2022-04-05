@@ -17,7 +17,7 @@ namespace Eventso.Subscription.Observing
             _pipelineAction = pipelineAction;
         }
         
-        public Task Handle(string topic, TEvent @event, CancellationToken cancellationToken)
+        public Task Handle(TEvent @event, CancellationToken cancellationToken)
         {
             dynamic message = @event.GetMessage();
             return _pipelineAction.Invoke(
@@ -25,7 +25,7 @@ namespace Eventso.Subscription.Observing
                 cancellationToken);
         }
 
-        public Task Handle(string topic, IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
+        public Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
         {
             if (events.Count == 0)
                 return Task.CompletedTask;

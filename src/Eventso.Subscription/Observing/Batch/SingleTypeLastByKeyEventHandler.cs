@@ -13,10 +13,10 @@ namespace Eventso.Subscription.Observing.Batch
         public SingleTypeLastByKeyEventHandler(IEventHandler<TEvent> eventHandler)
             => _eventHandler = eventHandler;
 
-        public Task Handle(string topic, TEvent @event, CancellationToken cancellationToken)
-            => _eventHandler.Handle(topic, @event, cancellationToken);
+        public Task Handle(TEvent @event, CancellationToken cancellationToken)
+            => _eventHandler.Handle(@event, cancellationToken);
 
-        public Task Handle(string topic, IConvertibleCollection<TEvent> events, CancellationToken token)
+        public Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
             if (events.Count == 0)
                 return Task.CompletedTask;
@@ -33,7 +33,7 @@ namespace Eventso.Subscription.Observing.Batch
             foreach (var (_, @event) in dictionary)
                 lastEvents.Add(@event);
 
-            return _eventHandler.Handle(topic, lastEvents, token);
+            return _eventHandler.Handle(lastEvents, token);
         }
     }
 }

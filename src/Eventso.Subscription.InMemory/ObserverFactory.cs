@@ -33,7 +33,6 @@ namespace Eventso.Subscription.InMemory
             if (_configuration.BatchProcessingRequired)
             {
                 return new BatchEventObserver<TEvent>(
-                    _configuration.Topic,
                     _configuration.BatchConfiguration,
                     GetBatchHandler(),
                     consumer,
@@ -42,7 +41,6 @@ namespace Eventso.Subscription.InMemory
             }
 
             return new EventObserver<TEvent>(
-                _configuration.Topic,
                 eventHandler,
                 consumer,
                 _messageHandlersRegistry,

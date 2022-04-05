@@ -33,20 +33,18 @@ namespace Eventso.Subscription.Hosting
                 _messagePipelineFactory.Create(_configuration.HandlerConfig));
 
             IObserver<TEvent> observer = _configuration.BatchProcessingRequired
-                ? CreateBatchEventObserver(_configuration.Settings.Topic, consumer, eventHandler)
-                : CreateSingleEventObserver(_configuration.Settings.Topic, consumer, eventHandler);
+                ? CreateBatchEventObserver(consumer, eventHandler)
+                : CreateSingleEventObserver(consumer, eventHandler);
 
             return observer;
         }
 
         private BatchEventObserver<TEvent> CreateBatchEventObserver<TEvent>(
-            string topic,
             IConsumer<TEvent> consumer,
             IEventHandler<TEvent> eventHandler)
             where TEvent : IEvent
         {
             return new BatchEventObserver<TEvent>(
-                topic,
                 _configuration.BatchConfiguration,
                 _configuration.BatchConfiguration.HandlingStrategy switch
                 {
@@ -63,13 +61,11 @@ namespace Eventso.Subscription.Hosting
         }
 
         private EventObserver<TEvent> CreateSingleEventObserver<TEvent>(
-            string topic,
             IConsumer<TEvent> consumer,
             IEventHandler<TEvent> eventHandler)
             where TEvent : IEvent
         {
             return new EventObserver<TEvent>(
-                topic,
                 eventHandler,
                 consumer,
                 _messageHandlersRegistry,

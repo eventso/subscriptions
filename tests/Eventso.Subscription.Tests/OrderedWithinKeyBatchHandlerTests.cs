@@ -13,8 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class OrderedWithinKeyEventHandlerTests
     {
-        private const string Topic = "IDDQD"; 
-
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
         private readonly OrderedWithinKeyEventHandler<TestEvent> _handler;
@@ -66,7 +64,7 @@ namespace Eventso.Subscription.Tests
                 .Select(x => new TestEvent(x.k, x.e))
                 .ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events.Select(x => x.GetMessage()),
@@ -89,7 +87,7 @@ namespace Eventso.Subscription.Tests
                 Create<GreenMessage>(k, 2)
             }).ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events.OrderBy(x => x.BatchNumber)
@@ -125,7 +123,7 @@ namespace Eventso.Subscription.Tests
                 Create<GreenMessage>(keys[1], 2)
             }.ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events.OrderBy(x => x.BatchNumber)
@@ -169,7 +167,7 @@ namespace Eventso.Subscription.Tests
                 Create<GreenMessage>(keys[0], 3),
             }.ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             Assert(events, keys);
         }
@@ -198,7 +196,7 @@ namespace Eventso.Subscription.Tests
             }.ToConvertibleCollection();
 
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             Assert(events, keys);
         }
@@ -226,7 +224,7 @@ namespace Eventso.Subscription.Tests
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             var lookup = _handledEvents
                 .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetMessage(), ev))))

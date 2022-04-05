@@ -13,8 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class SingleTypeLastByKeyEventHandlerTests
     {
-        private const string Topic = "PISH_PISH";
-        
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
         private readonly SingleTypeLastByKeyEventHandler<TestEvent> _handler;
@@ -53,7 +51,7 @@ namespace Eventso.Subscription.Tests
                 .OrderBy(_ => Guid.NewGuid())
                 .ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events

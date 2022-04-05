@@ -13,8 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class OrderedWithinTypeEventHandlerTests
     {
-        private const string Topic = "BAZINGA";
-
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
         private readonly OrderedWithinTypeEventHandler<TestEvent> _handler;
@@ -66,7 +64,7 @@ namespace Eventso.Subscription.Tests
                 .Select(x => new TestEvent(x.k, x.e))
                 .ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             _handledEvents.Should().BeEquivalentTo(
                 events.Select(x => x.GetMessage()),
@@ -102,7 +100,7 @@ namespace Eventso.Subscription.Tests
                 Create<GreenMessage>(keys[0], 2),
             }.ToConvertibleCollection();
 
-            await _handler.Handle(Topic, events, CancellationToken.None);
+            await _handler.Handle(events, CancellationToken.None);
 
             for (var i = 0; i < _handledBatches.Count; i++)
             {

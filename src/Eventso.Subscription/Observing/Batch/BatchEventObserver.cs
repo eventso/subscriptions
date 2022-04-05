@@ -11,7 +11,6 @@ namespace Eventso.Subscription.Observing.Batch
     public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         where TEvent : IEvent
     {
-        private readonly string _topic;
         private readonly IEventHandler<TEvent> _handler;
         private readonly ActionBlock<Buffer<TEvent>.Batch> _actionBlock;
         private readonly CancellationTokenSource _cancellationTokenSource;
@@ -24,14 +23,12 @@ namespace Eventso.Subscription.Observing.Batch
         private bool _disposed;
 
         public BatchEventObserver(
-            string topic,
             BatchConfiguration config,
             IEventHandler<TEvent> handler,
             IConsumer<TEvent> consumer,
             IMessageHandlersRegistry messageHandlersRegistry,
             bool skipUnknown = true)
         {
-            _topic = topic;
             _handler = handler;
             _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
             _messageHandlersRegistry = messageHandlersRegistry;
@@ -127,13 +124,13 @@ namespace Eventso.Subscription.Observing.Batch
             {
                 if (events.Count == toBeHandledEventCount)
                 {
-                    await _handler.Handle(_topic, allEvents, _cancellationTokenSource.Token);
+                    await _handler.Handle(allEvents, _cancellationTokenSource.Token);
                 }
                 else if (toBeHandledEventCount > 0)
                 {
                     using var eventsToHandle = GetEventsToHandle(events, toBeHandledEventCount);
 
-                    await _handler.Handle(_topic, eventsToHandle, _cancellationTokenSource.Token);
+                    await _handler.Handle(eventsToHandle, _cancellationTokenSource.Token);
                 }
 
                 _consumer.Acknowledge(allEvents);

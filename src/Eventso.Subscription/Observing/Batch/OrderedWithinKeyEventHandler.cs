@@ -16,24 +16,24 @@ namespace Eventso.Subscription.Observing.Batch
             _eventHandler = eventHandler;
         }
 
-        public Task Handle(string topic, TEvent @event, CancellationToken cancellationToken)
-            => _eventHandler.Handle(topic, @event, cancellationToken);
+        public Task Handle(TEvent @event, CancellationToken cancellationToken)
+            => _eventHandler.Handle(@event, cancellationToken);
 
-        public async Task Handle(string topic, IConvertibleCollection<TEvent> events, CancellationToken token)
+        public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
             if (events.Count == 0)
                 return;
 
             if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
             {
-                await _eventHandler.Handle(topic, events, token);
+                await _eventHandler.Handle(events, token);
                 return;
             }
 
             using var batches = OrderWithinKey(events);
             foreach (var batch in batches)
                 using (batch)
-                    await _eventHandler.Handle(topic, batch.Events, token);
+                    await _eventHandler.Handle(batch.Events, token);
         }
 
         private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinKey(IEnumerable<TEvent> events)

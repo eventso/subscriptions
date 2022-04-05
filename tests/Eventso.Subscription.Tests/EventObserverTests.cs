@@ -16,8 +16,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class EventObserverTests
     {
-        private const string Topic = "NUMA NUMA";
-
         private readonly Fixture _fixture;
         private readonly TestConsumer _consumer;
         private readonly List<TestEvent> _handledEvents = new();
@@ -54,7 +52,6 @@ namespace Eventso.Subscription.Tests
             _fixture.Inject(DeserializationStatus.Success);
 
             var observer = new EventObserver<TestEvent>(
-                Topic,
                 _eventHandler,
                 _consumer,
                 _handlersRegistry,
@@ -81,7 +78,6 @@ namespace Eventso.Subscription.Tests
             _fixture.Inject(DeserializationStatus.Skipped);
 
             var observer = new EventObserver<TestEvent>(
-                Topic,
                 _eventHandler,
                 _consumer,
                 _handlersRegistry,
@@ -123,7 +119,6 @@ namespace Eventso.Subscription.Tests
                 }).ToArray();
 
             var observer = new EventObserver<TestEvent>(
-                Topic,
                 _eventHandler,
                 _consumer,
                 _handlersRegistry,
@@ -158,7 +153,6 @@ namespace Eventso.Subscription.Tests
             const int eventsCount = 56;
 
             var observer = new EventObserver<TestEvent>(
-                Topic,
                 _eventHandler,
                 _consumer,
                 _handlersRegistry,
@@ -195,7 +189,6 @@ namespace Eventso.Subscription.Tests
             const int eventsCount = 56;
 
             var observer = new EventObserver<TestEvent>(
-                Topic,
                 _eventHandler,
                 _consumer,
                 _handlersRegistry,
