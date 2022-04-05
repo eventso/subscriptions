@@ -15,8 +15,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Hostin
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Abstractions", "src\Eventso.Subscription.Abstractions\Eventso.Subscription.Abstractions.csproj", "{74AFA242-8020-4812-B120-B21DE949C7A1}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Inbox", "src\Eventso.Subscription.Inbox\Eventso.Subscription.Inbox.csproj", "{92AEF0F1-A075-4C20-AB17-D8A79C43C172}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka", "src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj", "{CCE41456-CC65-451C-A635-6C19344F583A}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.SpanJson", "src\Eventso.Subscription.SpanJson\Eventso.Subscription.SpanJson.csproj", "{438FFCB5-65A1-4FE6-A703-6A709FA77A5C}"
@@ -33,7 +31,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.InMemo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka.Insights", "src\Eventso.Subscription.Kafka.Insights\Eventso.Subscription.Kafka.Insights.csproj", "{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleApplication", "SampleApplication\SampleApplication.csproj", "{EBDC7651-CA00-4132-9290-80886B05CDD8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleApplication", "SampleApplication\SampleApplication.csproj", "{EBDC7651-CA00-4132-9290-80886B05CDD8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Eventso.Subscription.Kafka.DeadLetter.Postgres", "src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj", "{FD908298-AF0B-4733-B56F-751570918049}"
 EndProject
@@ -59,10 +57,6 @@ Global
 		{74AFA242-8020-4812-B120-B21DE949C7A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{74AFA242-8020-4812-B120-B21DE949C7A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{74AFA242-8020-4812-B120-B21DE949C7A1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{92AEF0F1-A075-4C20-AB17-D8A79C43C172}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CCE41456-CC65-451C-A635-6C19344F583A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{CCE41456-CC65-451C-A635-6C19344F583A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CCE41456-CC65-451C-A635-6C19344F583A}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -96,7 +90,6 @@ Global
 		{0508B89F-C9B2-4962-941E-5D26AD06010D} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
 		{F310C4E3-E4D2-4A83-BBFD-E5D1D232D8E6} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{74AFA242-8020-4812-B120-B21DE949C7A1} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
-		{92AEF0F1-A075-4C20-AB17-D8A79C43C172} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{CCE41456-CC65-451C-A635-6C19344F583A} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{438FFCB5-65A1-4FE6-A703-6A709FA77A5C} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{EE1E8688-307B-4CA5-9497-13980C140D52} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
