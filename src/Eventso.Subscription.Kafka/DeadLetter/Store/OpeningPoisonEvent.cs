@@ -1,28 +1,26 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
-    public sealed class StoredPoisonEvent
+    [StructLayout(LayoutKind.Auto)]
+    public readonly struct OpeningPoisonEvent
     {
-        public StoredPoisonEvent(
+        public OpeningPoisonEvent(
             PartitionOffset partitionOffset,
             Guid key,
             ReadOnlyMemory<byte> value,
             DateTime creationTimestamp,
             IReadOnlyCollection<EventHeader> headers,
-            DateTime timestamp,
-            string reason,
-            int totalFailureCount)
+            string failureReason)
         {
             PartitionOffset = partitionOffset;
             Key = key;
             Value = value;
             CreationTimestamp = creationTimestamp;
             Headers = headers;
-            Timestamp = timestamp;
-            Reason = reason;
-            TotalFailureCount = totalFailureCount;
+            FailureReason = failureReason;
         }
 
         public PartitionOffset PartitionOffset { get; }
@@ -35,10 +33,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 
         public IReadOnlyCollection<EventHeader> Headers { get; }
 
-        public DateTime Timestamp { get; }
-
-        public string Reason { get; }
-
-        public int TotalFailureCount { get; }
+        public string FailureReason { get; }
     }
 }

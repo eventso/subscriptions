@@ -4,9 +4,9 @@ using System.Runtime.InteropServices;
 namespace Eventso.Subscription.Kafka.DeadLetter.Store
 {
     [StructLayout(LayoutKind.Auto)]
-    public readonly struct StoredEventHeader
+    public readonly struct EventHeader
     {
-        public StoredEventHeader(string key, ReadOnlyMemory<byte> data)
+        public EventHeader(string key, ReadOnlyMemory<byte> data)
         {
             Key = key;
             Data = data;
