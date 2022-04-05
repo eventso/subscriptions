@@ -96,8 +96,19 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 null);
         }
 
-        public Task<bool> IsPredecessorAdded(string topic, Guid key, CancellationToken cancellationToken)
+        public Task<bool> Contains(string topic, Guid key, CancellationToken cancellationToken)
             => _eventStore.Any(topic, key, cancellationToken);
+
+        public async Task<IReadOnlySet<Guid>> GetContainedKeys(
+            string topic,
+            IReadOnlyCollection<Guid> keys,
+            CancellationToken cancellationToken)
+        {
+            var result = new HashSet<Guid>();
+            await foreach (var storedKey in _eventStore.GetStoredKeys(topic, keys, cancellationToken))
+                result.Add(storedKey);
+            return result;
+        }
 
         public void Dispose()
         {
