@@ -23,14 +23,16 @@ namespace Eventso.Subscription.InMemory
             _messageHandlersRegistry = messageHandlersRegistry;
         }
 
-        public IObserver<T> Create<T>(IConsumer<T> consumer)
-            where T : IEvent
+        public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer)
+            where TEvent : IEvent
         {
-            var pipelineAction = _messagePipelineFactory.Create(_configuration.HandlerConfiguration);
+            var eventHandler = new Observing.EventHandler<TEvent>(
+                _messageHandlersRegistry,
+                _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
 
             if (_configuration.BatchProcessingRequired)
             {
-                return new BatchEventObserver<T>(
+                return new BatchEventObserver<TEvent>(
                     _configuration.BatchConfiguration,
                     GetBatchHandler(),
                     consumer,
@@ -38,36 +40,26 @@ namespace Eventso.Subscription.InMemory
                     skipUnknown: true);
             }
 
-            return new EventObserver<T>(
-                pipelineAction,
+            return new EventObserver<TEvent>(
+                eventHandler,
                 consumer,
                 _messageHandlersRegistry,
                 skipUnknown: true,
                 _configuration.DeferredAckConfiguration,
-                NullLogger<EventObserver<T>>.Instance);
+                NullLogger<EventObserver<TEvent>>.Instance);
 
-            IBatchHandler<T> GetBatchHandler()
+            IEventHandler<TEvent> GetBatchHandler()
             {
-                var batchPipelineAction = new MessageBatchPipelineAction(
-                    _messageHandlersRegistry,
-                    pipelineAction);
-
-                var singleTypeHandler = new SingleTypeBatchHandler<T>(batchPipelineAction);
-
                 return _configuration.BatchConfiguration.HandlingStrategy switch
                 {
                     BatchHandlingStrategy.SingleType
-                        => singleTypeHandler,
-
+                        => eventHandler,
                     BatchHandlingStrategy.SingleTypeLastByKey
-                        => new SingleTypeLastByKeyBatchHandler<T>(batchPipelineAction),
-
+                        => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
                     BatchHandlingStrategy.OrderedWithinKey
-                        => new OrderedWithinKeyBatchHandler<T>(batchPipelineAction),
-
+                        => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
                     BatchHandlingStrategy.OrderedWithinType =>
-                        new OrderedWithinTypeBatchHandler<T>(batchPipelineAction),
-
+                        new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
                     _ => throw new InvalidOperationException(
                         $"Unknown handling strategy: {_configuration.BatchConfiguration.HandlingStrategy}")
                 };
