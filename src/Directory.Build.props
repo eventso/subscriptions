@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>0.3.3</VersionPrefix>
-    <Version>0.3.3</Version>
+    <VersionPrefix>0.4.0</VersionPrefix>
+    <Version>0.4.0</Version>
     <LangVersion>9.0</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />

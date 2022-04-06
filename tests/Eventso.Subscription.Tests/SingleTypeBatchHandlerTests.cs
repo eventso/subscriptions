@@ -11,17 +11,24 @@ using Xunit;
 
 namespace Eventso.Subscription.Tests
 {
-    public sealed class SingleTypeBatchHandlerTests
+    public sealed class EventHandlerTests
     {
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
-        private readonly SingleTypeBatchHandler<TestEvent> _handler;
+        private readonly Observing.EventHandler<TestEvent> _handler;
         private readonly Fixture _fixture = new();
 
-        public SingleTypeBatchHandlerTests()
+        public EventHandlerTests()
         {
-            var action = Substitute.For<IMessageBatchPipelineAction>();
-            action.Invoke<RedMessage>(default, default)
+            var registry = Substitute.For<IMessageHandlersRegistry>();
+            registry.ContainsHandlersFor(Arg.Any<Type>(), out Arg.Any<HandlerKind>())
+                .Returns(x => { 
+                    x[1] = HandlerKind.Batch;
+                    return true;
+                });
+
+            var action = Substitute.For<IMessagePipelineAction>();
+            action.Invoke(default(IReadOnlyCollection<RedMessage>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
@@ -29,7 +36,7 @@ namespace Eventso.Subscription.Tests
                     _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
                 });
 
-            _handler = new SingleTypeBatchHandler<TestEvent>(action);
+            _handler = new Observing.EventHandler<TestEvent>(registry, action);
         }
 
         [Fact]

@@ -29,8 +29,8 @@ namespace Eventso.Subscription.Tests
 
             _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
 
@@ -201,8 +201,8 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
@@ -232,8 +232,9 @@ namespace Eventso.Subscription.Tests
         public async Task ObservingDisposed_Throws()
         {
             var observer = new BatchEventObserver<IEvent>(
+                
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 2 },
-                Substitute.For<IBatchHandler<IEvent>>(),
+                Substitute.For<IEventHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 
@@ -259,8 +260,8 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
@@ -294,8 +295,8 @@ namespace Eventso.Subscription.Tests
 
             using var semaphore = new SemaphoreSlim(0);
 
-            var batchHandler = Substitute.For<IBatchHandler<IEvent>>();
-            batchHandler.Handle(default, default)
+            var batchHandler = Substitute.For<IEventHandler<IEvent>>();
+            batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
                 .ThrowsForAnyArgs(new TestException())
                 .AndDoes(_ => semaphore.Release());
 
@@ -329,8 +330,9 @@ namespace Eventso.Subscription.Tests
             const int batchCount = 2;
 
             var observer = new BatchEventObserver<IEvent>(
+                
                 new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
-                Substitute.For<IBatchHandler<IEvent>>(),
+                Substitute.For<IEventHandler<IEvent>>(),
                 _consumer,
                 _handlersRegistry);
 

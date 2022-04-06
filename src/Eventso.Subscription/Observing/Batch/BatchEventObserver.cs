@@ -11,7 +11,7 @@ namespace Eventso.Subscription.Observing.Batch
     public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         where TEvent : IEvent
     {
-        private readonly IBatchHandler<TEvent> _handler;
+        private readonly IEventHandler<TEvent> _handler;
         private readonly ActionBlock<Buffer<TEvent>.Batch> _actionBlock;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly IConsumer<TEvent> _consumer;
@@ -24,7 +24,7 @@ namespace Eventso.Subscription.Observing.Batch
 
         public BatchEventObserver(
             BatchConfiguration config,
-            IBatchHandler<TEvent> handler,
+            IEventHandler<TEvent> handler,
             IConsumer<TEvent> consumer,
             IMessageHandlersRegistry messageHandlersRegistry,
             bool skipUnknown = true)

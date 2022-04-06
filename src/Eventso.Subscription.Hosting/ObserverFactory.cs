@@ -17,7 +17,7 @@ namespace Eventso.Subscription.Hosting
             SubscriptionConfiguration configuration,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry messageHandlersRegistry,
-            ILoggerFactory loggerFactory)
+            ILoggerFactory loggerFactory) 
         {
             _configuration = configuration;
             _messagePipelineFactory = messagePipelineFactory;
@@ -25,47 +25,53 @@ namespace Eventso.Subscription.Hosting
             _loggerFactory = loggerFactory;
         }
 
-        public IObserver<T> Create<T>(IConsumer<T> consumer)
-            where T : IEvent
+        public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer)
+            where TEvent : IEvent
         {
-            var pipelineAction = _messagePipelineFactory.Create(_configuration.HandlerConfig);
+            IEventHandler<TEvent> eventHandler = new Observing.EventHandler<TEvent>(
+                _messageHandlersRegistry,
+                _messagePipelineFactory.Create(_configuration.HandlerConfig));
 
-            if (_configuration.BatchProcessingRequired)
-            {
-                return new BatchEventObserver<T>(
-                    _configuration.BatchConfiguration,
-                    GetBatchHandler(),
-                    consumer,
-                    _messageHandlersRegistry,
-                    _configuration.SkipUnknownMessages);
-            }
+            IObserver<TEvent> observer = _configuration.BatchProcessingRequired
+                ? CreateBatchEventObserver(consumer, eventHandler)
+                : CreateSingleEventObserver(consumer, eventHandler);
 
-            return new EventObserver<T>(
-                pipelineAction,
+            return observer;
+        }
+
+        private BatchEventObserver<TEvent> CreateBatchEventObserver<TEvent>(
+            IConsumer<TEvent> consumer,
+            IEventHandler<TEvent> eventHandler)
+            where TEvent : IEvent
+        {
+            return new BatchEventObserver<TEvent>(
+                _configuration.BatchConfiguration,
+                _configuration.BatchConfiguration.HandlingStrategy switch
+                {
+                    BatchHandlingStrategy.SingleType => eventHandler,
+                    BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
+                    BatchHandlingStrategy.OrderedWithinKey => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
+                    BatchHandlingStrategy.OrderedWithinType => new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
+                    _ => throw new InvalidOperationException(
+                        $"Unknown handling strategy: {_configuration.BatchConfiguration.HandlingStrategy}")
+                },
+                consumer,
+                _messageHandlersRegistry,
+                _configuration.SkipUnknownMessages);
+        }
+
+        private EventObserver<TEvent> CreateSingleEventObserver<TEvent>(
+            IConsumer<TEvent> consumer,
+            IEventHandler<TEvent> eventHandler)
+            where TEvent : IEvent
+        {
+            return new EventObserver<TEvent>(
+                eventHandler,
                 consumer,
                 _messageHandlersRegistry,
                 _configuration.SkipUnknownMessages,
                 _configuration.DeferredAckConfiguration,
-                _loggerFactory.CreateLogger<EventObserver<T>>());
-
-            IBatchHandler<T> GetBatchHandler()
-            {
-                var batchPipelineAction = new MessageBatchPipelineAction(
-                    _messageHandlersRegistry,
-                    pipelineAction);
-
-                var singleTypeHandler = new SingleTypeBatchHandler<T>(batchPipelineAction);
-
-                return _configuration.BatchConfiguration.HandlingStrategy switch
-                {
-                    BatchHandlingStrategy.SingleType => singleTypeHandler,
-                    BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyBatchHandler<T>(batchPipelineAction),
-                    BatchHandlingStrategy.OrderedWithinKey => new OrderedWithinKeyBatchHandler<T>(batchPipelineAction),
-                    BatchHandlingStrategy.OrderedWithinType => new OrderedWithinTypeBatchHandler<T>(batchPipelineAction),
-                    _ => throw new InvalidOperationException(
-                        $"Unknown handling strategy: {_configuration.BatchConfiguration.HandlingStrategy}")
-                };
-            }
+                _loggerFactory.CreateLogger<EventObserver<TEvent>>());
         }
     }
 }
