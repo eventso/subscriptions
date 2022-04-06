@@ -11,17 +11,25 @@ using Xunit;
 
 namespace Eventso.Subscription.Tests
 {
-    public sealed class OrderedWithinTypeBatchHandlerTests
+    public sealed class OrderedWithinTypeEventHandlerTests
     {
         private readonly List<object> _handledEvents = new();
         private readonly List<IReadOnlyCollection<object>> _handledBatches = new();
-        private readonly OrderedWithinTypeBatchHandler<TestEvent> _handler;
+        private readonly OrderedWithinTypeEventHandler<TestEvent> _handler;
         private readonly Fixture _fixture = new();
 
-        public OrderedWithinTypeBatchHandlerTests()
+        public OrderedWithinTypeEventHandlerTests()
         {
-            var action = Substitute.For<IMessageBatchPipelineAction>();
-            action.Invoke<RedMessage>(default, default)
+            var registry = Substitute.For<IMessageHandlersRegistry>();
+            registry
+                .ContainsHandlersFor(Arg.Any<Type>(), out Arg.Any<HandlerKind>())
+                .Returns(x => { 
+                    x[1] = HandlerKind.Batch;
+                    return true;
+                });
+            
+            var action = Substitute.For<IMessagePipelineAction>();
+            action.Invoke(default(IReadOnlyCollection<RedMessage>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
@@ -29,7 +37,7 @@ namespace Eventso.Subscription.Tests
                     _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
                 });
 
-            action.Invoke<BlueMessage>(default, default)
+            action.Invoke(default(IReadOnlyCollection<BlueMessage>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
@@ -37,7 +45,7 @@ namespace Eventso.Subscription.Tests
                     _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueMessage>>());
                 });
 
-            action.Invoke<GreenMessage>(default, default)
+            action.Invoke(default(IReadOnlyCollection<GreenMessage>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c =>
                 {
@@ -45,7 +53,8 @@ namespace Eventso.Subscription.Tests
                     _handledBatches.Add(c.Arg<IReadOnlyCollection<GreenMessage>>());
                 });
 
-            _handler = new OrderedWithinTypeBatchHandler<TestEvent>(action);
+            var eventHandler = new Observing.EventHandler<TestEvent>(registry, action);
+            _handler = new OrderedWithinTypeEventHandler<TestEvent>(eventHandler);
         }
 
         [Fact]

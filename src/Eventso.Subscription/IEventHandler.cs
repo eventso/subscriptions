@@ -8,9 +8,6 @@ namespace Eventso.Subscription
     {
         Task Handle(TEvent @event, CancellationToken cancellationToken);
         
-        /// <remarks>
-        /// Expects <paramref name="events"/> of single message type. 
-        /// </remarks>
         Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken);
     }
 }
