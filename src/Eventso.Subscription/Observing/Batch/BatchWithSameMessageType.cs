@@ -6,7 +6,6 @@ namespace Eventso.Subscription.Observing.Batch
         where TEvent : IEvent
     {
         private readonly Type _type;
-
         private readonly PooledList<TEvent> _events;
 
         public BatchWithSameMessageType(TEvent @event)
@@ -28,8 +27,8 @@ namespace Eventso.Subscription.Observing.Batch
         public IConvertibleCollection<TEvent> Events
             => _events;
 
-        private bool HasEqualType(TEvent @event) =>
-            _type == @event.GetMessage().GetType();
+        private bool HasEqualType(TEvent @event)
+            => _type == @event.GetMessage().GetType();
 
         public void Dispose()
             => _events?.Dispose();

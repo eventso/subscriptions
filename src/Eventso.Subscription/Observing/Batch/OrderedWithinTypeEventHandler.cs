@@ -7,15 +7,15 @@ namespace Eventso.Subscription.Observing.Batch
     public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent>
         where TEvent : IEvent
     {
-        private readonly IEventHandler<TEvent> _eventHandler;
+        private readonly IEventHandler<TEvent> _nextHandler;
 
-        public OrderedWithinTypeEventHandler(IEventHandler<TEvent> eventHandler)
+        public OrderedWithinTypeEventHandler(IEventHandler<TEvent> nextHandler)
         {
-            _eventHandler = eventHandler;
+            _nextHandler = nextHandler;
         }
 
         public Task Handle(TEvent @event, CancellationToken cancellationToken)
-            => _eventHandler.Handle(@event, cancellationToken);
+            => _nextHandler.Handle(@event, cancellationToken);
 
         public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
         {
@@ -24,7 +24,7 @@ namespace Eventso.Subscription.Observing.Batch
 
             if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
             {
-                await _eventHandler.Handle(events, token);
+                await _nextHandler.Handle(events, token);
 
                 return;
             }
@@ -32,7 +32,7 @@ namespace Eventso.Subscription.Observing.Batch
             using var batches = OrderWithinType(events);
             foreach (var batch in batches)
                 using (batch)
-                    await _eventHandler.Handle(batch.Events, token);
+                    await _nextHandler.Handle(batch.Events, token);
         }
 
         private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IEnumerable<TEvent> events)
