@@ -11,7 +11,8 @@ namespace Eventso.Subscription.Hosting
             IMessageDeserializer serializer,
             HandlerConfiguration handlerConfig = default,
             bool skipUnknownMessages = true,
-            int consumerInstances = 1)
+            int consumerInstances = 1,
+            bool enableDeadLetterQueue = false)
         {
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));
@@ -30,6 +31,7 @@ namespace Eventso.Subscription.Hosting
             SkipUnknownMessages = skipUnknownMessages;
             ConsumerInstances = consumerInstances;
             HandlerConfig = handlerConfig ?? new HandlerConfiguration();
+            EnableDeadLetterQueue = enableDeadLetterQueue;
         }
 
         public SubscriptionConfiguration(
@@ -38,12 +40,14 @@ namespace Eventso.Subscription.Hosting
             HandlerConfiguration handlerConfig = default,
             bool skipUnknownMessages = true,
             int consumerInstances = 1,
-            DeferredAckConfiguration deferredAckConfiguration = default)
+            DeferredAckConfiguration deferredAckConfiguration = default,
+            bool enableDeadLetterQueue = false)
             : this(settings,
                 serializer,
                 handlerConfig,
                 skipUnknownMessages,
-                consumerInstances)
+                consumerInstances,
+                enableDeadLetterQueue)
         {
             deferredAckConfiguration?.Validate();
 
@@ -56,12 +60,14 @@ namespace Eventso.Subscription.Hosting
             IMessageDeserializer serializer,
             HandlerConfiguration handlerConfig = default,
             bool skipUnknownMessages = true,
-            int consumerInstances = 1)
+            int consumerInstances = 1,
+            bool enableDeadLetterQueue = false)
             : this(settings,
                 serializer,
                 handlerConfig,
                 skipUnknownMessages,
-                consumerInstances)
+                consumerInstances,
+                enableDeadLetterQueue)
         {
             batchConfiguration.Validate();
             
@@ -84,5 +90,7 @@ namespace Eventso.Subscription.Hosting
         public BatchConfiguration BatchConfiguration { get; }
         
         public DeferredAckConfiguration DeferredAckConfiguration { get; }
+        
+        public bool EnableDeadLetterQueue { get; }
     }
 }
