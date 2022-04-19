@@ -40,7 +40,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
             where TEvent : IEvent
         {
             IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
-                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters);
+                IReadOnlyDictionary<object, string> deadLetters);
         }
         
         private sealed class SingleEventContext<TEvent> : IEventContext<TEvent>
@@ -52,7 +52,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
                 => _event = @event;
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
-                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
+                IReadOnlyDictionary<object, string> deadLetters)
             {
                 if (deadLetters.Count == 0)
                     return Array.Empty<PoisonEvent<TEvent>>();
@@ -76,7 +76,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
                 => _events = events;
 
             public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents(
-                IReadOnlyDictionary<object, IReadOnlySet<string>> deadLetters)
+                IReadOnlyDictionary<object, string> deadLetters)
             {
                 if (deadLetters.Count == 0)
                     return Array.Empty<PoisonEvent<TEvent>>();

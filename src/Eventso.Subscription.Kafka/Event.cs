@@ -4,7 +4,7 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka
 {
-    public readonly struct Event : IEvent, IEquatable<Event>
+    public readonly struct Event : IEvent
     {
         private readonly ConsumedMessage _value;
         private readonly Guid _key;
@@ -62,18 +62,5 @@ namespace Eventso.Subscription.Kafka
 
         internal TopicPartitionOffset GetTopicPartitionOffset()
             => new(Topic, Partition, Offset);
-
-        public bool Equals(Event other)
-            => _value.Equals(other._value)
-               && _key.Equals(other._key)
-               && Topic == other.Topic
-               && Partition.Equals(other.Partition)
-               && Offset.Equals(other.Offset);
-
-        public override bool Equals(object obj)
-            => obj is Event other && Equals(other);
-
-        public override int GetHashCode()
-            => HashCode.Combine(_value, _key, Topic, Partition, Offset);
     }
 }

@@ -13,9 +13,6 @@ namespace Eventso.Subscription.Tests
 {
     public sealed class PoisonEventHandlerTests
     {
-        // copied from PoisonEventHandler (tests will break on change - be aware)
-        private const string PredecessorParkedReason = "Predecessor of event is poison and parked.";
-        
         private readonly Fixture _fixture = new();
 
         private readonly List<PoisonEvent<TestEvent>> _inboxPoisonEvents = new();
@@ -68,7 +65,7 @@ namespace Eventso.Subscription.Tests
             await _underTestHandler.Handle(@event, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
-                new[] { predecessorInInbox, PoisonEvent(@event, PredecessorParkedReason) });
+                new[] { predecessorInInbox, PoisonEvent(@event, PoisonEventHandler<TestEvent>.PoisonPredecessorReason) });
             _scopePoisonEvents.Should().BeEmpty();
             _innerHandlerEvents.Should().BeEmpty();
         }
@@ -90,7 +87,7 @@ namespace Eventso.Subscription.Tests
             await _underTestHandler.Handle(events, CancellationToken.None);
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
-                predecessors.Concat(toPoisonEvents.Select(e => PoisonEvent(e, PredecessorParkedReason))));
+                predecessors.Concat(toPoisonEvents.Select(e => PoisonEvent(e, PoisonEventHandler<TestEvent>.PoisonPredecessorReason))));
             _scopePoisonEvents.Should().BeEmpty();
             _innerHandlerEvents.Should().BeEquivalentTo(healthyEvents);
         }
@@ -151,7 +148,7 @@ namespace Eventso.Subscription.Tests
 
             _inboxPoisonEvents.Should().BeEquivalentTo(
                 poisonPredecessors
-                    .Concat(predecessorPoisonEvents.Select(e => PoisonEvent(e, PredecessorParkedReason)))
+                    .Concat(predecessorPoisonEvents.Select(e => PoisonEvent(e, PoisonEventHandler<TestEvent>.PoisonPredecessorReason)))
                     .Concat(scopePoisonEvents));
             _scopePoisonEvents.Should().BeEquivalentTo(scopePoisonEvents);
             _innerHandlerEvents.Should().BeEquivalentTo(healthyEvents.Concat(scopePoisonEvents.Select(p => p.Event)));

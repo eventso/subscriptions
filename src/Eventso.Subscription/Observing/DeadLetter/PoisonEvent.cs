@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Eventso.Subscription.Observing.DeadLetter
@@ -11,11 +10,6 @@ namespace Eventso.Subscription.Observing.DeadLetter
         {
             Event = @event;
             Reason = reason;
-        }
-
-        public PoisonEvent(TEvent @event, IEnumerable<string> reasons)
-            : this(@event, string.Join("<-- REASON END -->", reasons))
-        {
         }
 
         public TEvent Event { get; }

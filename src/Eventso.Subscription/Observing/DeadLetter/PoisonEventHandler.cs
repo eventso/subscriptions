@@ -8,7 +8,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
     public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         where TEvent : IEvent
     {
-        private const string PredecessorParkedReason = "Predecessor of event is poison and parked.";
+        internal const string PoisonPredecessorReason = "Predecessor of event is poison.";
 
         private readonly IPoisonEventInbox<TEvent> _poisonEventInbox;
         private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
@@ -29,7 +29,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
             if (await _poisonEventInbox.IsStreamPoisoned(@event, cancellationToken))
             {
                 await _poisonEventInbox.Add(
-                    new [] { new PoisonEvent<TEvent>(@event, PredecessorParkedReason) },
+                    new [] { new PoisonEvent<TEvent>(@event, PoisonPredecessorReason) },
                     cancellationToken);
                 return;
             }
@@ -92,7 +92,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
                     continue;
                 }
 
-                poison.Add(new PoisonEvent<TEvent>(@event, PredecessorParkedReason));
+                poison.Add(new PoisonEvent<TEvent>(@event, PoisonPredecessorReason));
             }
         }
     }

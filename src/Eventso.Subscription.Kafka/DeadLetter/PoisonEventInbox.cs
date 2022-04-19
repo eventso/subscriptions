@@ -81,7 +81,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             }
 
             return poisonStreamIds != null
-                ? events.Where(e => poisonStreamIds.Contains(new StreamId(e.Topic, e.GetKey()))).ToHashSet()
+                ? events
+                    .Where(e => poisonStreamIds.Contains(new StreamId(e.Topic, e.GetKey())))
+                    .ToHashSet(EventEqualityComparer.Instance)
                 : null;
         }
 
@@ -176,6 +178,17 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 _topics ??= new List<string>(1);
                 _topics.Add(topic);
             }
+        }
+
+        private sealed class EventEqualityComparer : IEqualityComparer<Event>
+        {
+            public static readonly EventEqualityComparer Instance = new();
+            
+            public bool Equals(Event x, Event y)
+                => x.Topic == y.Topic && x.Partition.Equals(y.Partition) && x.Offset.Equals(y.Offset);
+
+            public int GetHashCode(Event obj)
+                => HashCode.Combine(obj.Topic, obj.Partition, obj.Offset);
         }
     }
 }
