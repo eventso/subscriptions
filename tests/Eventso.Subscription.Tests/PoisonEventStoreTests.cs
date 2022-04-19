@@ -19,7 +19,7 @@ namespace Eventso.Subscription.Tests
         // comment FactAttribute line to enable tests in class
         // xUnit doesn't have "skip whole class" functionality out of the box
         // this test class requires PostgreSQL database so it is local only for now
-        private class FactAttribute : Attribute { }
+        // private class FactAttribute : Attribute { }
         
         private readonly IFixture _fixture = new Fixture();
 
@@ -201,8 +201,8 @@ namespace Eventso.Subscription.Tests
         {
             const int maxFailureCount = 10, canBeRetriedFailureCount = 5, cantBeRetriedFailureCount = 15;
             var minIntervalBetweenRetries = TimeSpan.FromMinutes(100);
-            DateTime canBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(50),
-                cantBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(150);
+            DateTime canBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(-150),
+                cantBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(-50);
             const string relevantTopic = "topic1", irrelevantTopic = "topic2";
 
             await using var database = await Database.Create();

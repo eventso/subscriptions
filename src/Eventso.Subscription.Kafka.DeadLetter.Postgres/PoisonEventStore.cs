@@ -31,7 +31,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             IConnectionFactory connectionFactory,
             // TODO receive from settings
             int? maxAllowedFailureCount = default,
-            TimeSpan? minIntervalBetweenRetries = default)
+            TimeSpan? minIntervalBetweenRetries = default,
+            CancellationToken token = default)
         {
             await using var connection = connectionFactory.ReadWrite();
             
@@ -41,7 +42,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                 CREATE TABLE IF NOT EXISTS eventso_dlq.poison_events (
                     topic                  TEXT         NOT NULL,
                     partition              INT          NOT NULL,
-                    ""offset""               BIGINT       NOT NULL,
+                    ""offset""             BIGINT       NOT NULL,
                     key                    UUID         NOT NULL,
                     value                  BYTEA        NULL,
                     creation_timestamp     TIMESTAMP    NOT NULL,
@@ -53,12 +54,12 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                     PRIMARY KEY (""offset"", partition, topic)
                 );
 
-                CREATE INDEX IF NOT EXISTS ix_poison_events_topic ON eventso_dlq.poison_events (topic);",
+                CREATE INDEX IF NOT EXISTS ix_poison_events_key_topic ON eventso_dlq.poison_events (key, topic);",
                 connection);
 
-            await connection.OpenAsync();
+            await connection.OpenAsync(token);
             
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(token);
 
             return new PoisonEventStore(connectionFactory);
         }
@@ -82,7 +83,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             var result = await command.ExecuteScalarAsync(cancellationToken);
             return result != null ? (long)result : 0;
         }
-
 
         public async Task<bool> IsStreamStored(string topic, Guid key, CancellationToken token)
         {
@@ -114,7 +114,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             
             var topics = new string[streamIds.Count];
             var keys = new Guid[streamIds.Count];
-            foreach (var (index, streamId) in Enumerate(streamIds))
+            foreach (var (index, streamId) in streamIds.Select((x, i) => (i, x)))
             {
                 topics[index] = streamId.Topic;
                 keys[index] = streamId.Key;
@@ -206,7 +206,7 @@ VALUES (
                 var headerKeys = new string[poisonEvent.Headers.Count];
                 var headerValues = new ReadOnlyMemory<byte>[poisonEvent.Headers.Count];
 
-                foreach (var (index, header) in Enumerate(poisonEvent.Headers))
+                foreach (var (index, header) in poisonEvent.Headers.Select((x, i) => (i, x)))
                 {
                     headerKeys[index] = header.Key;
                     headerValues[index] = header.Data;
@@ -231,11 +231,11 @@ VALUES (
             IReadOnlyCollection<OccuredFailure> failures,
             CancellationToken token)
         {
-            var topics = new String[failures.Count];
+            var topics = new string[failures.Count];
             var partitions = new int[failures.Count];
             var offsets = new long[failures.Count];
             var reasons = new string[failures.Count];
-            foreach (var (index, failure) in Enumerate(failures))
+            foreach (var (index, failure) in failures.Select((x, i) => (i, x)))
             {
                 topics[index] = failure.TopicPartitionOffset.Topic;
                 partitions[index] = failure.TopicPartitionOffset.Partition.Value;
@@ -276,7 +276,7 @@ WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"
             var topics = new string[topicPartitionOffsets.Count];
             var partitions = new int[topicPartitionOffsets.Count];
             var offsets = new long[topicPartitionOffsets.Count];
-            foreach (var (index, topicPartitionOffset) in Enumerate(topicPartitionOffsets))
+            foreach (var (index, topicPartitionOffset) in topicPartitionOffsets.Select((x, i) => (i, x)))
             {
                 topics[index] = topicPartitionOffset.Topic;
                 partitions[index] = topicPartitionOffset.Partition.Value;
@@ -313,7 +313,6 @@ WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"
 
             await using var command = new NpgsqlCommand(
                 @"
-
 SELECT
     partition,
     ""offset"",
@@ -335,14 +334,14 @@ INNER JOIN (
 ON pe_heads.key = heads.key and pe_heads.""offset"" = heads.min_offset
 WHERE
     pe_heads.total_failure_count <= @maxAllowedFailureCount
-    AND NOW() - pe_heads.last_failure_timestamp > @minIntervalBetweenRetries;",
+    AND pe_heads.last_failure_timestamp < @maxAcceptedLastFailureTimestamp;",
                 connection)
             {
                 Parameters =
                 {
                     new NpgsqlParameter<string>("topic", topic),
                     new NpgsqlParameter<int>("maxAllowedFailureCount", _maxAllowedFailureCount),
-                    new NpgsqlParameter<TimeSpan>("minIntervalBetweenRetries", _minIntervalBetweenRetries)
+                    new NpgsqlParameter<DateTime>("maxAcceptedLastFailureTimestamp", DateTime.UtcNow - _minIntervalBetweenRetries)
                 }
             };
 
@@ -351,35 +350,29 @@ WHERE
             var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var headerKeys = reader.GetFieldValue<string[]>(5);
-                var headerValues = reader.GetFieldValue<byte[][]>(6);
-
-                var headers = headerKeys.Length > 0
-                    ? new EventHeader[headerKeys.Length]
-                    : Array.Empty<EventHeader>();
-                for (var i = 0; i < headerKeys.Length; i++)
-                    headers[i] = new EventHeader(headerKeys[i], headerValues[i]);
-
                 yield return new StoredPoisonEvent(
                     reader.GetFieldValue<int>(0),
                     reader.GetFieldValue<long>(1),
                     reader.GetGuid(2),
                     reader.GetFieldValue<byte[]>(3),
                     reader.GetDateTime(4),
-                    headers,
+                    ReadEventHeaders(),
                     reader.GetDateTime(7), reader.GetString(8),
                     reader.GetInt32(9)
                 );
-            }
-        }
 
-        private static IEnumerable<(int index, T value)> Enumerate<T>(IEnumerable<T> collection)
-        {
-            var i = 0;
-            foreach (var item in collection)
-            {
-                yield return (i, item);
-                i++;
+                EventHeader[] ReadEventHeaders()
+                {
+                    var headerKeys = reader.GetFieldValue<string[]>(5);
+                    if (headerKeys.Length <= 0)
+                        return Array.Empty<EventHeader>();
+
+                    var headerValues = reader.GetFieldValue<byte[][]>(6);
+                    var headers = new EventHeader[headerKeys.Length];
+                    for (var i = 0; i < headerKeys.Length; i++)
+                        headers[i] = new EventHeader(headerKeys[i], headerValues[i]);
+                    return headers;
+                }
             }
         }
     }
