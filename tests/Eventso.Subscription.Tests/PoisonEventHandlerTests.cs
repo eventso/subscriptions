@@ -160,13 +160,11 @@ namespace Eventso.Subscription.Tests
             poisonEventInbox.Add(default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _inboxPoisonEvents.AddRange(c.Arg<IReadOnlyCollection<PoisonEvent<TestEvent>>>()));
-            poisonEventInbox.IsStreamPoisoned(default, default)
+            poisonEventInbox.IsPartOfPoisonStream(default, default)
                 .ReturnsForAnyArgs(c => Task.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
-            poisonEventInbox.GetPoisonStreamsEvents(default, default)
+            poisonEventInbox.GetPoisonStreams(default, default)
                 .ReturnsForAnyArgs(c =>
-                    Task.FromResult<IReadOnlySet<TestEvent>>(c.Arg<IReadOnlyCollection<TestEvent>>()
-                        .Where(e => _inboxPoisonEvents.Any(ee => e.Key == ee.Event.Key))
-                        .ToHashSet()));
+                    Task.FromResult<IPoisonStreamCollection<TestEvent>>(new PoisonStreamCollection(_inboxPoisonEvents)));
 
             return poisonEventInbox;
         }
@@ -210,5 +208,16 @@ namespace Eventso.Subscription.Tests
 
         private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string reason = null)
             => new(@event, reason ?? _fixture.Create<string>());
+        
+        private sealed class PoisonStreamCollection : IPoisonStreamCollection<TestEvent>
+        {
+            private readonly List<PoisonEvent<TestEvent>> _poisonEvents;
+
+            public PoisonStreamCollection(List<PoisonEvent<TestEvent>> poisonEvents)
+                => _poisonEvents = poisonEvents;
+
+            public bool IsPartOfPoisonStream(TestEvent @event)
+                => _poisonEvents.Any(ee => @event.Key == ee.Event.Key);
+        }
     }
 }

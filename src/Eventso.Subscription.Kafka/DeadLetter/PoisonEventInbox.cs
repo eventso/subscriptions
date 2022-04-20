@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -62,10 +63,10 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             await _eventStore.Add(DateTime.UtcNow, openingPoisonEvents, cancellationToken);
         }
 
-        public Task<bool> IsStreamPoisoned(Event @event, CancellationToken cancellationToken)
+        public Task<bool> IsPartOfPoisonStream(Event @event, CancellationToken cancellationToken)
             => _eventStore.IsStreamStored(@event.Topic, @event.GetKey(), cancellationToken);
 
-        public async Task<IReadOnlySet<Event>> GetPoisonStreamsEvents(
+        public async Task<IPoisonStreamCollection<Event>> GetPoisonStreams(
             IReadOnlyCollection<Event> events,
             CancellationToken cancellationToken)
         {
@@ -81,9 +82,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             }
 
             return poisonStreamIds != null
-                ? events
-                    .Where(e => poisonStreamIds.Contains(new StreamId(e.Topic, e.GetKey())))
-                    .ToHashSet(EventEqualityComparer.Instance)
+                ? new PoisonStreamCollection(poisonStreamIds)
                 : null;
         }
 
@@ -179,16 +178,16 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 _topics.Add(topic);
             }
         }
-
-        private sealed class EventEqualityComparer : IEqualityComparer<Event>
+        
+        private sealed class PoisonStreamCollection : IPoisonStreamCollection<Event>
         {
-            public static readonly EventEqualityComparer Instance = new();
-            
-            public bool Equals(Event x, Event y)
-                => x.Topic == y.Topic && x.Partition.Equals(y.Partition) && x.Offset.Equals(y.Offset);
+            private readonly HashSet<StreamId> _poisonStreamIds;
 
-            public int GetHashCode(Event obj)
-                => HashCode.Combine(obj.Topic, obj.Partition, obj.Offset);
+            public PoisonStreamCollection(HashSet<StreamId> poisonStreamIds)
+                => _poisonStreamIds = poisonStreamIds;
+
+            public bool IsPartOfPoisonStream(Event @event)
+                => _poisonStreamIds.Contains(new StreamId(@event.Topic, @event.GetKey()));
         }
     }
 }

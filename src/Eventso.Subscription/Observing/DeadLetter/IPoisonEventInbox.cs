@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +9,10 @@ namespace Eventso.Subscription.Observing.DeadLetter
     {
         Task Add(IReadOnlyCollection<PoisonEvent<TEvent>> events, CancellationToken cancellationToken);
 
-        Task<bool> IsStreamPoisoned(TEvent @event, CancellationToken cancellationToken);
-        Task<IReadOnlySet<TEvent>> GetPoisonStreamsEvents(IReadOnlyCollection<TEvent> events, CancellationToken cancellationToken);
+        Task<bool> IsPartOfPoisonStream(TEvent @event, CancellationToken cancellationToken);
+
+        Task<IPoisonStreamCollection<TEvent>> GetPoisonStreams(
+            IReadOnlyCollection<TEvent> events,
+            CancellationToken cancellationToken);
     }
 }
