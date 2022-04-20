@@ -54,7 +54,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                     PRIMARY KEY (""offset"", partition, topic)
                 );
 
-                CREATE INDEX IF NOT EXISTS ix_poison_events_key_topic ON eventso_dlq.poison_events (key, topic);",
+                CREATE INDEX IF NOT EXISTS ix_poison_events_key ON eventso_dlq.poison_events (key);",
                 connection);
 
             await connection.OpenAsync(token);
@@ -357,7 +357,8 @@ WHERE
                     reader.GetFieldValue<byte[]>(3),
                     reader.GetDateTime(4),
                     ReadEventHeaders(),
-                    reader.GetDateTime(7), reader.GetString(8),
+                    reader.GetDateTime(7),
+                    reader.GetString(8),
                     reader.GetInt32(9)
                 );
 
