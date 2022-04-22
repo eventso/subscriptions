@@ -64,30 +64,22 @@ namespace Eventso.Subscription.Observing.DeadLetter
             var healthyEvents = withoutPoison ?? events;
             using var dlqScope = _deadLetterQueueScopeFactory.Create(healthyEvents);
 
-            switch (healthyEvents.Count)
+            try
             {
-                case 1: 
-                    try
-                    {
-                        await _inner.Handle(healthyEvents, token);
-                    }
-                    catch (Exception exception)
-                    {
-                        poison ??= new PooledList<PoisonEvent<TEvent>>(1);
-                        poison.Add(new PoisonEvent<TEvent>(healthyEvents[0], exception.ToString()));
-                    }
-                    break;
-                case > 1: 
-                    await _inner.Handle(healthyEvents, token);
+                await _inner.Handle(healthyEvents, token);
 
-                    var userDefinedPoison = dlqScope.GetPoisonEvents();
-                    if (userDefinedPoison.Count > 0)
-                    {
-                        poison ??= new PooledList<PoisonEvent<TEvent>>(userDefinedPoison.Count);
-                        foreach (var poisonEvent in userDefinedPoison)
-                            poison.Add(poisonEvent);
-                    }
-                    break;
+                var userDefinedPoison = dlqScope.GetPoisonEvents();
+                if (userDefinedPoison.Count > 0)
+                {
+                    poison ??= new PooledList<PoisonEvent<TEvent>>(userDefinedPoison.Count);
+                    foreach (var poisonEvent in userDefinedPoison)
+                        poison.Add(poisonEvent);
+                }
+            }
+            catch (Exception exception) when (healthyEvents.Count == 1)
+            {
+                poison ??= new PooledList<PoisonEvent<TEvent>>(1);
+                poison.Add(new PoisonEvent<TEvent>(healthyEvents[0], exception.ToString()));
             }
 
             if (poison?.Count > 0)
