@@ -111,7 +111,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
         {
             await using var connection = _connectionFactory.ReadOnly();
 
-            
             var topics = new string[streamIds.Count];
             var keys = new Guid[streamIds.Count];
             foreach (var (index, streamId) in streamIds.Select((x, i) => (i, x)))
