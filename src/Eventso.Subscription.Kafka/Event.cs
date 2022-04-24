@@ -59,5 +59,8 @@ namespace Eventso.Subscription.Kafka
 
             return new[] { offset, resultPair };
         }
+
+        internal TopicPartitionOffset GetTopicPartitionOffset()
+            => new(Topic, Partition, Offset);
     }
 }
