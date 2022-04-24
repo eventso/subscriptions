@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,10 +28,21 @@ namespace Eventso.Subscription.Kafka.DeadLetter
         {
             using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
 
-            await _inner.Handle(@event, cancellationToken);
+            OccuredFailure? occuredFailure = null; 
+            try
+            {
+                await _inner.Handle(@event, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                occuredFailure = new OccuredFailure(@event.GetTopicPartitionOffset(), exception.ToString());
+            }
 
-            var poisonEvents = dlqScope.GetPoisonEvents();
-            if (poisonEvents.Count == 0)
+            occuredFailure ??= dlqScope.GetPoisonEvents()
+                .Select(e => (OccuredFailure?)new OccuredFailure(@event.GetTopicPartitionOffset(), e.Reason))
+                .SingleOrDefault();
+            
+            if (occuredFailure == null)
             {
                 await _poisonEventStore.Remove(new [] { @event.GetTopicPartitionOffset() }, cancellationToken);
                 return;
@@ -38,7 +50,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
             await _poisonEventStore.AddFailures(
                 DateTime.UtcNow,
-                new [] { new OccuredFailure(@event.GetTopicPartitionOffset(), poisonEvents.Single().Reason) },
+                new [] { occuredFailure.Value },
                 cancellationToken);
         }
 
@@ -46,16 +58,28 @@ namespace Eventso.Subscription.Kafka.DeadLetter
         {
             using var dlqScope = _deadLetterQueueScopeFactory.Create(events);
 
-            await _inner.Handle(events, cancellationToken);
+            OccuredFailure[] occuredFailures;
+            try
+            {
+                await _inner.Handle(events, cancellationToken);
 
-            var stillPoisonEvents = dlqScope.GetPoisonEvents();
+                occuredFailures = dlqScope.GetPoisonEvents()
+                    .Select(p => new OccuredFailure(p.Event.GetTopicPartitionOffset(), p.Reason))
+                    .ToArray();
+            }
+            catch (Exception exception) when (events.Count == 1)
+            {
+                occuredFailures = new[]
+                {
+                    new OccuredFailure(events[0].GetTopicPartitionOffset(), exception.ToString())
+                };
+            }
 
-            await _poisonEventStore.AddFailures(
-                DateTime.UtcNow,
-                stillPoisonEvents.Select(p => new OccuredFailure(p.Event.GetTopicPartitionOffset(), p.Reason)).ToArray(),
-                cancellationToken);
+            await _poisonEventStore.AddFailures(DateTime.UtcNow, occuredFailures, cancellationToken);
+            if (events.Count == occuredFailures.Length)
+                return;
 
-            var stillPoisonEventOffsets = stillPoisonEvents.Select(e => e.Event.GetTopicPartitionOffset()).ToHashSet();
+            var stillPoisonEventOffsets = occuredFailures.Select(e => e.TopicPartitionOffset).ToHashSet();
             await _poisonEventStore.Remove(
                 events
                     .Select(h => h.GetTopicPartitionOffset())
