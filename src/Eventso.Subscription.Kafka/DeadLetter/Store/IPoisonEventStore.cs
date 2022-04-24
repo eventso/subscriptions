@@ -32,16 +32,4 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
             IReadOnlyCollection<TopicPartitionOffset> partitionOffsets,
             CancellationToken token);
     }
-    
-    // TODO remove (created just for successful build)
-    public sealed record OccuredFailure(TopicPartitionOffset arg1, string arg2);
-    public sealed record OpeningPoisonEvent(TopicPartitionOffset arg1, Guid arg2, ReadOnlyMemory<byte> arg3, DateTime arg4, IReadOnlyCollection<EventHeader> arg5, string arg6);
-    public sealed record StoredPoisonEvent(
-        TopicPartitionOffset TopicPartitionOffset,
-        Guid Key,
-        ReadOnlyMemory<byte> Value,
-        DateTime CreationTimestamp,
-        IReadOnlyCollection<EventHeader> Headers);
-    public sealed record StreamId(string arg1, Guid arg2); // will be struct with IEquatable
-    public sealed record EventHeader(string Key, byte[] Data);
 }

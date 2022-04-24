@@ -62,6 +62,5 @@ namespace Eventso.Subscription.Kafka
 
         internal TopicPartitionOffset GetTopicPartitionOffset()
             => new(Topic, Partition, Offset);
-
     }
 }

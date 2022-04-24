@@ -33,6 +33,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleApplication", "SampleApplication\SampleApplication.csproj", "{EBDC7651-CA00-4132-9290-80886B05CDD8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Eventso.Subscription.Kafka.DeadLetter.Postgres", "src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj", "{FD908298-AF0B-4733-B56F-751570918049}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +77,10 @@ Global
 		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EBDC7651-CA00-4132-9290-80886B05CDD8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD908298-AF0B-4733-B56F-751570918049}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD908298-AF0B-4733-B56F-751570918049}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD908298-AF0B-4733-B56F-751570918049}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD908298-AF0B-4733-B56F-751570918049}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -89,6 +95,7 @@ Global
 		{EE1E8688-307B-4CA5-9497-13980C140D52} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{F5CA141F-2BA5-4CA7-9FDC-00F13E4B387A} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{EBDC7651-CA00-4132-9290-80886B05CDD8} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
+		{FD908298-AF0B-4733-B56F-751570918049} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F4F1C631-F527-4416-AEED-8E8B09F7AE4D}

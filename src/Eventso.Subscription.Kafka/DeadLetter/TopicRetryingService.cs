@@ -55,8 +55,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter
         private Event Deserialize(StoredPoisonEvent storedEvent)
         {
             var headers = new Headers();
-            foreach (var (key, data) in storedEvent.Headers)
-                headers.Add(key, data);
+            foreach (var header in storedEvent.Headers)
+                headers.Add(header.Key, header.Data.ToArray());
 
             var consumeResult = new ConsumeResult<Guid, ConsumedMessage>
             {
@@ -69,10 +69,10 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                     Headers = headers
                 },
                 IsPartitionEOF = false,
-                TopicPartitionOffset = storedEvent.TopicPartitionOffset
+                TopicPartitionOffset = new TopicPartitionOffset(_topic, storedEvent.Partition, storedEvent.Offset)
             };
 
-            return new Event(consumeResult, storedEvent.TopicPartitionOffset.Topic);
+            return new Event(consumeResult, _topic);
         }
     }
 }
