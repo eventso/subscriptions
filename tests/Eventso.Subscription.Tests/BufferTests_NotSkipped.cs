@@ -50,24 +50,25 @@ namespace Eventso.Subscription.Tests
         public async Task AddingItem_CorrectBatching(
             int maxBatchSize, int eventsCount)
         {
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 Timeout.InfiniteTimeSpan,
                 _targetBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
             var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
             foreach (var @event in events)
                 await buffer.Add(@event, skipped: false, CancellationToken.None);
 
-            await buffer.TriggerSend(CancellationToken.None);
+            await buffer.Complete();
 
             _targetBlock.Complete();
             _targetBlock.TryReceiveAll(out var batches);
 
             batches.Should().HaveCount((int)Math.Ceiling(new decimal(eventsCount) / maxBatchSize));
-            batches.SelectMany(x => x.Events).Select(x => x.Event)
+            batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events, c => c.WithStrictOrdering());
         }
@@ -75,146 +76,173 @@ namespace Eventso.Subscription.Tests
         [Fact]
         public async Task AddingItem_BatchesProcessedInStreamedWay()
         {
-            const int maxBufferSize = 3;
-            var buffer = new Buffer<RedMessage>(
-                maxBufferSize,
+            const int maxBatchSize = 3;
+            using var buffer = new Buffer<RedMessage>(
+                maxBatchSize,
                 Timeout.InfiniteTimeSpan,
                 _targetBlock,
-                maxBufferSize: maxBufferSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
-            var events = _fixture.CreateMany<RedMessage>(maxBufferSize * 3).ToArray();
+            var events = _fixture.CreateMany<RedMessage>(maxBatchSize * 3).ToArray();
 
             for (var iteration = 0; iteration < 2; iteration++)
             {
-                for (var i = 0; i < maxBufferSize; i++)
-                    await buffer.Add(events[i + (iteration * maxBufferSize)], skipped: false, CancellationToken.None);
+                for (var i = 0; i < maxBatchSize; i++)
+                    await buffer.Add(events[i + (iteration * maxBatchSize)], skipped: false, CancellationToken.None);
 
                 await Task.Delay(100);
 
                 _targetBlock.TryReceiveAll(out var batches);
 
                 using var batch = batches.Should().ContainSingle().Subject.Events;
-                batch.Segment.Should().HaveCount(maxBufferSize);
+                batch.Segment.Should().HaveCount(maxBatchSize);
                 batch.Segment.Select(x => x.Event)
                     .Should()
                     .BeEquivalentTo(
-                        events.Skip(iteration * maxBufferSize).Take(maxBufferSize),
+                        events.Skip(iteration * maxBatchSize).Take(maxBatchSize),
                         c => c.WithStrictOrdering());
             }
         }
 
         [Fact]
-        public async Task CheckingTimeoutOnTimeout_BatchCreated()
+        public async Task OnTimeout_BatchCreated()
         {
-            const int maxBatchSize = 10;
-            const int batchTimeoutMs = 300;
+            const int maxBatchSize = 50;
+            const int batchTimeoutMs = 500;
+            const int singleEventDelayMs = 100;
 
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 TimeSpan.FromMilliseconds(batchTimeoutMs),
                 _targetBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
-            var events = _fixture.CreateMany<RedMessage>(maxBatchSize * 2 - 1).ToArray();
+            var events = _fixture.CreateMany<RedMessage>(maxBatchSize).ToArray();
 
             foreach (var @event in events)
-                await buffer.Add(@event, skipped: false, CancellationToken.None);
-
-            await Task.Delay(batchTimeoutMs + 50);
-            await buffer.CheckTimeout(CancellationToken.None);
-
-            _targetBlock.Complete();
-
-            var batches = new List<Buffer<RedMessage>.Batch>();
-
-            while (!_targetBlock.Completion.IsCompleted)
             {
-                _targetBlock.TryReceiveAll(out var items);
-                if (items != null)
-                    batches.AddRange(items);
+                await buffer.Add(@event, skipped: false, CancellationToken.None);
+                await Task.Delay(singleEventDelayMs);
             }
 
-            batches.Should().HaveCount(2);
-            batches.SelectMany(x => x.Events).Select(x => x.Event)
+            await buffer.Complete();
+            _targetBlock.TryReceiveAll(out var batches);
+
+            batches.Should().HaveCount(events.Length / (batchTimeoutMs / singleEventDelayMs));
+            batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events, c => c.WithStrictOrdering());
         }
 
         [Fact]
-        public async Task AddingOnTimeout_BatchCreated()
+        public async Task AddingManyItemsWithTimeout_NoChanceForTimeout()
         {
-            const int maxBatchSize = 10;
-            const int batchTimeoutMs = 300;
+            const int maxBatchSize = 5;
+            const int eventsCount = 100;
+            const int batchTimeoutMs = 200;
+            const int singleEventDelayMs = 10;
 
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 TimeSpan.FromMilliseconds(batchTimeoutMs),
                 _targetBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
-            var events = _fixture.CreateMany<RedMessage>(maxBatchSize * 2 - 5).ToArray();
+            var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
-            foreach (var @event in events.SkipLast(1))
+            foreach (var @event in events)
+            {
                 await buffer.Add(@event, skipped: false, CancellationToken.None);
+                await Task.Delay(singleEventDelayMs);
+            }
 
-            await Task.Delay(batchTimeoutMs + 50);
-
-            await buffer.Add(events.Last(), skipped: false, CancellationToken.None);
+            await buffer.Complete();
 
             _targetBlock.TryReceiveAll(out var batches);
 
-            batches.Should().HaveCount(2);
-            batches.SelectMany(x => x.Events).Select(x => x.Event)
+            batches.Should().HaveCount(events.Length / maxBatchSize);
+            batches.Should().OnlyContain(list => list.Events.Count == maxBatchSize);
+            batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events, c => c.WithStrictOrdering());
         }
 
         [Fact]
-        public async Task TriggeringSend_MessagesFlushed()
+        public async Task Completing_EventsFlushed()
         {
             const int maxBatchSize = 5000;
             const int eventsCount = 10;
 
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 Timeout.InfiniteTimeSpan,
                 _targetBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
             var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
             foreach (var @event in events)
                 await buffer.Add(@event, skipped: false, CancellationToken.None);
 
-            await buffer.TriggerSend(CancellationToken.None);
+            await buffer.Complete();
 
             _targetBlock.TryReceiveAll(out var batches);
 
             var batch = batches.Should().ContainSingle().Subject;
-            batch.Events.Select(x => x.Event)
+            batch.Events.Segment.Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events, c => c.WithStrictOrdering());
         }
 
+        [Fact]
+        public async Task AddingItemToCompleted_Throws()
+        {
+            const int maxBatchSize = 10;
+            const int eventsCount = 10;
+
+            using var buffer = new Buffer<RedMessage>(
+                maxBatchSize,
+                Timeout.InfiniteTimeSpan,
+                _targetBlock,
+                maxBatchSize * 3,
+                CancellationToken.None);
+
+            var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
+
+            foreach (var @event in events)
+                await buffer.Add(@event, skipped: false, CancellationToken.None);
+
+            await buffer.Complete();
+
+            Func<Task> act = () => buffer.Add(
+                _fixture.Create<RedMessage>(), false, CancellationToken.None);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
 
         [Fact]
         public async Task AddingItemToBlockedTarget_ItemAdded()
         {
             const int maxBatchSize = 10;
-            const int eventsCount = 19;
+            const int eventsCount = 30;
 
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 Timeout.InfiniteTimeSpan,
                 _semaphoreBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
             var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
             foreach (var @event in events)
                 await buffer.Add(@event, skipped: false, CancellationToken.None);
 
-            var completeTask = buffer.TriggerSend(CancellationToken.None);
+            var completeTask = buffer.Complete();
 
             await Task.Delay(100);
 
@@ -227,8 +255,8 @@ namespace Eventso.Subscription.Tests
             _semaphoreBlock.Complete();
             await _semaphoreBlock.Completion;
 
-            _processed.Should().HaveCount((int)Math.Ceiling((double)events.Length / maxBatchSize));
-            _processed.SelectMany(x => x.Events).Select(x => x.Event)
+            _processed.Should().HaveCount(events.Length / maxBatchSize);
+            _processed.SelectMany(x => x.Events.Segment).Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events, c => c.WithStrictOrdering());
         }
@@ -237,13 +265,14 @@ namespace Eventso.Subscription.Tests
         public async Task AddingItemOverBufferCapacityToBlockedTarget_AddingBlocked()
         {
             const int maxBatchSize = 10;
-            const int eventsCount = 19;
+            const int eventsCount = 30;
 
-            var buffer = new Buffer<RedMessage>(
+            using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
                 Timeout.InfiniteTimeSpan,
                 _semaphoreBlock,
-                maxBufferSize: maxBatchSize * 3);
+                maxBatchSize * 3,
+                CancellationToken.None);
 
             var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
@@ -263,12 +292,12 @@ namespace Eventso.Subscription.Tests
 
             await addingTask;
 
-            await buffer.TriggerSend(CancellationToken.None);
+            await buffer.Complete();
             _semaphoreBlock.Complete();
             await _semaphoreBlock.Completion;
 
             _processed.Should().HaveCount(events.Length / maxBatchSize + 1);
-            _processed.SelectMany(x => x.Events).Select(x => x.Event)
+            _processed.SelectMany(x => x.Events.Segment).Select(x => x.Event)
                 .Should()
                 .BeEquivalentTo(events.Append(overBufferEvent), c => c.WithStrictOrdering());
         }

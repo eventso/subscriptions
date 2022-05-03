@@ -69,7 +69,8 @@ namespace Eventso.Subscription.Observing
 
             _consumer.Acknowledge(@event);
         }
-
+        
+        //TODO: Call me
         public Task OnEventTimeout(CancellationToken token)
         {
             if (_skipped.Count > 0 && IsDeferredAckThresholdCrossed())

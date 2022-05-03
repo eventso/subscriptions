@@ -68,16 +68,13 @@ namespace Eventso.Subscription.Kafka
 
             while (!tokenSource.IsCancellationRequested)
             {
-                var result = Consume();
+                var result = Consume(tokenSource.Token);
 
                 timeoutTokenSource.CancelAfter(_maxObserveInterval);
 
                 try
                 {
-                    if (result != null)
-                        await Observe(result, observer, tokenSource.Token);
-                    else
-                        await ObserveTimeout(observer, tokenSource.Token);
+                    await Observe(result, observer, tokenSource.Token);
 
                     tokenSource.Token.ThrowIfCancellationRequested();
                 }
@@ -94,15 +91,17 @@ namespace Eventso.Subscription.Kafka
                 timeoutTokenSource.CancelAfter(Timeout.Infinite);
             }
 
-            ConsumeResult<Guid, ConsumedMessage> Consume()
+            ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
             {
                 try
                 {
-                    return _consumer.Consume(_settings.ConsumeTimeout);
+                    return _consumer.Consume(token);
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
                 {
-                    _logger.LogError(ex, "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
+                    _logger.LogError(ex,
+                        "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
+
                     throw;
                 }
             }
@@ -124,21 +123,6 @@ namespace Eventso.Subscription.Kafka
                 throw new EventHandlingException(
                     result.TopicPartitionOffset.ToString(),
                     "Event observing failed",
-                    ex);
-            }
-        }
-
-        private async Task ObserveTimeout(IObserver<Event> observer, CancellationToken token)
-        {
-            try
-            {
-                await observer.OnEventTimeout(token);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                throw new EventHandlingException(
-                    _settings.Topic,
-                    "OnEventTimeout failed",
                     ex);
             }
         }

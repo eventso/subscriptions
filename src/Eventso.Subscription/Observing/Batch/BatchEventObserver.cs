@@ -53,52 +53,11 @@ namespace Eventso.Subscription.Observing.Batch
                 config.MaxBatchSize,
                 config.BatchTriggerTimeout,
                 _actionBlock,
-                config.GetMaxBufferSize());
+                config.GetMaxBufferSize(),
+                _cancellationTokenSource.Token);
         }
 
-        public async Task OnEventAppeared(TEvent @event, CancellationToken token)
-        {
-            await CheckState();
-
-            var skipped = @event.CanSkip(_skipUnknown) ||
-                          !_messageHandlersRegistry.ContainsHandlersFor(@event.GetMessage().GetType(), out _);
-
-            await _buffer.Add(@event, skipped, token);
-        }
-
-        public async Task OnEventTimeout(CancellationToken token)
-        {
-            await CheckState();
-
-            await _buffer.CheckTimeout(token);
-        }
-
-        public async Task Complete(CancellationToken token)
-        {
-            CheckDisposed();
-
-            if (_actionBlock.Completion.IsFaulted)
-                await _actionBlock.Completion;
-
-            _completed = true;
-            await _buffer.TriggerSend(token);
-
-            _actionBlock.Complete();
-            await _actionBlock.Completion;
-        }
-
-        public void Dispose()
-        {
-            _disposed = true;
-            _actionBlock.Complete();
-
-            if (!_cancellationTokenSource.IsCancellationRequested)
-                _cancellationTokenSource.Cancel();
-
-            _cancellationTokenSource.Dispose();
-        }
-
-        private Task CheckState()
+        public Task OnEventAppeared(TEvent @event, CancellationToken token)
         {
             CheckDisposed();
 
@@ -110,7 +69,36 @@ namespace Eventso.Subscription.Observing.Batch
 
             _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-            return Task.CompletedTask;
+            var skipped = @event.CanSkip(_skipUnknown) ||
+                          !_messageHandlersRegistry.ContainsHandlersFor(@event.GetMessage().GetType(), out _);
+
+            return _buffer.Add(@event, skipped, token);
+        }
+
+        public async Task Complete(CancellationToken token)
+        {
+            CheckDisposed();
+
+            if (_actionBlock.Completion.IsFaulted)
+                await _actionBlock.Completion;
+
+            _completed = true;
+            await _buffer.Complete();
+
+            _actionBlock.Complete();
+            await _actionBlock.Completion;
+        }
+
+        public void Dispose()
+        {
+            _disposed = true;
+            _buffer.Dispose();
+            _actionBlock.Complete();
+
+            if (!_cancellationTokenSource.IsCancellationRequested)
+                _cancellationTokenSource.Cancel();
+
+            _cancellationTokenSource.Dispose();
         }
 
         private async Task HandleBatch(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
@@ -183,7 +171,7 @@ namespace Eventso.Subscription.Observing.Batch
 
                 var comparer = EqualityComparer<TValue>.Default;
                 var sample = valueConverter(_messages[0].Event);
-                
+
                 foreach (var item in _messages.Segment)
                 {
                     if (!comparer.Equals(valueConverter(item.Event), sample))
