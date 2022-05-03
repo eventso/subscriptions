@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Eventso.Subscription.InMemory
+namespace Eventso.Subscription.WebApi
 {
     public sealed class Event : IEvent
     {
@@ -10,8 +10,6 @@ namespace Eventso.Subscription.InMemory
         public Event(ConsumedMessage consumedMessage) => _consumedMessage = consumedMessage;
 
         public DeserializationStatus DeserializationResult => _consumedMessage.Status;
-
-        public bool ContainsPayload => _consumedMessage.Message != null;
 
         public Guid GetKey() => Guid.NewGuid();
 

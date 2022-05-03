@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Eventso.Subscription.Configurations;
 
-namespace Eventso.Subscription.InMemory.Hosting
+namespace Eventso.Subscription.WebApi.Hosting
 {
     public sealed class SubscriptionCollection : ISubscriptionCollection, ISubscriptionConfigurationRegistry
     {

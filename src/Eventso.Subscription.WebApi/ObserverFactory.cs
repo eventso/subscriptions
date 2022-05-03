@@ -1,11 +1,11 @@
 using System;
 using Eventso.Subscription.Configurations;
-using Eventso.Subscription.InMemory.Hosting;
 using Eventso.Subscription.Observing;
 using Eventso.Subscription.Observing.Batch;
+using Eventso.Subscription.WebApi.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Eventso.Subscription.InMemory
+namespace Eventso.Subscription.WebApi
 {
     public sealed class ObserverFactory : IObserverFactory
     {

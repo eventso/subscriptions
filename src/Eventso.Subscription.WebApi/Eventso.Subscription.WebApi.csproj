@@ -3,8 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <RootNamespace>Eventso.Subscription.InMemory</RootNamespace>
-        <Description>Eventso subscription in-memory test transport for applications</Description>
+        <Description>WebApi consumer for Eventso subscription</Description>
     </PropertyGroup>
 
     <ItemGroup>

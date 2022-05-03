@@ -5,11 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Scrutor;
 
-namespace Eventso.Subscription.InMemory.Hosting
+namespace Eventso.Subscription.WebApi.Hosting
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddTestSubscriptions(
+        public static IServiceCollection AddSubscriptions(
             this IServiceCollection services,
             Action<ISubscriptionCollection, IServiceProvider> subscriptions,
             Func<ITypeSourceSelector, IImplementationTypeSelector> handlersSelector = null,

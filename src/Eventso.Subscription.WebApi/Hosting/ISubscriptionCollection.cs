@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Eventso.Subscription.InMemory.Hosting
+namespace Eventso.Subscription.WebApi.Hosting
 {
     public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration>
     {

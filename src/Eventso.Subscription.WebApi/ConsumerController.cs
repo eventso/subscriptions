@@ -2,20 +2,20 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Eventso.Subscription.InMemory.Hosting;
+using Eventso.Subscription.WebApi.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Eventso.Subscription.InMemory
+namespace Eventso.Subscription.WebApi
 {
-    [Route("inmemorybus")]
+    [Route("api/consumer")]
     [ApiController]
-    public sealed class InMemoryBusController : ControllerBase
+    public sealed class ConsumerController : ControllerBase
     {
         private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
-        public InMemoryBusController(
+        public ConsumerController(
             ISubscriptionConfigurationRegistry subscriptionConfigurationRegistry,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry messageHandlersRegistry)
