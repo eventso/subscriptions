@@ -31,6 +31,11 @@ namespace Eventso.Subscription.Configurations
         /// </summary>
         public BatchHandlingStrategy HandlingStrategy { get; init; } = BatchHandlingStrategy.OrderedWithinKey;
 
+        /// <summary>
+        /// Batch error handling strategy. Default: no handling
+        /// </summary>
+        public BatchErrorHandlingStrategy ErrorHandlingStrategy { get; init; } = BatchErrorHandlingStrategy.None;
+
         internal int GetMaxBufferSize()
             => MaxBufferSize != 0 ? MaxBufferSize : MaxBatchSize * 3;
     }

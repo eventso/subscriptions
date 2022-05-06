@@ -18,6 +18,7 @@ namespace Eventso.Subscription.Observing.Batch
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
         private readonly bool _skipUnknown;
         private readonly Buffer<TEvent> _buffer;
+        private readonly BatchErrorHandlingStrategy _errorHandlingStrategy;
 
         private bool _completed;
         private bool _disposed;
@@ -33,9 +34,9 @@ namespace Eventso.Subscription.Observing.Batch
             _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
             _messageHandlersRegistry = messageHandlersRegistry;
             _skipUnknown = skipUnknown;
+            _errorHandlingStrategy = config.ErrorHandlingStrategy;
 
-            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                consumer.CancellationToken);
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(consumer.CancellationToken);
 
             _actionBlock = new ActionBlock<Buffer<TEvent>.Batch>(
                 async batch =>
@@ -118,11 +119,25 @@ namespace Eventso.Subscription.Observing.Batch
             if (events.Count == 0)
                 return;
 
-            var allEvents = new EventsCollection(events);
-
             try
             {
-                if (events.Count == toBeHandledEventCount)
+                await HandleEvents(events, toBeHandledEventCount);
+            }
+            catch
+            {
+                _consumer.Cancel();
+
+                throw;
+            }
+        }
+
+        private async Task HandleEvents(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
+        {
+            try
+            {
+                var allEvents = new EventsCollection(events);
+
+                if (allEvents.Count == toBeHandledEventCount)
                 {
                     await _handler.Handle(allEvents, _cancellationTokenSource.Token);
                 }
@@ -137,28 +152,55 @@ namespace Eventso.Subscription.Observing.Batch
             }
             catch
             {
-                _consumer.Cancel();
-                throw;
+                if (_errorHandlingStrategy != BatchErrorHandlingStrategy.Breakdown)
+                    throw;
+
+                await Breakdown(events);
+            }
+        }
+
+        private async Task Breakdown(PooledList<Buffer<TEvent>.BufferedEvent> bufferedEvents)
+        {
+            SingleEventCollection convertible = null;
+
+            foreach (var bufferedEvent in bufferedEvents)
+            {
+                if (bufferedEvent.Skipped)
+                    continue;
+
+                var @event = bufferedEvent.Event;
+
+                if (convertible is null)
+                    convertible = new SingleEventCollection(@event);
+                else
+                    convertible.SetEvent(@event);
+
+                await _handler.Handle(convertible, _cancellationTokenSource.Token);
+
+                _consumer.Acknowledge(@event);
             }
         }
 
         private static PooledList<TEvent> GetEventsToHandle(
-            IReadOnlyList<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
+            IReadOnlyList<Buffer<TEvent>.BufferedEvent> bufferedEvents,
+            int handleMessageCount)
         {
-            var list = new PooledList<TEvent>(handleMessageCount);
+            var eventsToHandle = new PooledList<TEvent>(handleMessageCount);
 
-            foreach (var message in messages)
+            for (var i = 0; i < bufferedEvents.Count; i++)
             {
-                if (!message.Skipped)
-                    list.Add(message.Event);
+                var bufferedEvent = bufferedEvents[i];
+                if (!bufferedEvent.Skipped)
+                    eventsToHandle.Add(bufferedEvent.Event);
             }
 
-            return list;
+            return eventsToHandle;
         }
 
         private void CheckDisposed()
         {
-            if (_disposed) throw new ObjectDisposedException("Batch observer is disposed");
+            if (_disposed)
+                throw new ObjectDisposedException("Batch observer is disposed");
         }
 
         private sealed class EventsCollection : IConvertibleCollection<TEvent>
@@ -183,7 +225,7 @@ namespace Eventso.Subscription.Observing.Batch
 
                 var comparer = EqualityComparer<TValue>.Default;
                 var sample = valueConverter(_messages[0].Event);
-                
+
                 foreach (var item in _messages.Segment)
                 {
                     if (!comparer.Equals(valueConverter(item.Event), sample))
@@ -201,6 +243,36 @@ namespace Eventso.Subscription.Observing.Batch
 
             IEnumerator IEnumerable.GetEnumerator()
                 => GetEnumerator();
+        }
+
+        private class SingleEventCollection : IConvertibleCollection<TEvent>
+        {
+            private TEvent _event;
+
+            public SingleEventCollection(TEvent @event)
+                => _event = @event;
+
+            public void SetEvent(TEvent @event)
+                => _event = @event;
+
+            public IEnumerator<TEvent> GetEnumerator()
+            {
+                yield return _event;
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+                => GetEnumerator();
+
+            public int Count => 1;
+
+            public TEvent this[int index]
+                => index == 0 ? _event : throw new IndexOutOfRangeException();
+
+            public IReadOnlyCollection<TOut> Convert<TOut>(Converter<TEvent, TOut> converter)
+                => new[] {converter(_event)};
+
+            public bool OnlyContainsSame<TValue>(Func<TEvent, TValue> valueConverter)
+                => true;
         }
     }
 }
