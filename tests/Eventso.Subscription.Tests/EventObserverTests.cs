@@ -149,8 +149,8 @@ namespace Eventso.Subscription.Tests
         {
             _fixture.Inject(DeserializationStatus.Skipped);
 
-            const int batchTimeoutMs = 300;
-            const int eventsCount = 56;
+            const int deferredAckTimeoutMs = 300;
+            const int eventsCount = 26;
 
             var observer = new EventObserver<TestEvent>(
                 _eventHandler,
@@ -159,7 +159,7 @@ namespace Eventso.Subscription.Tests
                 true,
                 new DeferredAckConfiguration
                 {
-                    Timeout = TimeSpan.FromMilliseconds(batchTimeoutMs),
+                    Timeout = TimeSpan.FromMilliseconds(deferredAckTimeoutMs),
                     MaxBufferSize = eventsCount * 2
                 },
                 NullLogger<EventObserver<TestEvent>>.Instance);
@@ -169,9 +169,7 @@ namespace Eventso.Subscription.Tests
             foreach (var @event in events)
                 await observer.OnEventAppeared(@event, CancellationToken.None);
 
-            await Task.Delay(batchTimeoutMs + 50);
-
-            await observer.OnEventTimeout(CancellationToken.None);
+            await Task.Delay(deferredAckTimeoutMs + 50);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(
@@ -186,7 +184,7 @@ namespace Eventso.Subscription.Tests
         {
             _fixture.Inject(DeserializationStatus.Skipped);
 
-            const int eventsCount = 56;
+            const int eventsCount = 26;
 
             var observer = new EventObserver<TestEvent>(
                 _eventHandler,
@@ -204,8 +202,6 @@ namespace Eventso.Subscription.Tests
 
             foreach (var @event in events)
                 await observer.OnEventAppeared(@event, CancellationToken.None);
-
-            await observer.OnEventTimeout(CancellationToken.None);
 
             _consumer.Acks.Should()
                 .BeEquivalentTo(

@@ -228,7 +228,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddingItemToBlockedTarget_ItemAdded()
         {
             const int maxBatchSize = 10;
-            const int eventsCount = 30;
+            const int eventsCount = 20;
 
             using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
@@ -265,7 +265,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddingItemOverBufferCapacityToBlockedTarget_AddingBlocked()
         {
             const int maxBatchSize = 10;
-            const int eventsCount = 30;
+            const int eventsCount = 21;
 
             using var buffer = new Buffer<RedMessage>(
                 maxBatchSize,
@@ -278,8 +278,7 @@ namespace Eventso.Subscription.Tests
 
             foreach (var @event in events)
                 await buffer.Add(@event, skipped: false, CancellationToken.None);
-
-
+            
             var overBufferEvent = _fixture.Create<RedMessage>();
             var addingTask = buffer.Add(overBufferEvent, skipped: false, CancellationToken.None);
 

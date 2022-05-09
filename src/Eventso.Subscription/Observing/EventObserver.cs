@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Observing
 {
-    public sealed class EventObserver<TEvent> : IObserver<TEvent>
+    public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
         where TEvent : IEvent
     {
         private readonly IEventHandler<TEvent> _eventHandler;
@@ -15,10 +15,10 @@ namespace Eventso.Subscription.Observing
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
         private readonly bool _skipUnknown;
-        private readonly DeferredAckConfiguration _deferredAckConfiguration;
+        private readonly DeferredAckConfiguration _deferredAckConfig;
         private readonly ILogger<EventObserver<TEvent>> _logger;
         private readonly List<TEvent> _skipped = new();
-        private DateTime _deferredAckStartTime;
+        private readonly Timer _deferredAckTimer;
 
         public EventObserver(
             IEventHandler<TEvent> eventHandler,
@@ -32,8 +32,9 @@ namespace Eventso.Subscription.Observing
             _consumer = consumer;
             _messageHandlersRegistry = messageHandlersRegistry;
             _skipUnknown = skipUnknown;
-            _deferredAckConfiguration = deferredAckConfiguration;
+            _deferredAckConfig = deferredAckConfiguration;
             _logger = logger;
+            _deferredAckTimer = new Timer(_ => AckDeferredMessages(isTimeout: true));
         }
 
         public async Task OnEventAppeared(TEvent @event, CancellationToken token)
@@ -69,47 +70,40 @@ namespace Eventso.Subscription.Observing
 
             _consumer.Acknowledge(@event);
         }
-        
-        //TODO: Call me
-        public Task OnEventTimeout(CancellationToken token)
-        {
-            if (_skipped.Count > 0 && IsDeferredAckThresholdCrossed())
-                AckDeferredMessages();
 
-            return Task.CompletedTask;
-        }
+        public void Dispose()
+            => _deferredAckTimer.Dispose();
 
         private void DeferAck(in TEvent skippedMessage)
         {
-            if (_deferredAckConfiguration.MaxBufferSize == 0)
+            if (_deferredAckConfig.MaxBufferSize <= 1)
             {
                 _consumer.Acknowledge(skippedMessage);
                 return;
             }
 
-            if (_skipped.Count == 0)
-                _deferredAckStartTime = DateTime.UtcNow;
+            lock (_skipped)
+                _skipped.Add(skippedMessage);
 
-            _skipped.Add(skippedMessage);
-
-            if (IsDeferredAckThresholdCrossed())
+            if (_skipped.Count >= _deferredAckConfig.MaxBufferSize)
                 AckDeferredMessages();
+            else
+                _deferredAckTimer.Change(_deferredAckConfig.Timeout, Timeout.InfiniteTimeSpan);
         }
 
-        private bool IsDeferredAckThresholdCrossed()
-        {
-            return _skipped.Count >= _deferredAckConfiguration.MaxBufferSize
-                   || _deferredAckConfiguration.Timeout != Timeout.InfiniteTimeSpan
-                   && _deferredAckStartTime + _deferredAckConfiguration.Timeout <= DateTime.UtcNow;
-        }
-
-        private void AckDeferredMessages()
+        private void AckDeferredMessages(bool isTimeout = false)
         {
             if (_skipped.Count == 0)
                 return;
 
-            _consumer.Acknowledge(_skipped);
-            _skipped.Clear();
+            if (!isTimeout)
+                _deferredAckTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+
+            lock (_skipped)
+            {
+                _consumer.Acknowledge(_skipped);
+                _skipped.Clear();
+            }
         }
     }
 }
