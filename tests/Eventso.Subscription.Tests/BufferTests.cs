@@ -176,8 +176,10 @@ namespace Eventso.Subscription.Tests
 
             foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
                 await buffer.Add(redEvent, false, CancellationToken.None);
-
+            
             _bufferBlock.Complete();
+            _bufferBlock.TryReceiveAll(out _);
+
             await _bufferBlock.Completion;
 
             Func<Task> act = () =>
