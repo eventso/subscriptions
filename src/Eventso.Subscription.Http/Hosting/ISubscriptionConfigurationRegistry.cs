@@ -1,4 +1,4 @@
-namespace Eventso.Subscription.InMemory.Hosting
+namespace Eventso.Subscription.Http.Hosting
 {
     public interface ISubscriptionConfigurationRegistry
     {

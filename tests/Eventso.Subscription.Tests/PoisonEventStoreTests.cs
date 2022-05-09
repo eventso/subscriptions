@@ -10,7 +10,6 @@ using Eventso.Subscription.Kafka.DeadLetter.Store;
 using FluentAssertions;
 using Npgsql;
 using NSubstitute;
-using Xunit;
 
 namespace Eventso.Subscription.Tests
 {

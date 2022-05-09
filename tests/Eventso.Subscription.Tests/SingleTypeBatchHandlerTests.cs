@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AutoFixture;
-using Eventso.Subscription.Observing.Batch;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;

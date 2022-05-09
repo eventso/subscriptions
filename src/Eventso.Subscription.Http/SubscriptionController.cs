@@ -1,24 +1,21 @@
 using System;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Eventso.Subscription.InMemory.Hosting;
+using Eventso.Subscription.Http.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Eventso.Subscription.InMemory
+namespace Eventso.Subscription.Http
 {
-    [Route("inmemorybus")]
+    [Route("api/subscription")]
     [ApiController]
-    public sealed class InMemoryBusController : ControllerBase
+    public sealed class SubscriptionController : ControllerBase
     {
-        private static readonly ConcurrentDictionary<string, IObserver<Event>> BatchObserverByTopicMapping = new();
-
         private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
-        public InMemoryBusController(
+        public SubscriptionController(
             ISubscriptionConfigurationRegistry subscriptionConfigurationRegistry,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry messageHandlersRegistry)
@@ -51,22 +48,7 @@ namespace Eventso.Subscription.InMemory
 
             var message = new Event(consumedMessage);
 
-            if (subscriptionConfiguration.BatchProcessingRequired)
-            {
-                var triggerTimeout = subscriptionConfiguration.BatchConfiguration.BatchTriggerTimeout;
-
-                var mappedObserver = BatchObserverByTopicMapping.GetOrAdd(
-                    topic,
-                    _ =>
-                    {
-                        ScheduleStopBatchingTask(topic, triggerTimeout);
-                        return observer;
-                    });
-
-                var _ = mappedObserver.OnEventAppeared(message, CancellationToken.None);
-            }
-            else
-                await observer.OnEventAppeared(message, CancellationToken.None);
+            await observer.OnEventAppeared(message, CancellationToken.None);
 
             return Ok();
         }
@@ -76,17 +58,6 @@ namespace Eventso.Subscription.InMemory
             await using var memoryStream = new MemoryStream();
             await Request.Body.CopyToAsync(memoryStream);
             return memoryStream.ToArray();
-        }
-
-        private static void ScheduleStopBatchingTask(string topic, TimeSpan timeout)
-        {
-            Task.Run(async () =>
-            {
-                await Task.Delay(timeout);
-
-                if (BatchObserverByTopicMapping.TryRemove(topic, out var observer))
-                    await observer.OnEventTimeout(CancellationToken.None);
-            });
         }
 
         private sealed class ValueObjectDeserializer

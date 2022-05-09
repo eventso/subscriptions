@@ -1,8 +1,3 @@
-using Eventso.Subscription.Hosting;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
 {
     public static class PoisonEventStoreRegistration

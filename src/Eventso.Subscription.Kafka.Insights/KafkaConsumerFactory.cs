@@ -1,6 +1,5 @@
 using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.Insights

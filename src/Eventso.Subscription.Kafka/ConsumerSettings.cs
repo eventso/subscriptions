@@ -10,6 +10,7 @@ namespace Eventso.Subscription.Kafka
             Config = new ConsumerConfig
             {
                 EnableAutoCommit = false,
+                AutoOffsetReset = AutoOffsetReset.Earliest
             };
         }
 
@@ -34,10 +35,5 @@ namespace Eventso.Subscription.Kafka
         public ConsumerConfig Config { get; }
 
         public string Topic { get; set; }
-
-        /// <summary>
-        /// Note: Timed batch creation is based on this timeout. 
-        /// </summary>
-        public TimeSpan ConsumeTimeout { get; set; } = TimeSpan.FromMilliseconds(500);
     }
 }

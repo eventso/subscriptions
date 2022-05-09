@@ -130,7 +130,7 @@ namespace Eventso.Subscription
         {
             ReturnArray();
             _size = 0;
-            _items = null;
+            _items = Array.Empty<T>();
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
