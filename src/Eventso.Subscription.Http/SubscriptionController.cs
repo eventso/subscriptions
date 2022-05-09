@@ -7,15 +7,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Eventso.Subscription.Http
 {
-    [Route("api/consumer")]
+    [Route("api/subscription")]
     [ApiController]
-    public sealed class ConsumerController : ControllerBase
+    public sealed class SubscriptionController : ControllerBase
     {
         private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
-        public ConsumerController(
+        public SubscriptionController(
             ISubscriptionConfigurationRegistry subscriptionConfigurationRegistry,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry messageHandlersRegistry)

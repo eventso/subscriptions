@@ -6,7 +6,7 @@ namespace Eventso.Subscription.Http.Hosting
     {
         public static IMvcBuilder AddConsumerController(this IMvcBuilder builder)
         {
-            builder.AddApplicationPart(typeof(ConsumerController).Assembly);
+            builder.AddApplicationPart(typeof(SubscriptionController).Assembly);
 
             return builder;
         }
