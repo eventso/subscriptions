@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Eventso.Subscription.WebApi
+namespace Eventso.Subscription.Http
 {
     public sealed class Event : IEvent
     {

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Scrutor;
 
-namespace Eventso.Subscription.WebApi.Hosting
+namespace Eventso.Subscription.Http.Hosting
 {
     public static class ServiceCollectionExtensions
     {

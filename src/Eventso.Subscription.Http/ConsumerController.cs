@@ -2,10 +2,10 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Eventso.Subscription.WebApi.Hosting;
+using Eventso.Subscription.Http.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Eventso.Subscription.WebApi
+namespace Eventso.Subscription.Http
 {
     [Route("api/consumer")]
     [ApiController]

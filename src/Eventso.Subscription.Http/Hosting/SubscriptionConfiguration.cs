@@ -1,7 +1,7 @@
 using System;
 using Eventso.Subscription.Configurations;
 
-namespace Eventso.Subscription.WebApi.Hosting
+namespace Eventso.Subscription.Http.Hosting
 {
     public sealed class SubscriptionConfiguration
     {

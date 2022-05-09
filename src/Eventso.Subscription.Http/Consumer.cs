@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Eventso.Subscription.WebApi
+namespace Eventso.Subscription.Http
 {
     public sealed class Consumer : IConsumer<Event>
     {

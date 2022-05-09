@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Eventso.Subscription.WebApi.Hosting
+namespace Eventso.Subscription.Http.Hosting
 {
     public static class MvcBuilderExtensions
     {

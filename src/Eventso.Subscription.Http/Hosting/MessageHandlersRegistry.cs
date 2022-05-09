@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Eventso.Subscription.WebApi.Hosting
+namespace Eventso.Subscription.Http.Hosting
 {
     internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
     {
