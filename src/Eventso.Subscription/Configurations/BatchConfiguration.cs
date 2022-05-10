@@ -32,9 +32,10 @@ namespace Eventso.Subscription.Configurations
         public BatchHandlingStrategy HandlingStrategy { get; init; } = BatchHandlingStrategy.OrderedWithinKey;
 
         /// <summary>
-        /// Batch error handling strategy. Default: no handling
+        /// Failed batch processing strategy. Default: do nothing
         /// </summary>
-        public BatchErrorHandlingStrategy ErrorHandlingStrategy { get; init; } = BatchErrorHandlingStrategy.None;
+        public FailedBatchProcessingStrategy FailedBatchProcessingStrategy { get; init; } =
+            FailedBatchProcessingStrategy.None;
 
         internal int GetMaxBufferSize()
             => MaxBufferSize != 0 ? MaxBufferSize : MaxBatchSize * 3;

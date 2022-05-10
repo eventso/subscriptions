@@ -1,14 +1,14 @@
 namespace Eventso.Subscription.Configurations
 {
-    public enum BatchErrorHandlingStrategy
+    public enum FailedBatchProcessingStrategy
     {
         /// <summary>
-        /// No handling
+        /// Do nothing
         /// </summary>
         None,
 
         /// <summary>
-        /// In case of error batch size will be set to one until the error occurs again
+        /// Set batch size to one until the error occurs again
         /// </summary>
         Breakdown
     }
