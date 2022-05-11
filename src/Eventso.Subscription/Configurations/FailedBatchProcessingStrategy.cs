@@ -8,7 +8,7 @@ namespace Eventso.Subscription.Configurations
         None,
 
         /// <summary>
-        /// Set batch size to one until the error occurs again
+        /// Process batch messages one by one until the error occurs again
         /// </summary>
         Breakdown
     }
