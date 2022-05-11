@@ -45,10 +45,7 @@ namespace Eventso.Subscription.Hosting
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             if (_topicRetryingServices.Count == 0)
-            {
-                await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
                 return;
-            }
             
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -63,7 +60,7 @@ namespace Eventso.Subscription.Hosting
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Dead letter queue retrying failed.");
+                    _logger.LogError(ex, "Dead letter queue retrying failed.");
                 }
                 finally
                 {

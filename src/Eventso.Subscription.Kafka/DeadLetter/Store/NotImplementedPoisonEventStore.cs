@@ -11,7 +11,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         private static readonly string ErrorMessage =
             $"Implementation of {nameof(IPoisonEventStore)} was not provided.";
         
-        public IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(string topic, CancellationToken cancellationToken)
+        public IAsyncEnumerable<StoredPoisonEvent> AcquireEventsForRetrying(string topic, CancellationToken cancellationToken)
             => throw new NotImplementedException(ErrorMessage);
 
         public Task<long> Count(string topic, CancellationToken cancellationToken)
@@ -26,7 +26,13 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         public Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
+        public Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token)
+            => throw new NotImplementedException(ErrorMessage);
+
         public Task AddFailures(DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token)
+            => throw new NotImplementedException(ErrorMessage);
+
+        public Task Remove(TopicPartitionOffset partitionOffset, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
         public Task Remove(IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets, CancellationToken token)
