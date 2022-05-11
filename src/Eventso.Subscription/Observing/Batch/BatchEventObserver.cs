@@ -36,7 +36,7 @@ namespace Eventso.Subscription.Observing.Batch
             _messageHandlersRegistry = messageHandlersRegistry;
             _skipUnknown = skipUnknown;
 
-            _failedBufferProcessor = ResolveFailedBufferProcessor(
+            _failedBufferProcessor = FailedBufferProcessorResolver.Resolve(
                 config.FailedBatchProcessingStrategy,
                 handler,
                 consumer);
@@ -182,23 +182,6 @@ namespace Eventso.Subscription.Observing.Batch
         {
             if (_disposed)
                 throw new ObjectDisposedException("Batch observer is disposed");
-        }
-
-        private static IFailedBufferProcessor<TEvent> ResolveFailedBufferProcessor(
-            FailedBatchProcessingStrategy failedBatchProcessingStrategy,
-            IEventHandler<TEvent> handler,
-            IConsumer<TEvent> consumer)
-        {
-            switch (failedBatchProcessingStrategy)
-            {
-                case FailedBatchProcessingStrategy.None:
-                    return new DefaultFailedBufferProcessor<TEvent>();
-                case FailedBatchProcessingStrategy.Breakdown:
-                    return new BreakdownFailedBufferProcessor<TEvent>(handler, consumer);
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(failedBatchProcessingStrategy),
-                        failedBatchProcessingStrategy, null);
-            }
         }
 
         private sealed class EventsCollection : IConvertibleCollection<TEvent>
