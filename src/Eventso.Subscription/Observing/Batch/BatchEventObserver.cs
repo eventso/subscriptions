@@ -165,13 +165,12 @@ namespace Eventso.Subscription.Observing.Batch
 
         private static PooledList<TEvent> GetEventsToHandle(
             IReadOnlyList<Buffer<TEvent>.BufferedEvent> bufferedEvents,
-            int handleMessageCount)
+            int eventsToHandleCount)
         {
-            var eventsToHandle = new PooledList<TEvent>(handleMessageCount);
+            var eventsToHandle = new PooledList<TEvent>(eventsToHandleCount);
 
-            for (var i = 0; i < bufferedEvents.Count; i++)
+            foreach (var bufferedEvent in bufferedEvents)
             {
-                var bufferedEvent = bufferedEvents[i];
                 if (!bufferedEvent.Skipped)
                     eventsToHandle.Add(bufferedEvent.Event);
             }
