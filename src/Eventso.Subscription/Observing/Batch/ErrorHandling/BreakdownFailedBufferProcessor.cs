@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,11 +28,14 @@ namespace Eventso.Subscription.Observing.Batch.ErrorHandling
             for (var i = 0; i < bufferedEvents.Count; i++)
             {
                 var bufferedEvent = bufferedEvents[i];
+                var @event = bufferedEvent.Event;
 
                 if (bufferedEvent.Skipped)
-                    continue;
+                {
+                    _consumer.Acknowledge(@event);
 
-                var @event = bufferedEvent.Event;
+                    continue;
+                }
 
                 if (convertibleCollection is null)
                     convertibleCollection = new SingleEventCollection(@event);
