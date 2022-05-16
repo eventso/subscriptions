@@ -18,6 +18,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 
         Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token);
 
+        Task Add(DateTime timestamp, OpeningPoisonEvent @event, CancellationToken token);
+
         Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token);
 
         Task AddFailures(DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token);

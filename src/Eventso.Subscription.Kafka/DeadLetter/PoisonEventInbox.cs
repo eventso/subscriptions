@@ -12,10 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter
 {
-    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
+    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordInbox, IDisposable
     {
         private readonly IPoisonEventStore _eventStore;
-        private readonly IConsumer<Guid, byte[]> _deadMessageConsumer;
+        private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
 
         public PoisonEventInbox(
             IPoisonEventStore eventStore,
@@ -38,13 +38,34 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 AllowAutoCreateTopics = false,
                 GroupId = settings.Config.GroupId + "_cemetery" // boo!
             };
-            _deadMessageConsumer = new ConsumerBuilder<Guid, byte[]>(config)
-                .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+            _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
+                .SetKeyDeserializer(Deserializers.ByteArray)
                 .SetValueDeserializer(Deserializers.ByteArray)
                 .SetErrorHandler((_, e) => logger.LogError(
                     $"{nameof(PoisonEventInbox)} internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
                     $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
+        }
+
+        public async Task Add(
+            ConsumeResult<byte[], byte[]> consumeResult,
+            string failureReason,
+            CancellationToken token)
+        {
+            await new InboxThresholdChecker(_eventStore).EnsureThreshold(consumeResult.Topic, token);
+            await _eventStore.Add(
+                DateTime.UtcNow,
+                CreateOpeningPoisonEvent(consumeResult, failureReason),
+                token);
+        }
+
+        public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
+        {
+            await new InboxThresholdChecker(_eventStore).EnsureThreshold(@event.Event.Topic, cancellationToken);
+            await _eventStore.Add(
+                DateTime.UtcNow,
+                CreateOpeningPoisonEvent(@event, cancellationToken),
+                cancellationToken);
         }
 
         public async Task Add(IReadOnlyCollection<PoisonEvent<Event>> events, CancellationToken cancellationToken)
@@ -100,19 +121,29 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
             var rawEvent = Consume(topicPartitionOffset, cancellationToken);
 
+            return CreateOpeningPoisonEvent(rawEvent, @event.Reason);
+        }
+
+        private static OpeningPoisonEvent CreateOpeningPoisonEvent(
+            ConsumeResult<byte[], byte[]> poisonRecord,
+            string failureReason)
+        {
             return new OpeningPoisonEvent(
-                topicPartitionOffset,
-                rawEvent.Message.Key,
-                rawEvent.Message.Value,
-                rawEvent.Message.Timestamp.UtcDateTime,
-                rawEvent.Message
+                poisonRecord.TopicPartitionOffset,
+                KeyGuidDeserializer.Instance.Deserialize(
+                    poisonRecord.Message.Key,
+                    poisonRecord.Message.Key.Length == 0,
+                    SerializationContext.Empty),
+                poisonRecord.Message.Value,
+                poisonRecord.Message.Timestamp.UtcDateTime,
+                poisonRecord.Message
                     .Headers
                     .Select(c => new EventHeader(c.Key, c.GetValueBytes()))
                     .ToArray(),
-                @event.Reason);
+                failureReason);
         }
 
-        private ConsumeResult<Guid, byte[]> Consume(
+        private ConsumeResult<byte[], byte[]> Consume(
             TopicPartitionOffset topicPartitionOffset,
             CancellationToken cancellationToken)
         {

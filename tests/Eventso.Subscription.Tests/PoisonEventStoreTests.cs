@@ -43,7 +43,38 @@ namespace Eventso.Subscription.Tests
         }
 
         [Fact]
-        public async Task AddToStore_EventsAdded()
+        public async Task AddSingleToStore_EventsAdded()
+        {
+            await using var database = await Database.Create(); 
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+
+            var timestamp = _fixture.Create<DateTime>();
+            var @event = _fixture.Create<OpeningPoisonEvent>();
+
+            await store.Add(timestamp, @event, CancellationToken.None);
+
+            var storedEvents = await GetStoredEvents(database);
+            storedEvents.Should().ContainSingle()
+                .Subject
+                .Should()
+                .BeEquivalentTo(
+                    new PoisonEventRaw(
+                        @event.TopicPartitionOffset.Topic,
+                        @event.TopicPartitionOffset.Partition.Value,
+                        @event.TopicPartitionOffset.Offset.Value,
+                        @event.Key,
+                        @event.Value.ToArray(),
+                        @event.CreationTimestamp,
+                        @event.Headers.Select(h => h.Key).ToArray(),
+                        @event.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                        timestamp,
+                        @event.FailureReason,
+                        1),
+                    o => o.AcceptingCloseDateTimes());
+        }
+
+        [Fact]
+        public async Task AddBulkToStore_EventsAdded()
         {
             await using var database = await Database.Create(); 
             var store = await PoisonEventStore.Initialize(database.ConnectionFactory);

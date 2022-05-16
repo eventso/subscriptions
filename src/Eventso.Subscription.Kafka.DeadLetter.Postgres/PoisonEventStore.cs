@@ -189,7 +189,8 @@ VALUES (
     @headerValues,
     @lastFailureTimestamp,
     @lastFailureReason,
-    1);",
+    1)
+ON CONFLICT (""offset"", partition, topic) DO NOTHING;",
                 connection)
             {
                 Parameters = {
@@ -232,6 +233,65 @@ VALUES (
 
                 await command.ExecuteNonQueryAsync(token);
             }
+        }
+
+        public async Task Add(DateTime timestamp, OpeningPoisonEvent @event, CancellationToken token)
+        {
+            await using var connection = _connectionFactory.ReadWrite();
+
+            var headerKeys = new string[@event.Headers.Count];
+            var headerValues = new ReadOnlyMemory<byte>[@event.Headers.Count];
+
+            foreach (var (index, header) in @event.Headers.Select((x, i) => (i, x)))
+            {
+                headerKeys[index] = header.Key;
+                headerValues[index] = header.Data;
+            }
+
+            await using var command = new NpgsqlCommand(
+                @"
+INSERT INTO eventso_dlq.poison_events(
+    topic,
+    partition,
+    ""offset"",
+    key,
+    value,
+    creation_timestamp,
+    header_keys,
+    header_values,
+    last_failure_timestamp,
+    last_failure_reason,
+    total_failure_count)
+VALUES (
+    @topic,
+    @partition,
+    @offset,
+    @key,
+    @value,
+    @creationTimestamp,
+    @headerKeys,
+    @headerValues,
+    @lastFailureTimestamp,
+    @lastFailureReason,
+    1)
+ON CONFLICT (""offset"", partition, topic) DO NOTHING;",
+                connection)
+            {
+                Parameters = {
+                    new NpgsqlParameter<string>("topic", @event.TopicPartitionOffset.Topic),
+                    new NpgsqlParameter<int>("partition", @event.TopicPartitionOffset.Partition.Value),
+                    new NpgsqlParameter<long>("offset", @event.TopicPartitionOffset.Offset.Value),
+                    new NpgsqlParameter<Guid>("key", @event.Key),
+                    new NpgsqlParameter<ReadOnlyMemory<byte>>("value", @event.Value),
+                    new NpgsqlParameter<DateTime>("creationTimestamp", @event.CreationTimestamp),
+                    new NpgsqlParameter<string[]>("headerKeys", headerKeys),
+                    new NpgsqlParameter<ReadOnlyMemory<byte>[]>("headerValues", headerValues),
+                    new NpgsqlParameter<DateTime>("lastFailureTimestamp", timestamp),
+                    new NpgsqlParameter<string>("lastFailureReason", @event.FailureReason)
+                }
+            };
+
+            await command.ExecuteNonQueryAsync(token);
         }
 
         public async Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token)

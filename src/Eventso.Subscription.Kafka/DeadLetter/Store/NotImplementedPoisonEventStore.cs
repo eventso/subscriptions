@@ -26,6 +26,9 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
         public Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
+        public Task Add(DateTime timestamp, OpeningPoisonEvent @event, CancellationToken token)
+            => throw new NotImplementedException(ErrorMessage);
+
         public Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token)
             => throw new NotImplementedException(ErrorMessage);
 
