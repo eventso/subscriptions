@@ -10,26 +10,20 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
     {
         Task<long> Count(string topic, CancellationToken token);
 
-        IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(string topic, CancellationToken token);
+        IAsyncEnumerable<StoredPoisonEvent> AcquireEventsForRetrying(string topic, CancellationToken token);
 
         Task<bool> IsStreamStored(string topic, Guid key, CancellationToken token);
 
-        IAsyncEnumerable<StreamId> GetStoredStreams(
-            IReadOnlyCollection<StreamId> streamIds,
-            CancellationToken token);
+        IAsyncEnumerable<StreamId> GetStoredStreams(IReadOnlyCollection<StreamId> streamIds, CancellationToken token);
 
-        Task Add(
-            DateTime timestamp,
-            IReadOnlyCollection<OpeningPoisonEvent> events,
-            CancellationToken token);
+        Task Add(DateTime timestamp, IReadOnlyCollection<OpeningPoisonEvent> events, CancellationToken token);
 
-        Task AddFailures(
-            DateTime timestamp,
-            IReadOnlyCollection<OccuredFailure> failures,
-            CancellationToken token);
+        Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token);
 
-        Task Remove(
-            IReadOnlyCollection<TopicPartitionOffset> partitionOffsets,
-            CancellationToken token);
+        Task AddFailures(DateTime timestamp, IReadOnlyCollection<OccuredFailure> failures, CancellationToken token);
+
+        Task Remove(TopicPartitionOffset partitionOffset, CancellationToken token);
+
+        Task Remove(IReadOnlyCollection<TopicPartitionOffset> partitionOffsets, CancellationToken token);
     }
 }

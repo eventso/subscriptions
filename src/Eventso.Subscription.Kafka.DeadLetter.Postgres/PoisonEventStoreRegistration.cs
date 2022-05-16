@@ -1,4 +1,3 @@
-using Eventso.Subscription.Hosting;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

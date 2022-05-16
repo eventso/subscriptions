@@ -14,6 +14,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Store
 
         public string Key { get; }
 
-        public ReadOnlyMemory<byte> Data { get; } 
+        public ReadOnlyMemory<byte> Data { get; }
     }
 }

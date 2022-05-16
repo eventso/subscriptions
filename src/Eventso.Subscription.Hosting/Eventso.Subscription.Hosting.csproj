@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
     <ProjectReference Include="..\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>
