@@ -27,23 +27,26 @@ namespace Eventso.Subscription.Kafka.DeadLetter
         {
             using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
 
-            OccuredFailure? occuredFailure = null; 
+            string errorMessage = null;
             try
             {
                 await _inner.Handle(@event, cancellationToken);
 
                 var poisonEvents = dlqScope.GetPoisonEvents();
                 if (poisonEvents.Count > 0)
-                    occuredFailure = new OccuredFailure(@event.GetTopicPartitionOffset(), poisonEvents.Single().Reason);
+                    errorMessage = poisonEvents.Single().Reason;
             }
             catch (Exception exception)
             {
-                occuredFailure = new OccuredFailure(@event.GetTopicPartitionOffset(), exception.ToString());
+                errorMessage = exception.ToString();
             }
 
-            if (occuredFailure != null)
+            if (errorMessage != null)
             {
-                await _poisonEventStore.AddFailure(DateTime.UtcNow, occuredFailure.Value, cancellationToken);
+                await _poisonEventStore.AddFailure(
+                    DateTime.UtcNow,
+                    new OccuredFailure(@event.GetTopicPartitionOffset(), errorMessage),
+                    cancellationToken);
                 return;
             }
 

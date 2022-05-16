@@ -98,7 +98,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             await using var connection = _connectionFactory.ReadOnly();
 
             await using var command = new NpgsqlCommand(
-                "SELECT TRUE FROM eventso_dlq.poison_events WHERE topic = @topic AND key = @key;",
+                "SELECT TRUE FROM eventso_dlq.poison_events WHERE topic = @topic AND key = @key LIMIT 1;",
                 connection)
             {
                 Parameters =
@@ -395,7 +395,7 @@ WITH
             pe_heads.total_failure_count <= @maxAllowedFailureCount
             AND pe_heads.last_failure_timestamp < @maxAcceptedLastFailureTimestamp
             AND (pe_heads.lock_timestamp IS NULL OR pe_heads.lock_timestamp < @maxAcceptedLockTimestamp)
-        FOR UPDATE
+        FOR UPDATE OF pe_heads SKIP LOCKED
     )
 UPDATE eventso_dlq.poison_events pe
 SET lock_timestamp = NOW()
