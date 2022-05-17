@@ -291,6 +291,8 @@ ON CONFLICT (""offset"", partition, topic) DO NOTHING;",
                 }
             };
 
+            await connection.OpenAsync(token);
+
             await command.ExecuteNonQueryAsync(token);
         }
 

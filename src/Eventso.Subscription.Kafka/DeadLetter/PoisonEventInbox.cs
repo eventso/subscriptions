@@ -52,7 +52,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             string failureReason,
             CancellationToken token)
         {
-            await new InboxThresholdChecker(_eventStore).EnsureThreshold(consumeResult.Topic, token);
+            await EnsureThreshold(consumeResult.Topic, token);
             await _eventStore.Add(
                 DateTime.UtcNow,
                 CreateOpeningPoisonEvent(consumeResult, failureReason),
@@ -61,7 +61,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
         public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
         {
-            await new InboxThresholdChecker(_eventStore).EnsureThreshold(@event.Event.Topic, cancellationToken);
+            await EnsureThreshold(@event.Event.Topic, cancellationToken);
             await _eventStore.Add(
                 DateTime.UtcNow,
                 CreateOpeningPoisonEvent(@event, cancellationToken),
@@ -73,7 +73,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             if (events.Count == 0)
                 return;
 
-            var inboxThresholdChecker = new InboxThresholdChecker(_eventStore);
+            var inboxThresholdChecker = new InboxThresholdChecker(this);
             var openingPoisonEvents = new PooledList<OpeningPoisonEvent>(events.Count);
             foreach (var @event in events)
             {
@@ -167,19 +167,30 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             }
         }
 
+
+        // TODO const -> settings
+        private const int MaxNumberOfPoisonedEventsInTopic = 1000;
+        private async Task EnsureThreshold(string topic, CancellationToken cancellationToken)
+        {
+            var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
+            if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
+                throw new EventHandlingException(
+                    topic,
+                    $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
+                    null);
+        }
+
         [StructLayout(LayoutKind.Auto)]
         private struct InboxThresholdChecker
         {
-            // TODO const -> settings
-            private const int MaxNumberOfPoisonedEventsInTopic = 1000;
+            private readonly PoisonEventInbox _inbox;
 
-            private readonly IPoisonEventStore _eventStore;
             private string _singleTopic;
             private List<string> _topics;
 
-            public InboxThresholdChecker(IPoisonEventStore eventStore)
+            public InboxThresholdChecker(PoisonEventInbox inbox)
             {
-                _eventStore = eventStore;
+                _inbox = inbox;
                 _singleTopic = null;
                 _topics = null;
             }
@@ -192,12 +203,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 if (_topics?.Contains(topic) == true)
                     return;
 
-                var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
-                if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
-                    throw new EventHandlingException(
-                        topic,
-                        $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
-                        null);
+                await _inbox.EnsureThreshold(topic, cancellationToken);
 
                 if (_singleTopic == null)
                 {
