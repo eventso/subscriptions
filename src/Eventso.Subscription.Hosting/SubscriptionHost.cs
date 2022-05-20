@@ -86,6 +86,8 @@ namespace Eventso.Subscription.Hosting
                 new ValueObjectDeserializer(
                     config.Serializer,
                     _handlersRegistry),
+                // TODO get some service from DI instead of default
+                config.EnableDeadLetterQueue ? default : null,
                 config.Settings,
                 _loggerFactory.CreateLogger<KafkaConsumer>());
         }

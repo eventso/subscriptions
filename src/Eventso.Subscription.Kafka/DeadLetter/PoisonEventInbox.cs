@@ -12,10 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter
 {
-    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
+    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordInbox, IDisposable
     {
         private readonly IPoisonEventStore _eventStore;
-        private readonly IConsumer<Guid, byte[]> _deadMessageConsumer;
+        private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
 
         public PoisonEventInbox(
             IPoisonEventStore eventStore,
@@ -38,8 +38,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 AllowAutoCreateTopics = false,
                 GroupId = settings.Config.GroupId + "_cemetery" // boo!
             };
-            _deadMessageConsumer = new ConsumerBuilder<Guid, byte[]>(config)
-                .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+            _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
+                .SetKeyDeserializer(Deserializers.ByteArray)
                 .SetValueDeserializer(Deserializers.ByteArray)
                 .SetErrorHandler((_, e) => logger.LogError(
                     $"{nameof(PoisonEventInbox)} internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
@@ -47,12 +47,33 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 .Build();
         }
 
+        public async Task Add(
+            ConsumeResult<byte[], byte[]> consumeResult,
+            string failureReason,
+            CancellationToken token)
+        {
+            await EnsureThreshold(consumeResult.Topic, token);
+            await _eventStore.Add(
+                DateTime.UtcNow,
+                CreateOpeningPoisonEvent(consumeResult, failureReason),
+                token);
+        }
+
+        public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
+        {
+            await EnsureThreshold(@event.Event.Topic, cancellationToken);
+            await _eventStore.Add(
+                DateTime.UtcNow,
+                CreateOpeningPoisonEvent(@event, cancellationToken),
+                cancellationToken);
+        }
+
         public async Task Add(IReadOnlyCollection<PoisonEvent<Event>> events, CancellationToken cancellationToken)
         {
             if (events.Count == 0)
                 return;
 
-            var inboxThresholdChecker = new InboxThresholdChecker(_eventStore);
+            var inboxThresholdChecker = new InboxThresholdChecker(this);
             var openingPoisonEvents = new PooledList<OpeningPoisonEvent>(events.Count);
             foreach (var @event in events)
             {
@@ -100,19 +121,29 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
             var rawEvent = Consume(topicPartitionOffset, cancellationToken);
 
+            return CreateOpeningPoisonEvent(rawEvent, @event.Reason);
+        }
+
+        private static OpeningPoisonEvent CreateOpeningPoisonEvent(
+            ConsumeResult<byte[], byte[]> poisonRecord,
+            string failureReason)
+        {
             return new OpeningPoisonEvent(
-                topicPartitionOffset,
-                rawEvent.Message.Key,
-                rawEvent.Message.Value,
-                rawEvent.Message.Timestamp.UtcDateTime,
-                rawEvent.Message
+                poisonRecord.TopicPartitionOffset,
+                KeyGuidDeserializer.Instance.Deserialize(
+                    poisonRecord.Message.Key,
+                    poisonRecord.Message.Key.Length == 0,
+                    SerializationContext.Empty),
+                poisonRecord.Message.Value,
+                poisonRecord.Message.Timestamp.UtcDateTime,
+                poisonRecord.Message
                     .Headers
                     .Select(c => new EventHeader(c.Key, c.GetValueBytes()))
                     .ToArray(),
-                @event.Reason);
+                failureReason);
         }
 
-        private ConsumeResult<Guid, byte[]> Consume(
+        private ConsumeResult<byte[], byte[]> Consume(
             TopicPartitionOffset topicPartitionOffset,
             CancellationToken cancellationToken)
         {
@@ -136,19 +167,30 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             }
         }
 
+
+        // TODO const -> settings
+        private const int MaxNumberOfPoisonedEventsInTopic = 1000;
+        private async Task EnsureThreshold(string topic, CancellationToken cancellationToken)
+        {
+            var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
+            if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
+                throw new EventHandlingException(
+                    topic,
+                    $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
+                    null);
+        }
+
         [StructLayout(LayoutKind.Auto)]
         private struct InboxThresholdChecker
         {
-            // TODO const -> settings
-            private const int MaxNumberOfPoisonedEventsInTopic = 1000;
+            private readonly PoisonEventInbox _inbox;
 
-            private readonly IPoisonEventStore _eventStore;
             private string _singleTopic;
             private List<string> _topics;
 
-            public InboxThresholdChecker(IPoisonEventStore eventStore)
+            public InboxThresholdChecker(PoisonEventInbox inbox)
             {
-                _eventStore = eventStore;
+                _inbox = inbox;
                 _singleTopic = null;
                 _topics = null;
             }
@@ -161,12 +203,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 if (_topics?.Contains(topic) == true)
                     return;
 
-                var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
-                if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
-                    throw new EventHandlingException(
-                        topic,
-                        $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
-                        null);
+                await _inbox.EnsureThreshold(topic, cancellationToken);
 
                 if (_singleTopic == null)
                 {

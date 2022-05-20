@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
+using Eventso.Subscription.Kafka.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka
@@ -9,6 +10,7 @@ namespace Eventso.Subscription.Kafka
     public sealed class KafkaConsumer : IDisposable
     {
         private readonly IObserverFactory _observerFactory;
+        private readonly IPoisonRecordInbox _poisonRecordInbox;
         private readonly ConsumerSettings _settings;
         private readonly int _maxObserveInterval;
         private readonly ILogger<KafkaConsumer> _logger;
@@ -17,12 +19,14 @@ namespace Eventso.Subscription.Kafka
         public KafkaConsumer(
             IObserverFactory observerFactory,
             IDeserializer<ConsumedMessage> deserializer,
+            IPoisonRecordInbox poisonRecordInbox,
             ConsumerSettings settings,
             ILogger<KafkaConsumer> logger)
         {
             if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
             _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
+            _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
             _settings = settings;
             _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
             _logger = logger;
@@ -68,7 +72,7 @@ namespace Eventso.Subscription.Kafka
 
             while (!tokenSource.IsCancellationRequested)
             {
-                var result = Consume();
+                var result = await Consume();
 
                 timeoutTokenSource.CancelAfter(_maxObserveInterval);
 
@@ -94,7 +98,7 @@ namespace Eventso.Subscription.Kafka
                 timeoutTokenSource.CancelAfter(Timeout.Infinite);
             }
 
-            ConsumeResult<Guid, ConsumedMessage> Consume()
+            async Task<ConsumeResult<Guid, ConsumedMessage>> Consume()
             {
                 try
                 {
@@ -102,6 +106,11 @@ namespace Eventso.Subscription.Kafka
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
                 {
+                    await _poisonRecordInbox?.Add(
+                        ex.ConsumerRecord,
+                        $"Deserialization failed: {ex.Message}.",
+                        tokenSource.Token);
+
                     _logger.LogError(ex, "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
                     throw;
                 }

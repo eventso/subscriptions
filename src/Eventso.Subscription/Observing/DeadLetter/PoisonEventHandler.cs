@@ -29,7 +29,7 @@ namespace Eventso.Subscription.Observing.DeadLetter
             if (await _poisonEventInbox.IsPartOfPoisonStream(@event, cancellationToken))
             {
                 await _poisonEventInbox.Add(
-                    new [] { new PoisonEvent<TEvent>(@event, PoisonPredecessorReason) },
+                    new PoisonEvent<TEvent>(@event, PoisonPredecessorReason),
                     cancellationToken);
                 return;
             }
