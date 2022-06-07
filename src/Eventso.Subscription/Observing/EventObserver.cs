@@ -63,9 +63,7 @@ namespace Eventso.Subscription.Observing
                 throw new InvalidOperationException(
                     $"There is no single message handler for subscription {_consumer.Subscription}");
 
-            dynamic message = @event.GetMessage();
-
-            await _eventHandler.Handle(message, token);
+            await _eventHandler.Handle(@event, token);
 
             _consumer.Acknowledge(@event);
         }

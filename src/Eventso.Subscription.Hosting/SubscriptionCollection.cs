@@ -17,7 +17,8 @@ namespace Eventso.Subscription.Hosting
             HandlerConfiguration handlerConfig = default,
             DeferredAckConfiguration deferredAckConfig = default,
             bool skipUnknownMessages = true,
-            int instances = 1)
+            int instances = 1,
+            bool enableDeadLetterQueue = false)
         {
             var subscription = new SubscriptionConfiguration(
                 settings,
@@ -25,7 +26,8 @@ namespace Eventso.Subscription.Hosting
                 handlerConfig,
                 skipUnknownMessages,
                 instances,
-                deferredAckConfig);
+                deferredAckConfig,
+                enableDeadLetterQueue);
 
             Add(subscription);
 
@@ -38,7 +40,8 @@ namespace Eventso.Subscription.Hosting
             IMessageDeserializer serializer,
             HandlerConfiguration handlerConfig = default,
             bool skipUnknownMessages = true,
-            int instances = 1)
+            int instances = 1,
+            bool enableDeadLetterQueue = false)
         {
             var subscription = new SubscriptionConfiguration(
                 settings,
@@ -46,7 +49,8 @@ namespace Eventso.Subscription.Hosting
                 serializer,
                 handlerConfig,
                 skipUnknownMessages,
-                instances);
+                instances,
+                enableDeadLetterQueue);
 
             Add(subscription);
 
