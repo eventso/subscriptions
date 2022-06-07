@@ -12,7 +12,8 @@ namespace Eventso.Subscription.Hosting
             HandlerConfiguration handlerConfig = default,
             DeferredAckConfiguration deferredAckConfig = default,
             bool skipUnknownMessages = true,
-            int instances = 1);
+            int instances = 1,
+            bool enableDeadLetterQueue = false);
 
         ISubscriptionCollection AddBatch(
             ConsumerSettings settings,
@@ -20,7 +21,8 @@ namespace Eventso.Subscription.Hosting
             IMessageDeserializer serializer,
             HandlerConfiguration handlerConfig = default,
             bool skipUnknownMessages = true,
-            int instances = 1);
+            int instances = 1,
+            bool enableDeadLetterQueue = false);
 
         ISubscriptionCollection Add(SubscriptionConfiguration configuration);
     }

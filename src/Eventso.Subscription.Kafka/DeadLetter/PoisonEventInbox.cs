@@ -12,17 +12,21 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter
 {
-    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordInbox, IDisposable
+    public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
     {
         private readonly IPoisonEventStore _eventStore;
         private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
+        private readonly int _maxNumberOfPoisonedEventsInTopic;
 
         public PoisonEventInbox(
             IPoisonEventStore eventStore,
+            int maxNumberOfPoisonedEventsInTopic,
             ConsumerSettings settings,
             ILogger<PoisonEventInbox> logger)
         {
             _eventStore = eventStore;
+
+            _maxNumberOfPoisonedEventsInTopic = maxNumberOfPoisonedEventsInTopic;
 
             if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
                 throw new InvalidOperationException("Brokers are not specified.");
@@ -45,18 +49,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                     $"{nameof(PoisonEventInbox)} internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
                     $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
-        }
-
-        public async Task Add(
-            ConsumeResult<byte[], byte[]> consumeResult,
-            string failureReason,
-            CancellationToken token)
-        {
-            await EnsureThreshold(consumeResult.Topic, token);
-            await _eventStore.Add(
-                DateTime.UtcNow,
-                CreateOpeningPoisonEvent(consumeResult, failureReason),
-                token);
         }
 
         public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
@@ -167,16 +159,13 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             }
         }
 
-
-        // TODO const -> settings
-        private const int MaxNumberOfPoisonedEventsInTopic = 1000;
         private async Task EnsureThreshold(string topic, CancellationToken cancellationToken)
         {
             var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
-            if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
+            if (alreadyPoisoned >= _maxNumberOfPoisonedEventsInTopic)
                 throw new EventHandlingException(
                     topic,
-                    $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
+                    $"Dead letter queue exceeds {_maxNumberOfPoisonedEventsInTopic} size.",
                     null);
         }
 

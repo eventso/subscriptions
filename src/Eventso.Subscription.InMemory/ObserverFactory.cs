@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Eventso.Subscription.InMemory
 {
-    public sealed class ObserverFactory : IObserverFactory
+    public sealed class ObserverFactory : IObserverFactory<Event>
     {
         private readonly SubscriptionConfiguration _configuration;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
@@ -23,16 +23,15 @@ namespace Eventso.Subscription.InMemory
             _messageHandlersRegistry = messageHandlersRegistry;
         }
 
-        public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer)
-            where TEvent : IEvent
+        public IObserver<Event> Create(IConsumer<Event> consumer)
         {
-            var eventHandler = new Observing.EventHandler<TEvent>(
+            var eventHandler = new Observing.EventHandler<Event>(
                 _messageHandlersRegistry,
                 _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
 
             if (_configuration.BatchProcessingRequired)
             {
-                return new BatchEventObserver<TEvent>(
+                return new BatchEventObserver<Event>(
                     _configuration.BatchConfiguration,
                     GetBatchHandler(),
                     consumer,
@@ -40,26 +39,26 @@ namespace Eventso.Subscription.InMemory
                     skipUnknown: true);
             }
 
-            return new EventObserver<TEvent>(
+            return new EventObserver<Event>(
                 eventHandler,
                 consumer,
                 _messageHandlersRegistry,
                 skipUnknown: true,
                 _configuration.DeferredAckConfiguration,
-                NullLogger<EventObserver<TEvent>>.Instance);
+                NullLogger<EventObserver<Event>>.Instance);
 
-            IEventHandler<TEvent> GetBatchHandler()
+            IEventHandler<Event> GetBatchHandler()
             {
                 return _configuration.BatchConfiguration.HandlingStrategy switch
                 {
                     BatchHandlingStrategy.SingleType
                         => eventHandler,
                     BatchHandlingStrategy.SingleTypeLastByKey
-                        => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
+                        => new SingleTypeLastByKeyEventHandler<Event>(eventHandler),
                     BatchHandlingStrategy.OrderedWithinKey
-                        => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
+                        => new OrderedWithinKeyEventHandler<Event>(eventHandler),
                     BatchHandlingStrategy.OrderedWithinType =>
-                        new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
+                        new OrderedWithinTypeEventHandler<Event>(eventHandler),
                     _ => throw new InvalidOperationException(
                         $"Unknown handling strategy: {_configuration.BatchConfiguration.HandlingStrategy}")
                 };

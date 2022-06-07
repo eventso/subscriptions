@@ -2,31 +2,31 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
+using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka
 {
     public sealed class KafkaConsumer : IDisposable
     {
-        private readonly IObserverFactory _observerFactory;
-        private readonly IPoisonRecordInbox _poisonRecordInbox;
+        private readonly IObserverFactory<Event> _observerFactory;
+        private readonly IPoisonEventInbox<Event> _poisonEventInbox;
         private readonly ConsumerSettings _settings;
         private readonly int _maxObserveInterval;
         private readonly ILogger<KafkaConsumer> _logger;
         private readonly IConsumer<Guid, ConsumedMessage> _consumer;
 
         public KafkaConsumer(
-            IObserverFactory observerFactory,
+            IObserverFactory<Event> observerFactory,
             IDeserializer<ConsumedMessage> deserializer,
-            IPoisonRecordInbox poisonRecordInbox,
+            IPoisonEventInbox<Event> poisonEventInbox,
             ConsumerSettings settings,
             ILogger<KafkaConsumer> logger)
         {
             if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
             _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
-            _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
+            _poisonEventInbox = poisonEventInbox; // can be null in case of disabled DLQ
             _settings = settings;
             _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
             _logger = logger;
@@ -72,14 +72,14 @@ namespace Eventso.Subscription.Kafka
 
             while (!tokenSource.IsCancellationRequested)
             {
-                var result = await Consume();
+                var @event = await Consume();
 
                 timeoutTokenSource.CancelAfter(_maxObserveInterval);
 
                 try
                 {
-                    if (result != null)
-                        await Observe(result, observer, tokenSource.Token);
+                    if (@event != null)
+                        await Observe(@event.Value, observer, tokenSource.Token);
                     else
                         await ObserveTimeout(observer, tokenSource.Token);
 
@@ -98,18 +98,43 @@ namespace Eventso.Subscription.Kafka
                 timeoutTokenSource.CancelAfter(Timeout.Infinite);
             }
 
-            async Task<ConsumeResult<Guid, ConsumedMessage>> Consume()
+            async Task<Event?> Consume()
             {
                 try
                 {
-                    return _consumer.Consume(_settings.ConsumeTimeout);
+                    var result = _consumer.Consume(_settings.ConsumeTimeout);
+                    return result != null
+                        ? new Event(result, _settings.Topic)
+                        : null;
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
                 {
-                    await _poisonRecordInbox?.Add(
-                        ex.ConsumerRecord,
-                        $"Deserialization failed: {ex.Message}.",
-                        tokenSource.Token);
+                    if (_poisonEventInbox != null)
+                    {
+                        var @event = new Event(
+                            new ConsumeResult<Guid, ConsumedMessage>()
+                            {
+                                TopicPartitionOffset = ex.ConsumerRecord.TopicPartitionOffset,
+                                Message = new Message<Guid, ConsumedMessage>()
+                                {
+                                    Key = KeyGuidDeserializer.Instance.Deserialize(ex.ConsumerRecord.Message.Key,
+                                        ex.ConsumerRecord.Message.Key.Length == 0, SerializationContext.Empty),
+                                    Value = ConsumedMessage.Skipped,
+                                    Timestamp = ex.ConsumerRecord.Message.Timestamp,
+                                    Headers = ex.ConsumerRecord.Message.Headers
+
+                                },
+                                IsPartitionEOF = ex.ConsumerRecord.IsPartitionEOF
+                            },
+                            _settings.Topic);
+
+                        // this approach will force inbox to reconsume this message, but it is a really rare case
+                        await _poisonEventInbox.Add(
+                            new PoisonEvent<Event>(@event, $"Deserialization failed: {ex.Message}."),
+                            tokenSource.Token);
+
+                        return @event;
+                    }
 
                     _logger.LogError(ex, "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
                     throw;
@@ -118,12 +143,10 @@ namespace Eventso.Subscription.Kafka
         }
 
         private async Task Observe(
-            ConsumeResult<Guid, ConsumedMessage> result,
+            Event @event,
             IObserver<Event> observer,
             CancellationToken token)
         {
-            var @event = new Event(result, _settings.Topic);
-
             try
             {
                 await observer.OnEventAppeared(@event, token);
@@ -131,7 +154,7 @@ namespace Eventso.Subscription.Kafka
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 throw new EventHandlingException(
-                    result.TopicPartitionOffset.ToString(),
+                    @event.GetTopicPartitionOffset().ToString(),
                     "Event observing failed",
                     ex);
             }

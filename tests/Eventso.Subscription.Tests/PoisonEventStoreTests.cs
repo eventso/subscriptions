@@ -30,7 +30,7 @@ namespace Eventso.Subscription.Tests
         {
             await using var database = await Database.Create(); 
 
-            await PoisonEventStore.Initialize(database.ConnectionFactory);
+            await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             await using var connection = database.ConnectionFactory.ReadWrite();
 
@@ -46,7 +46,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddSingleToStore_EventsAdded()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var @event = _fixture.Create<OpeningPoisonEvent>();
@@ -77,7 +77,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddBulkToStore_EventsAdded()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
@@ -105,7 +105,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddFailureToStore_FailuresAdded()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
@@ -139,7 +139,7 @@ namespace Eventso.Subscription.Tests
         public async Task AddFailuresToStore_FailuresAdded()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
@@ -175,7 +175,7 @@ namespace Eventso.Subscription.Tests
         public async Task RemoveSingleFromStore_EventsRemoved()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>(10).ToArray();
@@ -208,7 +208,7 @@ namespace Eventso.Subscription.Tests
         public async Task RemoveBulkFromStore_EventsRemoved()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>(10).ToArray();
@@ -241,7 +241,7 @@ namespace Eventso.Subscription.Tests
         public async Task Count_MeetsExpected()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var expectedCount = _fixture.Create<byte>() % 10 + 1;
@@ -260,7 +260,7 @@ namespace Eventso.Subscription.Tests
         public async Task IsKeyStored_MeetsExpected()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>(3).ToArray();
@@ -280,7 +280,7 @@ namespace Eventso.Subscription.Tests
         public async Task GetStoredKeys_MeetsExpected()
         {
             await using var database = await Database.Create(); 
-            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
 
             var timestamp = _fixture.Create<DateTime>();
             var events = _fixture.CreateMany<OpeningPoisonEvent>(3).ToArray();
@@ -316,7 +316,8 @@ namespace Eventso.Subscription.Tests
                 database.ConnectionFactory,
                 maxFailureCount,
                 minIntervalBetweenRetries,
-                maxLockHandleInterval);
+                maxLockHandleInterval,
+                default);
 
             var firstKey = Guid.NewGuid();
             var secondKey = Guid.NewGuid();
@@ -458,8 +459,6 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
             string last_failure_reason,
             int total_failure_count
         );
-
-        // to be continued
 
         private sealed class Database : IAsyncDisposable
         {
