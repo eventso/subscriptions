@@ -15,16 +15,19 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
         private readonly IConnectionFactory _connectionFactory;
         private readonly int _maxAllowedFailureCount;
         private readonly TimeSpan _minIntervalBetweenRetries;
+        private readonly TimeSpan _maxLockHandleInterval;
 
         public PoisonEventStore(
             IConnectionFactory connectionFactory,
             // TODO receive from settings
             int? maxAllowedFailureCount = default,
-            TimeSpan? minIntervalBetweenRetries = default)
+            TimeSpan? minIntervalBetweenRetries = default,
+            TimeSpan? maxLockHandleInterval = default)
         {
             _connectionFactory = connectionFactory;
             _maxAllowedFailureCount = maxAllowedFailureCount ?? 10;
             _minIntervalBetweenRetries = minIntervalBetweenRetries ?? TimeSpan.FromMinutes(1);
+            _maxLockHandleInterval = maxLockHandleInterval ?? TimeSpan.FromMinutes(1);
         }
 
         public static async Task<PoisonEventStore> Initialize(
@@ -32,6 +35,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             // TODO receive from settings
             int? maxAllowedFailureCount = default,
             TimeSpan? minIntervalBetweenRetries = default,
+            TimeSpan? maxLockHandleInterval = default,
             CancellationToken token = default)
         {
             await using var connection = connectionFactory.ReadWrite();
@@ -51,6 +55,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
                     last_failure_timestamp TIMESTAMP    NOT NULL,
                     last_failure_reason    TEXT         NOT NULL,
                     total_failure_count    INT          NOT NULL,
+                    lock_timestamp         TIMESTAMP    NULL,
                     PRIMARY KEY (""offset"", partition, topic)
                 );
 
@@ -61,7 +66,11 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             
             await command.ExecuteNonQueryAsync(token);
 
-            return new PoisonEventStore(connectionFactory);
+            return new PoisonEventStore(
+                connectionFactory,
+                maxAllowedFailureCount,
+                minIntervalBetweenRetries,
+                maxLockHandleInterval);
         }
 
         public async Task<long> Count(string topic, CancellationToken cancellationToken)
@@ -89,7 +98,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
             await using var connection = _connectionFactory.ReadOnly();
 
             await using var command = new NpgsqlCommand(
-                "SELECT TRUE FROM eventso_dlq.poison_events WHERE topic = @topic AND key = @key;",
+                "SELECT TRUE FROM eventso_dlq.poison_events WHERE topic = @topic AND key = @key LIMIT 1;",
                 connection)
             {
                 Parameters =
@@ -225,6 +234,36 @@ VALUES (
             }
         }
 
+        public async Task AddFailure(DateTime timestamp, OccuredFailure failure, CancellationToken token)
+        {
+            await using var connection = _connectionFactory.ReadWrite();
+
+            await using var command = new NpgsqlCommand(
+                @"
+UPDATE eventso_dlq.poison_events pe
+SET
+    last_failure_timestamp = @timestamp,
+    last_failure_reason = @reason,
+    total_failure_count = total_failure_count + 1,
+    lock_timestamp = NULL
+WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
+                connection)
+            {
+                Parameters =
+                {
+                    new NpgsqlParameter<string>("topic", failure.TopicPartitionOffset.Topic),
+                    new NpgsqlParameter<int>("partition", failure.TopicPartitionOffset.Partition.Value),
+                    new NpgsqlParameter<long>("offset", failure.TopicPartitionOffset.Offset.Value),
+                    new NpgsqlParameter<DateTime>("timestamp", timestamp),
+                    new NpgsqlParameter<string>("reason", failure.Reason)
+                }
+            };
+
+            await connection.OpenAsync(token);
+
+            await command.ExecuteNonQueryAsync(token);
+        }
+
         public async Task AddFailures(
             DateTime timestamp,
             IReadOnlyCollection<OccuredFailure> failures,
@@ -250,7 +289,8 @@ UPDATE eventso_dlq.poison_events pe
 SET
     last_failure_timestamp = @timestamp,
     last_failure_reason = input.reason,
-    total_failure_count = total_failure_count + 1
+    total_failure_count = total_failure_count + 1,
+    lock_timestamp = NULL
 FROM UNNEST(@topics, @partitions, @offsets, @reasons) AS input(topic, partition, ""offset"", reason)
 WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"" = input.""offset"";",
                 connection)
@@ -262,6 +302,29 @@ WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"
                     new NpgsqlParameter<long[]>("offsets", offsets),
                     new NpgsqlParameter<DateTime>("timestamp", timestamp),
                     new NpgsqlParameter<string[]>("reasons", reasons)
+                }
+            };
+
+            await connection.OpenAsync(token);
+
+            await command.ExecuteNonQueryAsync(token);
+        }
+
+        public async Task Remove(TopicPartitionOffset partitionOffset, CancellationToken token)
+        {
+            await using var connection = _connectionFactory.ReadWrite();
+
+            await using var command = new NpgsqlCommand(
+                @"
+DELETE FROM eventso_dlq.poison_events pe
+WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
+                connection)
+            {
+                Parameters =
+                {
+                    new NpgsqlParameter<string>("topic", partitionOffset.Topic),
+                    new NpgsqlParameter<int>("partition", partitionOffset.Partition.Value),
+                    new NpgsqlParameter<long>("offset", partitionOffset.Offset.Value),
                 }
             };
 
@@ -304,47 +367,61 @@ WHERE pe.topic = input.topic AND pe.partition = input.partition AND pe.""offset"
             await command.ExecuteNonQueryAsync(token);
         }
 
-        public async IAsyncEnumerable<StoredPoisonEvent> GetEventsForRetrying(
+        public async IAsyncEnumerable<StoredPoisonEvent> AcquireEventsForRetrying(
             string topic,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await using var connection = _connectionFactory.ReadOnly();
 
+            await connection.OpenAsync(cancellationToken);
+
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
             await using var command = new NpgsqlCommand(
                 @"
-SELECT
-    partition,
-    ""offset"",
-    pe_heads.key,
-    value,
-    creation_timestamp,
-    header_keys,
-    header_values,
-    last_failure_timestamp,
-    last_failure_reason,
-    total_failure_count
-FROM eventso_dlq.poison_events pe_heads
-INNER JOIN (
-    SELECT key, MIN(""offset"") AS min_offset
-    FROM eventso_dlq.poison_events
-    WHERE topic = @topic
-    GROUP BY key
-) heads
-ON pe_heads.key = heads.key and pe_heads.""offset"" = heads.min_offset
-WHERE
-    pe_heads.total_failure_count <= @maxAllowedFailureCount
-    AND pe_heads.last_failure_timestamp < @maxAcceptedLastFailureTimestamp;",
+WITH
+    heads AS (
+        SELECT key, MIN(""offset"") AS min_offset
+        FROM eventso_dlq.poison_events
+        WHERE topic = @topic
+        GROUP BY key
+    ),
+    locked_events AS (
+        SELECT pe_heads.*
+        FROM eventso_dlq.poison_events pe_heads
+        INNER JOIN heads
+        ON pe_heads.topic = @topic AND pe_heads.key = heads.key and pe_heads.""offset"" = heads.min_offset
+        WHERE
+            pe_heads.total_failure_count <= @maxAllowedFailureCount
+            AND pe_heads.last_failure_timestamp < @maxAcceptedLastFailureTimestamp
+            AND (pe_heads.lock_timestamp IS NULL OR pe_heads.lock_timestamp < @maxAcceptedLockTimestamp)
+        FOR UPDATE OF pe_heads SKIP LOCKED
+    )
+UPDATE eventso_dlq.poison_events pe
+SET lock_timestamp = NOW()
+FROM locked_events le
+WHERE pe.topic = le.topic AND pe.partition = le.partition AND pe.""offset"" = le.""offset""
+RETURNING 
+    pe.partition,
+    pe.""offset"",
+    pe.key,
+    pe.value,
+    pe.creation_timestamp,
+    pe.header_keys,
+    pe.header_values,
+    pe.last_failure_timestamp,
+    pe.last_failure_reason,
+    pe.total_failure_count;",
                 connection)
             {
                 Parameters =
                 {
                     new NpgsqlParameter<string>("topic", topic),
                     new NpgsqlParameter<int>("maxAllowedFailureCount", _maxAllowedFailureCount),
-                    new NpgsqlParameter<DateTime>("maxAcceptedLastFailureTimestamp", DateTime.UtcNow - _minIntervalBetweenRetries)
+                    new NpgsqlParameter<DateTime>("maxAcceptedLastFailureTimestamp", DateTime.UtcNow - _minIntervalBetweenRetries),
+                    new NpgsqlParameter<DateTime>("maxAcceptedLockTimestamp", DateTime.UtcNow - _maxLockHandleInterval)
                 }
             };
-
-            await connection.OpenAsync(cancellationToken);
 
             var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

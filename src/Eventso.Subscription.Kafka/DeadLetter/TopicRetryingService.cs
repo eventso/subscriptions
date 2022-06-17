@@ -35,11 +35,11 @@ namespace Eventso.Subscription.Kafka.DeadLetter
             using var retryScope = _logger.BeginScope(
                 new[] { new KeyValuePair<string, string>("eventso_retry_topic", _topic) });
 
-            _logger.LogInformation($"Started event retrying.");
+            _logger.LogInformation("Started event retrying.");
 
             using var events = new PooledList<Event>(4);
 
-            await foreach (var storedEvent in _poisonEventStore.GetEventsForRetrying(_topic, cancellationToken))
+            await foreach (var storedEvent in _poisonEventStore.AcquireEventsForRetrying(_topic, cancellationToken))
             {
                 var @event = Deserialize(storedEvent);
                 events.Add(@event);
@@ -49,7 +49,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
 
             await _eventHandler.Handle(events, cancellationToken);
 
-            _logger.LogInformation($"Finished event retrying.");
+            _logger.LogInformation("Finished event retrying.");
         }
 
         private Event Deserialize(StoredPoisonEvent storedEvent)

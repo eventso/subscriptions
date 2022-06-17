@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Eventso.Subscription.Kafka.DeadLetter.Postgres;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
 using FluentAssertions;
 using Npgsql;
+using NpgsqlTypes;
 using NSubstitute;
 using Xunit;
 
@@ -69,6 +71,40 @@ namespace Eventso.Subscription.Tests
         }
 
         [Fact]
+        public async Task AddFailureToStore_FailuresAdded()
+        {
+            await using var database = await Database.Create(); 
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+
+            var timestamp = _fixture.Create<DateTime>();
+            var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
+            await store.Add(timestamp, events, CancellationToken.None);
+
+            var updatedTimestamp = _fixture.Create<DateTime>();
+            var updatedFailure = new OccuredFailure(
+                events.OrderBy(_ => Guid.NewGuid()).First().TopicPartitionOffset,
+                _fixture.Create<string>());
+
+            await store.AddFailure(updatedTimestamp, updatedFailure, CancellationToken.None);
+
+            var storedEvents = await GetStoredEvents(database);
+            events.Select(e => new PoisonEventRaw(
+                    e.TopicPartitionOffset.Topic,
+                    e.TopicPartitionOffset.Partition.Value,
+                    e.TopicPartitionOffset.Offset.Value,
+                    e.Key,
+                    e.Value.ToArray(),
+                    e.CreationTimestamp,
+                    e.Headers.Select(h => h.Key).ToArray(),
+                    e.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                    updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? updatedTimestamp : timestamp,
+                    updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? updatedFailure.Reason : e.FailureReason,
+                    updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? 2 : 1))
+                .Should()
+                .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
+        }
+
+        [Fact]
         public async Task AddFailuresToStore_FailuresAdded()
         {
             await using var database = await Database.Create(); 
@@ -80,9 +116,9 @@ namespace Eventso.Subscription.Tests
 
             var updatedTimestamp = _fixture.Create<DateTime>();
             var updatedFailures = events
-                .Select((e, i) => (Index: i, Event: e))
-                .Where(u => u.Index != 1)
-                .Select(u => new OccuredFailure(u.Event.TopicPartitionOffset, _fixture.Create<string>()))
+                .OrderBy(_ => Guid.NewGuid())
+                .Skip(1)
+                .Select(u => new OccuredFailure(u.TopicPartitionOffset, _fixture.Create<string>()))
                 .ToDictionary(f => f.TopicPartitionOffset);
 
             await store.AddFailures(updatedTimestamp, updatedFailures.Values, CancellationToken.None);
@@ -105,7 +141,40 @@ namespace Eventso.Subscription.Tests
         }
 
         [Fact]
-        public async Task RemoveFromStore_EventsRemoved()
+        public async Task RemoveSingleFromStore_EventsRemoved()
+        {
+            await using var database = await Database.Create(); 
+            var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+
+            var timestamp = _fixture.Create<DateTime>();
+            var events = _fixture.CreateMany<OpeningPoisonEvent>(10).ToArray();
+            await store.Add(timestamp, events, CancellationToken.None);
+
+            var toRemove = events.OrderBy(_ => Guid.NewGuid()).First().TopicPartitionOffset;
+
+            await store.Remove(toRemove, CancellationToken.None);
+
+            var storedEvents = await GetStoredEvents(database);
+            events
+                .Where(e => toRemove != e.TopicPartitionOffset)
+                .Select(e => new PoisonEventRaw(
+                    e.TopicPartitionOffset.Topic,
+                    e.TopicPartitionOffset.Partition.Value,
+                    e.TopicPartitionOffset.Offset.Value,
+                    e.Key,
+                    e.Value.ToArray(),
+                    e.CreationTimestamp,
+                    e.Headers.Select(h => h.Key).ToArray(),
+                    e.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                    timestamp,
+                    e.FailureReason,
+                    1))
+                .Should()
+                .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
+        }
+
+        [Fact]
+        public async Task RemoveBulkFromStore_EventsRemoved()
         {
             await using var database = await Database.Create(); 
             var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
@@ -197,54 +266,68 @@ namespace Eventso.Subscription.Tests
         }
 
         [Fact]
-        public async Task GetEventsForRetrying_MeetsExpected()
+        public async Task AcquireEventsForRetrying_MeetsExpected()
         {
             const int maxFailureCount = 10, canBeRetriedFailureCount = 5, cantBeRetriedFailureCount = 15;
             var minIntervalBetweenRetries = TimeSpan.FromMinutes(100);
-            DateTime canBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(-150),
+            DateTime
+                canBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(-150),
                 cantBeRetriedLastFailureTimestamp = DateTime.UtcNow.AddMinutes(-50);
+            var maxLockHandleInterval = TimeSpan.FromMinutes(20);
+            DateTime?
+                canBeRetriedLockHandleTimestamp = DateTime.UtcNow.AddMinutes(-30),
+                cantBeRetriedLockHandleTimestamp = DateTime.UtcNow.AddMinutes(-10);
+            
             const string relevantTopic = "topic1", irrelevantTopic = "topic2";
 
             await using var database = await Database.Create();
             var store = await PoisonEventStore.Initialize(
                 database.ConnectionFactory,
                 maxFailureCount,
-                minIntervalBetweenRetries);
+                minIntervalBetweenRetries,
+                maxLockHandleInterval);
 
             var firstKey = Guid.NewGuid();
             var secondKey = Guid.NewGuid();
             var thirdKey = Guid.NewGuid();
             var fourthKey = Guid.NewGuid();
             var fifthKey = Guid.NewGuid();
+            var sixthKey = Guid.NewGuid();
+            var seventhKey = Guid.NewGuid();
 
             var events = await Task.WhenAll(
-                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount),
-                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 2), cantBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 3), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount),
-                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount),
-                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount),
-                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount));
+                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
+                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 2), cantBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 3), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
+                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
+                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, canBeRetriedLockHandleTimestamp),
+                CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, cantBeRetriedLockHandleTimestamp),
+                CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
+                CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null));
 
             var eventsForRetrying = new List<StoredPoisonEvent>();
-            await foreach (var @event in store.GetEventsForRetrying(relevantTopic, CancellationToken.None))
+            await foreach (var @event in store.AcquireEventsForRetrying(relevantTopic, CancellationToken.None))
                 eventsForRetrying.Add(@event);
 
             eventsForRetrying
                 .Should()
                 .BeEquivalentTo(
                     events
-                        .Where(e => (e.Key == secondKey || e.Key == fourthKey)
-                                    && e.TopicPartitionOffset.Offset.Value == 1
-                                    && e.TopicPartitionOffset.Topic == relevantTopic)
+                        .Where(e => (e.Key == secondKey || e.Key == fourthKey || e.Key == sixthKey)
+                                    && e.TopicPartitionOffset.Offset.Value == 1)
                         .Select(e => new StoredPoisonEvent(
                             e.TopicPartitionOffset.Partition,
                             e.TopicPartitionOffset.Offset,
@@ -261,7 +344,8 @@ namespace Eventso.Subscription.Tests
                 Guid key,
                 TopicPartitionOffset topicPartitionOffset,
                 DateTime lastFailureTimestamp,
-                int totalFailureCount)
+                int totalFailureCount,
+                DateTime? lastLockTimestamp)
             {
                 var @event = new OpeningPoisonEvent(
                     topicPartitionOffset,
@@ -271,13 +355,15 @@ namespace Eventso.Subscription.Tests
                     Array.Empty<EventHeader>(),
                     _fixture.Create<string>());
                 await store.Add(lastFailureTimestamp, new [] { @event }, CancellationToken.None);
-                
+
                 await using var connection = database.ConnectionFactory.ReadWrite();
 
                 await using var command = new NpgsqlCommand(
                     @"
 UPDATE eventso_dlq.poison_events pe
-SET total_failure_count = @totalFailureCount
+SET
+    total_failure_count = @totalFailureCount,
+    lock_timestamp = @lastLockTimestamp
 WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
                     connection)
                 {
@@ -286,7 +372,8 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
                         new NpgsqlParameter<string>("topic", topicPartitionOffset.Topic),
                         new NpgsqlParameter<int>("partition", topicPartitionOffset.Partition.Value),
                         new NpgsqlParameter<long>("offset", topicPartitionOffset.Offset.Value),
-                        new NpgsqlParameter<int>("totalFailureCount", totalFailureCount)
+                        new NpgsqlParameter<int>("totalFailureCount", totalFailureCount),
+                        new NpgsqlParameter("lastLockTimestamp", NpgsqlDbType.Timestamp) { NpgsqlValue = lastLockTimestamp != null ? lastLockTimestamp.Value : DBNull.Value }
                     }
                 };
 

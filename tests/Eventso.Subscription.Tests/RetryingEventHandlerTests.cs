@@ -110,9 +110,15 @@ namespace Eventso.Subscription.Tests
         private IPoisonEventStore CreatePoisonEventStore()
         {
             var poisonEventStore = Substitute.For<IPoisonEventStore>();
-            poisonEventStore.Remove(default, default)
+            poisonEventStore.Remove(default(TopicPartitionOffset), default)
+                .ReturnsForAnyArgs(Task.CompletedTask)
+                .AndDoes(c => _removedOffsets.Add(c.Arg<TopicPartitionOffset>()));
+            poisonEventStore.Remove(default(IReadOnlyCollection<TopicPartitionOffset>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _removedOffsets.AddRange(c.Arg<IReadOnlyCollection<TopicPartitionOffset>>()));
+            poisonEventStore.AddFailure(default, default, default)
+                .ReturnsForAnyArgs(Task.CompletedTask)
+                .AndDoes(c => _storedFailures.Add(c.Arg<OccuredFailure>()));
             poisonEventStore.AddFailures(default, default, default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _storedFailures.AddRange(c.Arg<IReadOnlyCollection<OccuredFailure>>()));
