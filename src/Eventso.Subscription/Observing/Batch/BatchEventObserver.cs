@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Eventso.Subscription.Configurations;
+using Eventso.Subscription.Observing.Batch.ErrorHandling;
 
 namespace Eventso.Subscription.Observing.Batch
 {
@@ -18,6 +19,7 @@ namespace Eventso.Subscription.Observing.Batch
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
         private readonly bool _skipUnknown;
         private readonly Buffer<TEvent> _buffer;
+        private readonly IFailedBufferProcessor<TEvent> _failedBufferProcessor;
 
         private bool _completed;
         private bool _disposed;
@@ -34,8 +36,12 @@ namespace Eventso.Subscription.Observing.Batch
             _messageHandlersRegistry = messageHandlersRegistry;
             _skipUnknown = skipUnknown;
 
-            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                consumer.CancellationToken);
+            _failedBufferProcessor = FailedBufferProcessorResolver.Resolve(
+                config.FailedBatchProcessingStrategy,
+                handler,
+                consumer);
+
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(consumer.CancellationToken);
 
             _actionBlock = new ActionBlock<Buffer<TEvent>.Batch>(
                 async batch =>
@@ -118,11 +124,25 @@ namespace Eventso.Subscription.Observing.Batch
             if (events.Count == 0)
                 return;
 
-            var allEvents = new EventsCollection(events);
-
             try
             {
-                if (events.Count == toBeHandledEventCount)
+                await HandleEvents(events, toBeHandledEventCount);
+            }
+            catch
+            {
+                _consumer.Cancel();
+
+                throw;
+            }
+        }
+
+        private async Task HandleEvents(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
+        {
+            try
+            {
+                var allEvents = new EventsCollection(events);
+
+                if (allEvents.Count == toBeHandledEventCount)
                 {
                     await _handler.Handle(allEvents, _cancellationTokenSource.Token);
                 }
@@ -137,28 +157,31 @@ namespace Eventso.Subscription.Observing.Batch
             }
             catch
             {
-                _consumer.Cancel();
+                await _failedBufferProcessor.Process(events, _cancellationTokenSource.Token);
+
                 throw;
             }
         }
 
         private static PooledList<TEvent> GetEventsToHandle(
-            IReadOnlyList<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
+            IReadOnlyList<Buffer<TEvent>.BufferedEvent> bufferedEvents,
+            int eventsToHandleCount)
         {
-            var list = new PooledList<TEvent>(handleMessageCount);
+            var eventsToHandle = new PooledList<TEvent>(eventsToHandleCount);
 
-            foreach (var message in messages)
+            foreach (var bufferedEvent in bufferedEvents)
             {
-                if (!message.Skipped)
-                    list.Add(message.Event);
+                if (!bufferedEvent.Skipped)
+                    eventsToHandle.Add(bufferedEvent.Event);
             }
 
-            return list;
+            return eventsToHandle;
         }
 
         private void CheckDisposed()
         {
-            if (_disposed) throw new ObjectDisposedException("Batch observer is disposed");
+            if (_disposed)
+                throw new ObjectDisposedException("Batch observer is disposed");
         }
 
         private sealed class EventsCollection : IConvertibleCollection<TEvent>
@@ -183,7 +206,7 @@ namespace Eventso.Subscription.Observing.Batch
 
                 var comparer = EqualityComparer<TValue>.Default;
                 var sample = valueConverter(_messages[0].Event);
-                
+
                 foreach (var item in _messages.Segment)
                 {
                     if (!comparer.Equals(valueConverter(item.Event), sample))
