@@ -7,10 +7,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
-    <PackageReference Include="Scrutor" Version="4.1.0" />
+    <PackageReference Include="Scrutor" Version="4.2.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
     <ProjectReference Include="..\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>

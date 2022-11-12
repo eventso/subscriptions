@@ -157,7 +157,10 @@ namespace Eventso.Subscription.Tests
         private IPoisonEventInbox<TestEvent> CreatePoisonEventInbox()
         {
             var poisonEventInbox = Substitute.For<IPoisonEventInbox<TestEvent>>();
-            poisonEventInbox.Add(default, default)
+            poisonEventInbox.Add(default(PoisonEvent<TestEvent>), default)
+                .ReturnsForAnyArgs(Task.CompletedTask)
+                .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<PoisonEvent<TestEvent>>()));
+            poisonEventInbox.Add(default(IReadOnlyCollection<PoisonEvent<TestEvent>>), default)
                 .ReturnsForAnyArgs(Task.CompletedTask)
                 .AndDoes(c => _inboxPoisonEvents.AddRange(c.Arg<IReadOnlyCollection<PoisonEvent<TestEvent>>>()));
             poisonEventInbox.IsPartOfPoisonStream(default, default)

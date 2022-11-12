@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 namespace Eventso.Subscription
 {
     [DebuggerDisplay("Count = {Count}")]
-    internal class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
+    public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
     {
         private const int MaxArrayLength = 0x7FEFFFFF;
         private const int DefaultCapacity = 4;
