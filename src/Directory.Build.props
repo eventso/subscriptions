@@ -1,8 +1,9 @@
 <Project>
   <PropertyGroup>
+	<TargetFramework>net6.0</TargetFramework>
     <VersionPrefix>0.4.0</VersionPrefix>
     <Version>0.4.0</Version>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />
     <NoWarn>CS1591</NoWarn>
