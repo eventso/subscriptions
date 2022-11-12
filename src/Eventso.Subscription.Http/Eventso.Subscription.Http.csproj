@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <RootNamespace>Eventso.Subscription.InMemory</RootNamespace>
-        <Description>Eventso subscription in-memory test transport for applications</Description>
+        <Description>Http api for Eventso subscription</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,7 +10,7 @@
     </ItemGroup>
     
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="5.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
         <PackageReference Include="Scrutor" Version="4.2.0" />
     </ItemGroup>
     

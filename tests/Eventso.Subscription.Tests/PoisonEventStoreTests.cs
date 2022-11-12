@@ -12,7 +12,6 @@ using FluentAssertions;
 using Npgsql;
 using NpgsqlTypes;
 using NSubstitute;
-using Xunit;
 
 namespace Eventso.Subscription.Tests
 {
