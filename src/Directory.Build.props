@@ -1,34 +1,34 @@
 <Project>
-  <PropertyGroup>
-	<TargetFramework>net6.0</TargetFramework>
-    <VersionPrefix>0.4.0</VersionPrefix>
-    <Version>0.4.0</Version>
-    <LangVersion>latest</LangVersion>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsAsErrors />
-    <NoWarn>CS1591</NoWarn>
-    
-    <!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<VersionPrefix>0.4.0</VersionPrefix>
+		<Version>0.4.0</Version>
+		<LangVersion>latest</LangVersion>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<WarningsAsErrors />
+		<NoWarn>CS1591</NoWarn>
 
-    <!-- Embed source files that are not tracked by the source control manager in the PDB -->
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 
-    <Copyright>Copyright 2021 © Eventso Team</Copyright>
-    <Company>Eventso</Company>
-    <Authors>Eventso</Authors>
-    <PackageTags>subscription;events;eventso;kafka;messages</PackageTags>
-    <PackageProjectUrl>https://github.com/eventso/subscriptions</PackageProjectUrl>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-  </PropertyGroup>
+		<!-- Embed source files that are not tracked by the source control manager in the PDB -->
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 
-  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-  </PropertyGroup>
+		<Copyright>Copyright 2021 © Eventso Team</Copyright>
+		<Company>Eventso</Company>
+		<Authors>Eventso</Authors>
+		<PackageTags>subscription;events;eventso;kafka;messages</PackageTags>
+		<PackageProjectUrl>https://github.com/eventso/subscriptions</PackageProjectUrl>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All"/>
-  </ItemGroup>
+	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+	</ItemGroup>
 </Project>
