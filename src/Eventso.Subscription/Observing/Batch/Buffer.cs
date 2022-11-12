@@ -198,7 +198,6 @@ namespace Eventso.Subscription.Observing.Batch
             }
         }
 
-        [StructLayout(LayoutKind.Auto)]
         public readonly struct Batch
         {
             public readonly PooledList<BufferedEvent> Events;
