@@ -23,9 +23,9 @@ namespace Eventso.Subscription.Kafka
         {
             try
             {
-                var headers = new DeserializationContext(context.Topic, context.Headers, _registry);
+                var internalContext = new DeserializationContext(context.Topic, context.Headers, _registry);
 
-                return _deserializer.Deserialize(data, headers);
+                return _deserializer.Deserialize(data, internalContext);
             }
             catch (Exception ex)
             {

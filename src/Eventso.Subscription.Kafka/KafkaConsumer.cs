@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
@@ -9,47 +12,48 @@ namespace Eventso.Subscription.Kafka
 {
     public sealed class KafkaConsumer : IDisposable
     {
+        private readonly string[] _topics;
         private readonly IObserverFactory _observerFactory;
         private readonly IPoisonRecordInbox _poisonRecordInbox;
-        private readonly ConsumerSettings _settings;
         private readonly int _maxObserveInterval;
         private readonly ILogger<KafkaConsumer> _logger;
         private readonly IConsumer<Guid, ConsumedMessage> _consumer;
 
         public KafkaConsumer(
+            string[] topics,
             IObserverFactory observerFactory,
             IDeserializer<ConsumedMessage> deserializer,
             IPoisonRecordInbox poisonRecordInbox,
-            ConsumerSettings settings,
+            ConsumerConfig config,
             ILogger<KafkaConsumer> logger)
         {
             if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
+            _topics = topics;
             _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
             _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
-            _settings = settings;
-            _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
+            _maxObserveInterval = (config.MaxPollIntervalMs ?? 300000) + 500;
             _logger = logger;
 
 
-            if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
+            if (string.IsNullOrWhiteSpace(config.BootstrapServers))
                 throw new InvalidOperationException("Brokers are not specified.");
 
-            if (string.IsNullOrEmpty(settings.Topic))
-                throw new InvalidOperationException("Topics are not specified.");
+            if (topics.Length == 0 || !Array.TrueForAll(_topics, t => !string.IsNullOrEmpty(t)))
+                throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
-            if (string.IsNullOrEmpty(settings.Config.GroupId))
+            if (string.IsNullOrEmpty(config.GroupId))
                 throw new InvalidOperationException("Group Id is not specified.");
 
-            _consumer = new ConsumerBuilder<Guid, ConsumedMessage>(settings.Config)
+            _consumer = new ConsumerBuilder<Guid, ConsumedMessage>(config)
                 .SetKeyDeserializer(KeyGuidDeserializer.Instance)
                 .SetValueDeserializer(deserializer)
                 .SetErrorHandler((_, e) => _logger.LogError(
-                    $"KafkaConsumer internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
+                    $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
                     $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
 
-            _consumer.Subscribe(settings.Topic);
+            _consumer.Subscribe(_topics);
         }
 
         public void Close() => _consumer.Close();
@@ -66,9 +70,9 @@ namespace Eventso.Subscription.Kafka
                 timeoutTokenSource.Token);
 
             var consumer = new ConsumerAdapter(tokenSource, _consumer);
-            var observer = _observerFactory.Create(consumer);
 
-            using var disposableObserver = observer as IDisposable;
+            using var observers = new ObserverCollection(
+                Array.ConvertAll(_topics, t => (t, _observerFactory.Create(consumer, t))));
 
             while (!tokenSource.IsCancellationRequested)
             {
@@ -78,6 +82,8 @@ namespace Eventso.Subscription.Kafka
 
                 try
                 {
+                    var observer = observers.GetObserver(result.Topic);
+
                     await Observe(result, observer, tokenSource.Token);
 
                     tokenSource.Token.ThrowIfCancellationRequested();
@@ -108,7 +114,8 @@ namespace Eventso.Subscription.Kafka
                         $"Deserialization failed: {ex.Message}.",
                         token);
 
-                    _logger.LogError(ex, "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
+                    _logger.LogError(ex,
+                        "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
                     throw;
                 }
             }
@@ -119,7 +126,7 @@ namespace Eventso.Subscription.Kafka
             IObserver<Event> observer,
             CancellationToken token)
         {
-            var @event = new Event(result, _settings.Topic);
+            var @event = new Event(result, result.Topic);
 
             try
             {
@@ -131,6 +138,35 @@ namespace Eventso.Subscription.Kafka
                     result.TopicPartitionOffset.ToString(),
                     "Event observing failed",
                     ex);
+            }
+        }
+
+        private sealed class ObserverCollection : IDisposable
+        {
+            private readonly (string topic, IObserver<Event> observer)[] _items;
+
+            public ObserverCollection((string, IObserver<Event>)[] items)
+                => _items = items;
+
+            public IObserver<Event> GetObserver(string topic)
+            {
+                if (_items.Length == 1)
+                    return _items[0].observer;
+
+                for (var i = 0; i < _items.Length; i++)
+                {
+                    if (_items[i].topic.Equals(topic, StringComparison.Ordinal))
+                        return _items[i].observer;
+                }
+
+                throw new InvalidOperationException($"Observer for topic {topic} not found");
+            }
+
+            public void Dispose()
+            {
+                foreach (var item in _items)
+                    if (item.observer is IDisposable disposable)
+                        disposable.Dispose();
             }
         }
     }

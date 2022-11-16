@@ -22,6 +22,12 @@ namespace Eventso.Subscription.Hosting
             bool skipUnknownMessages = true,
             int instances = 1);
 
+        ISubscriptionCollection AddMultiTopic(
+            ConsumerSettings settings,
+            int instances = 1);
+
         ISubscriptionCollection Add(SubscriptionConfiguration configuration);
     }
+
+   
 }

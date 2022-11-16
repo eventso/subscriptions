@@ -34,6 +34,7 @@ namespace Eventso.Subscription.Kafka
 
         public ConsumerConfig Config { get; }
 
-        public string Topic { get; set; }
+        [Obsolete]
+        public string Topic { get; init; }
     }
 }

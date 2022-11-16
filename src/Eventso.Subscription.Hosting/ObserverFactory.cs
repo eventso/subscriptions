@@ -8,13 +8,13 @@ namespace Eventso.Subscription.Hosting
 {
     public sealed class ObserverFactory : IObserverFactory
     {
-        private readonly SubscriptionConfiguration _configuration;
+        private readonly TopicSubscriptionConfiguration _configuration;
         private readonly IMessagePipelineFactory _messagePipelineFactory;
         private readonly IMessageHandlersRegistry _messageHandlersRegistry;
         private readonly ILoggerFactory _loggerFactory;
 
         public ObserverFactory(
-            SubscriptionConfiguration configuration,
+            TopicSubscriptionConfiguration configuration,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry messageHandlersRegistry,
             ILoggerFactory loggerFactory) 
