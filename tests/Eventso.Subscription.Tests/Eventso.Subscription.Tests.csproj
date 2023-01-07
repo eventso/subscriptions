@@ -1,33 +1,47 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <IsPackable>false</IsPackable>
-    </PropertyGroup>
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
 
-    <ItemGroup>
-      <None Remove="Eventso.Subscription.Tests.csproj.DotSettings" />
-    </ItemGroup>
+	<ItemGroup>
+		<None Remove="Eventso.Subscription.Tests.csproj.DotSettings" />
+	</ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="AutoFixture" Version="4.17.0" />
-      <PackageReference Include="AutoFixture.AutoNSubstitute" Version="4.17.0" />
-      <PackageReference Include="Castle.Core" Version="5.1.0" />
-      <PackageReference Include="FluentAssertions" Version="6.7.0" />
-      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.0" />
-      <PackageReference Include="NSubstitute" Version="4.4.0" />
-      <PackageReference Include="xunit" Version="2.4.2" />
-      <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
-    </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="AutoFixture" Version="4.17.0" />
+		<PackageReference Include="AutoFixture.AutoNSubstitute" Version="4.17.0" />
+		<PackageReference Include="FluentAssertions" Version="6.8.0" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.4.1" />
+		<PackageReference Include="NSubstitute" Version="4.4.0" />
+		<PackageReference Include="xunit" Version="2.4.2" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+	</ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\..\src\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj" />
-      <ProjectReference Include="..\..\src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
-      <ProjectReference Include="..\..\src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
-      <ProjectReference Include="..\..\src\Eventso.Subscription\Eventso.Subscription.csproj" />
-    </ItemGroup>
-
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj" />
+		<ProjectReference
+			Include="..\..\src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
+		<ProjectReference Include="..\..\src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
+		<ProjectReference Include="..\..\src\Eventso.Subscription\Eventso.Subscription.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<Using Include="Microsoft.Extensions.Logging" />
+		<Using Include="Microsoft.Extensions.Hosting" />
+		<Using Include="Microsoft.Extensions.DependencyInjection" />
+		<Using Include="Eventso.Subscription.Configurations" />
+		<Using Include="Eventso.Subscription.Observing" />
+		<Using Include="Eventso.Subscription.Observing.Batch" />
+		<Using Include="AutoFixture" />
+		<Using Include="AutoFixture.AutoNSubstitute" />
+		<Using Include="FluentAssertions" />
+		<Using Include="NSubstitute" />
+		<Using Include="NSubstitute.ExceptionExtensions" />
+		<Using Include="Xunit" />
+		
+	</ItemGroup>
 </Project>

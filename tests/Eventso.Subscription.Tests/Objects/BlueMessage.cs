@@ -1,14 +1,11 @@
-using System;
+namespace Eventso.Subscription.Tests;
 
-namespace Eventso.Subscription.Tests
+public sealed class BlueMessage
 {
-    public sealed class BlueMessage
-    {
-        public Guid Id { get; }
+    public Guid Id { get; }
 
-        public BlueMessage(Guid id)
-        {
-            Id = id;
-        }
+    public BlueMessage(Guid id)
+    {
+        Id = id;
     }
 }

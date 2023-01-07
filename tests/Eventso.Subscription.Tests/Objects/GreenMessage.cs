@@ -1,6 +1,3 @@
-using System;
+namespace Eventso.Subscription.Tests;
 
-namespace Eventso.Subscription.Tests
-{
-    public record GreenMessage(Guid Guid);
-}
+public record GreenMessage(Guid Guid);

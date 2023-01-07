@@ -39,9 +39,16 @@ public sealed class BufferedObserver<T> : IObserver<T>, IDisposable
         await _channel.Writer.WriteAsync(@event, token);
     }
 
+    public Task Complete()
+    {
+        _channel.Writer.TryComplete();
+        return Task.WhenAll(_channel.Reader.Completion, _readingTask);
+    }
+
     public void Dispose()
     {
         _channel.Writer.TryComplete();
+        (_nextObserver as IDisposable)?.Dispose();
     }
 
     private async Task BeginReadChannel()
