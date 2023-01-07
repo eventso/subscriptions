@@ -28,7 +28,7 @@ public sealed class ObserverFactory : IObserverFactory
             _messageHandlersRegistry,
             _messagePipelineFactory.Create(topicConfig.HandlerConfig));
 
-        IObserver<TEvent> observer = topicConfig.BatchProcessingRequired
+        var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
             : CreateSingleEventObserver(consumer, eventHandler, topicConfig);
 
@@ -58,18 +58,23 @@ public sealed class ObserverFactory : IObserverFactory
             configuration.SkipUnknownMessages);
     }
 
-    private EventObserver<TEvent> CreateSingleEventObserver<TEvent>(
+    private IObserver<TEvent> CreateSingleEventObserver<TEvent>(
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
         TopicSubscriptionConfiguration configuration)
         where TEvent : IEvent
     {
-        return new EventObserver<TEvent>(
+        var observer = new EventObserver<TEvent>(
             eventHandler,
             consumer,
             _messageHandlersRegistry,
             configuration.SkipUnknownMessages,
             configuration.DeferredAckConfiguration,
             _loggerFactory.CreateLogger<EventObserver<TEvent>>());
+
+        if (configuration.BufferSize == 0)
+            return observer;
+
+        return new BufferedObserver<TEvent>(configuration.BufferSize, observer, consumer.CancellationToken);
     }
 }

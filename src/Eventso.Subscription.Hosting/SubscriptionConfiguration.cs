@@ -7,7 +7,6 @@ public sealed class SubscriptionConfiguration
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
         int consumerInstances,
-        int bufferSize,
         params TopicSubscriptionConfiguration[] topicConfigurations)
     {
         if (consumerInstances < 1)
@@ -18,20 +17,17 @@ public sealed class SubscriptionConfiguration
 
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ConsumerInstances = consumerInstances;
-        BufferSize = bufferSize;
         TopicConfigurations = topicConfigurations;
     }
 
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
         params TopicSubscriptionConfiguration[] topics)
-        : this(settings, consumerInstances: 1, bufferSize: 0, topics)
+        : this(settings, consumerInstances: 1, topics)
     {
     }
 
     public int ConsumerInstances { get; }
-
-    public int BufferSize { get; }
 
     public TopicSubscriptionConfiguration[] TopicConfigurations { get; }
 

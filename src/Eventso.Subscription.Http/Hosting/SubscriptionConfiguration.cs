@@ -20,8 +20,6 @@ namespace Eventso.Subscription.Http.Hosting
             DeferredAckConfiguration deferredAckConfiguration)
             : this(topic, deserializer)
         {
-            deferredAckConfiguration?.Validate();
-
             DeferredAckConfiguration = deferredAckConfiguration ?? new DeferredAckConfiguration();
         }
 

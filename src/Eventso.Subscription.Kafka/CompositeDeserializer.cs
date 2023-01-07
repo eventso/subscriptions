@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Eventso.Subscription.Kafka;
+﻿namespace Eventso.Subscription.Kafka;
 
 public sealed class CompositeDeserializer : IMessageDeserializer
 {

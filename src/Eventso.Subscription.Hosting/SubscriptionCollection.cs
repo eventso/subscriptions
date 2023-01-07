@@ -18,7 +18,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            bufferSize: 0,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 serializer,
@@ -40,7 +39,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            bufferSize: 0,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 batchConfig,
@@ -54,7 +52,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
     public ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,
         Action<IMultiTopicSubscriptionCollection> addSubscriptions,
-        int bufferSize = 0,
         int instances = 1)
     {
         var collection = new MultiTopicSubscriptionCollection();
@@ -66,7 +63,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            bufferSize,
             collection.TopicConfigurations.ToArray());
 
         return Add(subscription);
@@ -108,14 +104,16 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             IMessageDeserializer serializer,
             HandlerConfiguration handlerConfig = default,
             DeferredAckConfiguration deferredAckConfig = default,
-            bool skipUnknownMessages = true)
+            bool skipUnknownMessages = true,
+            int bufferSize = 10)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
                 serializer,
                 handlerConfig,
                 deferredAckConfig,
-                skipUnknownMessages));
+                skipUnknownMessages,
+                bufferSize: bufferSize));
         }
 
         public IMultiTopicSubscriptionCollection AddBatch(

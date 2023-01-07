@@ -25,7 +25,8 @@ public sealed class TopicSubscriptionConfiguration
         HandlerConfiguration handlerConfig = default,
         DeferredAckConfiguration deferredAckConfiguration = default,
         bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false)
+        bool enableDeadLetterQueue = false,
+        int bufferSize = 0)
         : this(
             topic,
             serializer,
@@ -33,6 +34,9 @@ public sealed class TopicSubscriptionConfiguration
             skipUnknownMessages,
             enableDeadLetterQueue)
     {
+        if (bufferSize < 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
+
+        BufferSize = bufferSize;
         DeferredAckConfiguration = deferredAckConfiguration ?? DeferredAckConfiguration.Disabled;
     }
 
@@ -71,4 +75,6 @@ public sealed class TopicSubscriptionConfiguration
     public DeferredAckConfiguration DeferredAckConfiguration { get; }
 
     public bool EnableDeadLetterQueue { get; }
+
+    public int BufferSize { get; }
 }

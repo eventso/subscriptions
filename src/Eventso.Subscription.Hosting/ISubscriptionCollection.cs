@@ -23,7 +23,6 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
     ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,
         Action<IMultiTopicSubscriptionCollection> subscriptions,
-        int bufferSize = 0,
         int instances = 1);
 
     ISubscriptionCollection Add(SubscriptionConfiguration configuration);
