@@ -17,4 +17,12 @@
       <_Parameter1>Eventso.Subscription.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+	<ItemGroup>
+		
+		<Using Include="Eventso.Subscription.Configurations" />
+		<Using Include="Eventso.Subscription.Observing" />
+		<Using Include="Eventso.Subscription.Observing.Batch" />
+
+	</ItemGroup>
 </Project>

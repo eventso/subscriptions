@@ -16,4 +16,13 @@
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>
 
+	<ItemGroup>
+		<Using Include="Microsoft.Extensions.Logging" />
+		<Using Include="Microsoft.Extensions.Hosting" />
+		<Using Include="Microsoft.Extensions.DependencyInjection" />
+		<Using Include="Eventso.Subscription.Configurations" />
+		<Using Include="Eventso.Subscription.Observing" />
+		<Using Include="Eventso.Subscription.Observing.Batch" />
+	</ItemGroup>
+
 </Project>

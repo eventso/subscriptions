@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
@@ -12,7 +11,7 @@ namespace Eventso.Subscription.Kafka
 {
     public sealed class KafkaConsumer : IDisposable
     {
-        private readonly string[] _topics;
+        private readonly TopicDictionary<string> _topics;
         private readonly IObserverFactory _observerFactory;
         private readonly IPoisonRecordInbox _poisonRecordInbox;
         private readonly int _maxObserveInterval;
@@ -29,21 +28,21 @@ namespace Eventso.Subscription.Kafka
         {
             if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
-            _topics = topics;
-            _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
-            _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
-            _maxObserveInterval = (config.MaxPollIntervalMs ?? 300000) + 500;
-            _logger = logger;
-
-
             if (string.IsNullOrWhiteSpace(config.BootstrapServers))
                 throw new InvalidOperationException("Brokers are not specified.");
 
-            if (topics.Length == 0 || !Array.TrueForAll(_topics, t => !string.IsNullOrEmpty(t)))
+            if (topics.Length == 0 || !Array.TrueForAll(topics, t => !string.IsNullOrEmpty(t)))
                 throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
             if (string.IsNullOrEmpty(config.GroupId))
                 throw new InvalidOperationException("Group Id is not specified.");
+
+            _topics = new TopicDictionary<string>(topics.Select(t => (t, t)));
+
+            _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
+            _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
+            _maxObserveInterval = (config.MaxPollIntervalMs ?? 300000) + 500;
+            _logger = logger;
 
             _consumer = new ConsumerBuilder<Guid, ConsumedMessage>(config)
                 .SetKeyDeserializer(KeyGuidDeserializer.Instance)
@@ -53,7 +52,7 @@ namespace Eventso.Subscription.Kafka
                     $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
 
-            _consumer.Subscribe(_topics);
+            _consumer.Subscribe(topics);
         }
 
         public void Close() => _consumer.Close();
@@ -72,7 +71,7 @@ namespace Eventso.Subscription.Kafka
             var consumer = new ConsumerAdapter(tokenSource, _consumer);
 
             using var observers = new ObserverCollection(
-                Array.ConvertAll(_topics, t => (t, _observerFactory.Create(consumer, t))));
+                _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
 
             while (!tokenSource.IsCancellationRequested)
             {
@@ -105,7 +104,12 @@ namespace Eventso.Subscription.Kafka
             {
                 try
                 {
-                    return _consumer.Consume(token);
+                    var result = _consumer.Consume(token);
+
+                    if (!string.IsNullOrEmpty(result.Topic))
+                        result.Topic = _topics.Get(result.Topic); // topic name interning
+
+                    return result;
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
                 {
@@ -126,7 +130,7 @@ namespace Eventso.Subscription.Kafka
             IObserver<Event> observer,
             CancellationToken token)
         {
-            var @event = new Event(result, result.Topic);
+            var @event = new Event(result);
 
             try
             {
@@ -146,26 +150,27 @@ namespace Eventso.Subscription.Kafka
             private readonly (string topic, IObserver<Event> observer)[] _items;
 
             public ObserverCollection((string, IObserver<Event>)[] items)
-                => _items = items;
+            {
+                _items = items;
+            }
 
             public IObserver<Event> GetObserver(string topic)
             {
-                if (_items.Length == 1)
-                    return _items[0].observer;
-
-                for (var i = 0; i < _items.Length; i++)
+                for (var index = 0; index < _items.Length; index++)
                 {
-                    if (_items[i].topic.Equals(topic, StringComparison.Ordinal))
-                        return _items[i].observer;
+                    ref readonly var item = ref _items[index];
+
+                    if (ReferenceEquals(item.topic, topic))
+                        return item.observer;
                 }
 
-                throw new InvalidOperationException($"Observer for topic {topic} not found");
+                throw new InvalidOperationException($"Observer not found for topic {topic}");
             }
 
             public void Dispose()
             {
-                foreach (var item in _items)
-                    if (item.observer is IDisposable disposable)
+                foreach (var observer in _items.Select(x => x.observer))
+                    if (observer is IDisposable disposable)
                         disposable.Dispose();
             }
         }

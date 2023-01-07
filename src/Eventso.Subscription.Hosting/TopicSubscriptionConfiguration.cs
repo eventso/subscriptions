@@ -1,6 +1,3 @@
-using System;
-using Eventso.Subscription.Configurations;
-
 namespace Eventso.Subscription.Hosting;
 
 public sealed class TopicSubscriptionConfiguration
@@ -26,8 +23,8 @@ public sealed class TopicSubscriptionConfiguration
         string topic,
         IMessageDeserializer serializer,
         HandlerConfiguration handlerConfig = default,
-        bool skipUnknownMessages = true,
         DeferredAckConfiguration deferredAckConfiguration = default,
+        bool skipUnknownMessages = true,
         bool enableDeadLetterQueue = false)
         : this(
             topic,
@@ -36,9 +33,7 @@ public sealed class TopicSubscriptionConfiguration
             skipUnknownMessages,
             enableDeadLetterQueue)
     {
-        deferredAckConfiguration?.Validate();
-
-        DeferredAckConfiguration = deferredAckConfiguration ?? new DeferredAckConfiguration();
+        DeferredAckConfiguration = deferredAckConfiguration ?? DeferredAckConfiguration.Disabled;
     }
 
     public TopicSubscriptionConfiguration(

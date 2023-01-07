@@ -1,40 +1,24 @@
 using System;
 using Confluent.Kafka;
 
-namespace Eventso.Subscription.Kafka
+namespace Eventso.Subscription.Kafka;
+
+public sealed class ConsumerSettings : KafkaConsumerSettings
 {
-    public sealed class ConsumerSettings
+    public ConsumerSettings() : base()
     {
-        public ConsumerSettings()
-        {
-            Config = new ConsumerConfig
-            {
-                EnableAutoCommit = false,
-                AutoOffsetReset = AutoOffsetReset.Earliest
-            };
-        }
-
-        public ConsumerSettings(
-            string brokers,
-            string groupId,
-            TimeSpan? maxPollInterval = default,
-            TimeSpan? sessionTimeout = default,
-            AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest) : this()
-        {
-            Config.BootstrapServers = brokers;
-            Config.GroupId = groupId;
-            Config.AutoOffsetReset = autoOffsetReset;
-
-            if (maxPollInterval.HasValue)
-                Config.MaxPollIntervalMs = (int) maxPollInterval.Value.TotalMilliseconds;
-
-            if (sessionTimeout.HasValue)
-                Config.SessionTimeoutMs = (int) sessionTimeout.Value.TotalMilliseconds;
-        }
-
-        public ConsumerConfig Config { get; }
-
-        [Obsolete]
-        public string Topic { get; init; }
     }
+
+    public ConsumerSettings(
+        string brokers,
+        string groupId,
+        TimeSpan? maxPollInterval = default,
+        TimeSpan? sessionTimeout = default,
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
+        PartitionAssignmentStrategy assignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky)
+        : base(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, assignmentStrategy)
+    {
+    }
+
+    public string Topic { get; set; }
 }

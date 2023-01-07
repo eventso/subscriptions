@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using AutoFixture;
+﻿using AutoFixture;
 using AutoFixture.AutoNSubstitute;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
@@ -44,8 +40,11 @@ namespace Eventso.Subscription.Tests
                             _fixture.Build<ConsumeResult<Guid, ConsumedMessage>>()
                                 .With(e => e.Partition, new Partition(partition))
                                 .With(e => e.Offset, offset)
+                                .With(e => e.Topic, topic)
+                                .Without(e => e.TopicPartitionOffset)
+                                .Without(e => e.TopicPartition)
                                 .Create())
-                ).Select(r => new Event(r, topic))
+                ).Select(r => new Event(r))
                 .ToArray();
 
             adapter.Acknowledge(messages);
@@ -80,8 +79,11 @@ namespace Eventso.Subscription.Tests
                     _fixture.Build<ConsumeResult<Guid, ConsumedMessage>>()
                         .With(e => e.Partition, new Partition(offset % 4))
                         .With(e => e.Offset, offset)
+                        .With(e => e.Topic, topic)
+                        .Without(e => e.TopicPartitionOffset)
+                        .Without(e => e.TopicPartition)
                         .Create()
-                ).Select(r => new Event(r, topic))
+                ).Select(r => new Event(r))
                 .ToArray();
 
             adapter.Acknowledge(messages);
@@ -118,8 +120,11 @@ namespace Eventso.Subscription.Tests
                     _fixture.Build<ConsumeResult<Guid, ConsumedMessage>>()
                         .With(e => e.Partition, new Partition(rnd.Next(0, 4)))
                         .With(e => e.Offset, offset)
+                        .With(e => e.Topic, topic)
+                        .Without(e => e.TopicPartitionOffset)
+                        .Without(e => e.TopicPartition)
                         .Create()
-                ).Select(r => new Event(r, topic))
+                ).Select(r => new Event(r))
                 .ToArray();
 
             adapter.Acknowledge(messages);

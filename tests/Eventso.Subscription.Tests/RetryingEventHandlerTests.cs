@@ -158,7 +158,7 @@ namespace Eventso.Subscription.Tests
         }
 
         private Event Event()
-            => new(_fixture.Create<ConsumeResult<Guid, ConsumedMessage>>(), _fixture.Create<string>());
+            => new(_fixture.Create<ConsumeResult<Guid, ConsumedMessage>>());
 
         private PoisonEvent<Event> PoisonEvent()
             => new(Event(), _fixture.Create<string>());

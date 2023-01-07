@@ -6,36 +6,38 @@ namespace Eventso.Subscription.Kafka
 {
     public readonly struct Event : IEvent
     {
-        private readonly ConsumedMessage _value;
-        private readonly Guid _key;
-        internal readonly string Topic;
-        internal readonly Partition Partition;
-        internal readonly Offset Offset;
+        private readonly ConsumeResult<Guid, ConsumedMessage> _consumeResult;
 
-        public Event(ConsumeResult<Guid, ConsumedMessage> @event, string topic)
-        {
-            _value = @event.Message.Value;
-            _key = @event.Message.Key;
-            Topic = topic;
-            Partition = @event.Partition;
-            Offset = @event.Offset;
-        }
-        
-        public DeserializationStatus DeserializationResult => _value.Status;
+        public Event(ConsumeResult<Guid, ConsumedMessage> consumeResult)
+            => _consumeResult = consumeResult;
 
-        public Guid GetKey() => _key;
+        public DeserializationStatus DeserializationResult
+            => _consumeResult.Message.Value.Status;
 
-        public object GetMessage() => _value.Message
-                                      ?? throw new InvalidOperationException("Unknown message");
+        public string Topic
+            => _consumeResult.Topic;
 
-        public string GetIdentity() => $"{Topic} [{Partition}] @{Offset}";
+        public Partition Partition
+            => _consumeResult.Partition;
+
+        public Offset Offset
+            => _consumeResult.Offset;
+
+        public Guid GetKey()
+            => _consumeResult.Message.Key;
+
+        public object GetMessage()
+            => _consumeResult.Message.Value.Message ?? throw new InvalidOperationException("Unknown message");
+
+        public string GetIdentity()
+            => $"{_consumeResult.Topic} [{_consumeResult.Partition}] @{_consumeResult.Offset}";
 
         public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         {
             var offset = new KeyValuePair<string, object>("eventso_offset", GetIdentity());
-            var key = new KeyValuePair<string, object>("eventso_key", _key);
+            var key = new KeyValuePair<string, object>("eventso_key", GetKey());
 
-            var metadata = _value.GetMetadata();
+            var metadata = _consumeResult.Message.Value.GetMetadata();
 
             if (metadata?.Count > 0)
             {
@@ -50,9 +52,11 @@ namespace Eventso.Subscription.Kafka
             var status = DeserializationResult;
             var resultPair = new KeyValuePair<string, object>("eventso_result", status);
 
-            if (status == DeserializationStatus.Success && _value.Message != null)
+            if (status == DeserializationStatus.Success && _consumeResult.Message.Value.Message != null)
             {
-                var type = new KeyValuePair<string, object>("eventso_type", _value.Message.GetType().Name);
+                var type = new KeyValuePair<string, object>(
+                    "eventso_type",
+                    _consumeResult.Message.Value.Message.GetType().Name);
 
                 return new[] { offset, resultPair, type };
             }
@@ -61,6 +65,6 @@ namespace Eventso.Subscription.Kafka
         }
 
         internal TopicPartitionOffset GetTopicPartitionOffset()
-            => new(Topic, Partition, Offset);
+            => _consumeResult.TopicPartitionOffset;
     }
 }
