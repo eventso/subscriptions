@@ -42,7 +42,6 @@ namespace Eventso.Subscription.Tests
                                 .With(e => e.Offset, offset)
                                 .With(e => e.Topic, topic)
                                 .Without(e => e.TopicPartitionOffset)
-                                .Without(e => e.TopicPartition)
                                 .Create())
                 ).Select(r => new Event(r))
                 .ToArray();
@@ -81,7 +80,6 @@ namespace Eventso.Subscription.Tests
                         .With(e => e.Offset, offset)
                         .With(e => e.Topic, topic)
                         .Without(e => e.TopicPartitionOffset)
-                        .Without(e => e.TopicPartition)
                         .Create()
                 ).Select(r => new Event(r))
                 .ToArray();
@@ -122,7 +120,6 @@ namespace Eventso.Subscription.Tests
                         .With(e => e.Offset, offset)
                         .With(e => e.Topic, topic)
                         .Without(e => e.TopicPartitionOffset)
-                        .Without(e => e.TopicPartition)
                         .Create()
                 ).Select(r => new Event(r))
                 .ToArray();
