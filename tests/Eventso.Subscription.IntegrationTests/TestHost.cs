@@ -53,7 +53,7 @@ public sealed class TestHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _host.StopAsync(CancellationToken.None);
-        _host?.Dispose();
+        _host.Dispose();
         await _provider.DisposeAsync();
         _activityListener.Dispose();
     }

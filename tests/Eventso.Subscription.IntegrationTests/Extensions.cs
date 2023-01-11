@@ -25,4 +25,53 @@ public static class Extensions
             },
             new JsonMessageDeserializer<T>());
     }
+
+    public static async Task<TestHost> RunHost(this IServiceCollection serviceCollection)
+    {
+        var host = new TestHost(serviceCollection);
+        try
+        {
+            await host.Start();
+        }
+        catch
+        {
+            await host.DisposeAsync();
+            throw;
+        }
+
+        return host;
+    }
+
+    public static async Task WhenAll(this TestHost host, params Task[] tasks)
+    {
+        var waiting = Task.WhenAll(tasks);
+
+        await await Task.WhenAny(waiting, host.FailedCompletion);
+    }
+
+    public record TopicMessages<T>(string Topic, T[] Messages);
+
+    public record ColoredTopics(
+        TopicMessages<RedMessage> Red,
+        TopicMessages<GreenMessage> Green,
+        TopicMessages<BlueMessage> Blue,
+        TopicMessages<BlackMessage> Black);
+
+
+    public static async Task<ColoredTopics> CreateTopics(
+        this TopicSource topicSource,
+        IFixture fixture,
+        int messageCount = 100)
+    {
+        var topicRed = await topicSource.CreateTopicWithMessages<RedMessage>(fixture, messageCount);
+        var topicGreen = await topicSource.CreateTopicWithMessages<GreenMessage>(fixture, messageCount); 
+        var topicBlue = await topicSource.CreateTopicWithMessages<BlueMessage>(fixture, messageCount);
+        var topicBlack = await topicSource.CreateTopicWithMessages<BlackMessage>(fixture, messageCount);
+
+        return new(
+            new(topicRed.topic, topicRed.messages),
+            new(topicGreen.topic, topicGreen.messages),
+            new(topicBlue.topic, topicBlue.messages),
+            new(topicBlack.topic, topicBlack.messages));
+    }
 }

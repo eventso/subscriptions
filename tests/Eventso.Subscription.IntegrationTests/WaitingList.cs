@@ -1,6 +1,11 @@
 ﻿namespace Eventso.Subscription.IntegrationTests;
 
-public sealed class WaitingList<T> : List<T>
+public interface IWaitingList
+{
+    Task WaitUntil(int count, TimeSpan? timeout = default);
+}
+
+public sealed class WaitingList<T> : List<T>, IWaitingList
 {
     private readonly List<(int count, TaskCompletionSource tcs)> waiters = new();
 

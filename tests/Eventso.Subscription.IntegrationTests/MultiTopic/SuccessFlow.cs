@@ -22,38 +22,77 @@ public sealed class SuccessFlow : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SuccessFlow1()
+    public async Task MixedTypes()
     {
         const int messageCount = 100;
-        var topicRed = await _topicSource.CreateTopicWithMessages<RedMessage>(_fixture, messageCount);
-        var topicGreen = await _topicSource.CreateTopicWithMessages<GreenMessage>(_fixture, messageCount);
-        var topicBlue = await _topicSource.CreateTopicWithMessages<BlueMessage>(_fixture, messageCount);
+        var topics = await _topicSource.CreateTopics(_fixture, messageCount);
 
-        var serviceCollection = _hostStartup.CreateServiceCollection();
-        serviceCollection
+        await using var host = await _hostStartup
+            .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config with {GroupInstanceId = Guid.NewGuid().ToString()},
+                    _config,
                     c => c
-                        .AddJson<RedMessage>(topicRed.topic)
-                        .AddJson<GreenMessage>(topicGreen.topic, bufferSize: 0)
-                        .AddBatchJson<BlueMessage>(topicBlue.topic)));
-
-        await using var host = new TestHost(serviceCollection);
-        await host.Start();
+                        .AddJson<RedMessage>(topics.Red.Topic, bufferSize: 0)
+                        .AddJson<GreenMessage>(topics.Green.Topic, bufferSize: 10)
+                        .AddBatchJson<BlueMessage>(topics.Blue.Topic)))
+            .RunHost();
 
         var messageHandler = host.GetHandler();
 
-        var waitConsuming = Task.WhenAll(
+        await host.WhenAll(
             messageHandler.Red.WaitUntil(messageCount),
             messageHandler.Green.WaitUntil(messageCount),
-            messageHandler.Blue.WaitUntil(messageCount));
-
-        await await Task.WhenAny(waitConsuming, host.FailedCompletion);
+            messageHandler.Blue.WaitUntil(messageCount * 2));
 
         messageHandler.Red.Should().HaveCount(messageCount);
         messageHandler.Green.Should().HaveCount(messageCount);
-        messageHandler.Blue.Should().HaveCount(messageCount *2);
+        messageHandler.Blue.Should().HaveCount(messageCount * 2);
+    }
+
+    [Fact]
+    public async Task SingleTopic_Batch()
+    {
+        const int messageCount = 100;
+        var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
+
+        await using var host = await _hostStartup
+            .CreateServiceCollection()
+            .AddSubscriptions((s, _) =>
+                s.AddMultiTopic(
+                    _config,
+                    c => c
+                        .AddBatchJson<BlackMessage>(topic)))
+            .RunHost();
+
+        var messageHandler = host.GetHandler();
+
+        await host.WhenAll(messageHandler.Black.WaitUntil(messageCount * 2));
+
+        messageHandler.Black.Should().HaveCount(messageCount * 2);
+    }
+
+
+    [Fact]
+    public async Task SingleTopic_Single()
+    {
+        const int messageCount = 100;
+        var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
+
+        await using var host = await _hostStartup
+            .CreateServiceCollection()
+            .AddSubscriptions((s, _) =>
+                s.AddMultiTopic(
+                    _config,
+                    c => c
+                        .AddJson<BlackMessage>(topic, bufferSize: 20)))
+            .RunHost();
+
+        var messageHandler = host.GetHandler();
+
+        await host.WhenAll(messageHandler.Black.WaitUntil(messageCount));
+
+        messageHandler.Black.Should().HaveCount(messageCount);
     }
 
     public Task InitializeAsync()

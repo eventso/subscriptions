@@ -38,7 +38,7 @@ namespace Eventso.Subscription.Configurations
         {
             if (MaxBatchSize <= 1)
                 throw new ApplicationException(
-                    $"Max batch size ({MaxBufferSize} should not be less or equal than 1.");
+                    $"Max batch size ({MaxBatchSize} should not be less or equal than 1.");
 
             if (MaxBufferSize != default && MaxBufferSize < MaxBatchSize)
                 throw new ApplicationException(
