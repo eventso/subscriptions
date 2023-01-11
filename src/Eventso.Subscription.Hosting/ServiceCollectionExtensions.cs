@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IMessageHandlerScopeFactory, MessageHandlerScopeFactory>();
         services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
         services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));
+        services.TryAddSingleton<IConsumerFactory, KafkaConsumerFactory>();
     }
 
     private sealed class IgnoreDuplicateRegistrationStrategy : RegistrationStrategy

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka
 {
-    public sealed class KafkaConsumer : IDisposable
+    public sealed class KafkaConsumer : ISubscriptionConsumer
     {
         private readonly TopicDictionary<string> _topics;
         private readonly IObserverFactory _observerFactory;
