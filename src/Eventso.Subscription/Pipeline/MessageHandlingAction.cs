@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,13 +22,24 @@ namespace Eventso.Subscription.Pipeline
             if (message == null) throw new ArgumentNullException(nameof(message));
 
             using var scope = _scopeFactory.BeginScope();
+            using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.PipelineHandle)?
+                .AddTag("type", typeof(T).Name)
+                .AddTag("count", message is ICollection collection ? collection.Count : 1);
 
             var handlers = scope.Resolve<T>();
 
-            if (_executeInParallel)
-                await ExecuteInParallel(message, handlers, token);
-            else
-                await ExecuteSequentially(message, handlers, token);
+            try
+            {
+                if (_executeInParallel)
+                    await ExecuteInParallel(message, handlers, token);
+                else
+                    await ExecuteSequentially(message, handlers, token);
+            }
+            catch (Exception ex)
+            {
+                activity?.SetCustomProperty("exception", ex);
+                throw;
+            }
         }
 
         private static async Task ExecuteSequentially<T>(

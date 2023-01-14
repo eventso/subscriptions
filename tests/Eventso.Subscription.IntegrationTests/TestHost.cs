@@ -23,11 +23,11 @@ public sealed class TestHost : IAsyncDisposable
         _host = host;
         _activityListener = new ActivityListener
         {
-            ShouldListenTo = a => a.Name == "eventso",
+            ShouldListenTo = a => a.Name == Diagnostic.ActivitySource.Name,
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = a =>
             {
-                var exception = a.OperationName == "host.consuming"
+                var exception = a.OperationName == Diagnostic.HostConsuming
                     ? a.GetCustomProperty("exception") as Exception
                     : null;
 
@@ -41,6 +41,8 @@ public sealed class TestHost : IAsyncDisposable
 
     public Task FailedCompletion
         => _tcs.Task;
+
+    public IServiceProvider ServiceProvider => _provider;
 
     public Task Start()
     {

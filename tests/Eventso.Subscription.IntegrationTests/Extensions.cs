@@ -9,7 +9,10 @@ public static class Extensions
         this IMultiTopicSubscriptionCollection collection,
         string topic,
         int bufferSize = 10)
-        => collection.Add(topic, new JsonMessageDeserializer<T>(), bufferSize: bufferSize);
+    {
+        return collection.Add(topic, new JsonMessageDeserializer<T>(),
+            bufferSize: bufferSize);
+    }
 
     public static IMultiTopicSubscriptionCollection AddBatchJson<T>(
         this IMultiTopicSubscriptionCollection collection,
@@ -42,6 +45,9 @@ public static class Extensions
         return host;
     }
 
+    public static TestHost CreateHost(this IServiceCollection serviceCollection)
+        => new TestHost(serviceCollection);
+
     public static async Task WhenAll(this TestHost host, params Task[] tasks)
     {
         var waiting = Task.WhenAll(tasks);
@@ -64,7 +70,7 @@ public static class Extensions
         int messageCount = 100)
     {
         var topicRed = await topicSource.CreateTopicWithMessages<RedMessage>(fixture, messageCount);
-        var topicGreen = await topicSource.CreateTopicWithMessages<GreenMessage>(fixture, messageCount); 
+        var topicGreen = await topicSource.CreateTopicWithMessages<GreenMessage>(fixture, messageCount);
         var topicBlue = await topicSource.CreateTopicWithMessages<BlueMessage>(fixture, messageCount);
         var topicBlack = await topicSource.CreateTopicWithMessages<BlackMessage>(fixture, messageCount);
 
@@ -74,4 +80,7 @@ public static class Extensions
             new(topicBlue.topic, topicBlue.messages),
             new(topicBlack.topic, topicBlack.messages));
     }
+
+    public static IEnumerable<T> GetByIndex<T>(this T[] items, params Index[] indexes)
+        => indexes.Select(index => items[index]);
 }

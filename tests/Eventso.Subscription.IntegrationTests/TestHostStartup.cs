@@ -20,7 +20,7 @@ public sealed class TestHostStartup
         services
             .AddLogging(builder =>
                 builder.AddProvider(new XunitTestOutputLoggerProvider(_outputHelperAccessor)))
-            .AddSingleton(new CollectingHandler.Options(TimeSpan.FromMilliseconds(30)))
+            .AddSingleton(new CollectingHandler.Options(TimeSpan.FromMilliseconds(1)))
             .Scan(x => x.AddTypes(typeof(CollectingHandler)).AsSelfWithInterfaces().WithSingletonLifetime());
 
         return services;

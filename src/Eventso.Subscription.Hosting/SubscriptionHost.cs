@@ -4,8 +4,6 @@ namespace Eventso.Subscription.Hosting;
 
 public sealed class SubscriptionHost : BackgroundService
 {
-    private static readonly ActivitySource ActivitySource = new("eventso");
-
     private readonly IConsumerFactory _consumerFactory;
     private readonly IReadOnlyCollection<SubscriptionConfiguration> _subscriptions;
     private readonly ILogger _logger;
@@ -40,7 +38,7 @@ public sealed class SubscriptionHost : BackgroundService
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            using var activity = ActivitySource.StartActivity("host.consuming")?
+            using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.HostConsuming)?
                 .AddTag("topics", topics);
 
             _logger.LogInformation(
