@@ -63,6 +63,7 @@ public sealed class SubscriptionHost : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Subscription failed. Topic: {topics}.");
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 activity?.SetCustomProperty("exception", ex);
             }
         }

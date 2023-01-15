@@ -23,7 +23,7 @@ public sealed class TestHost : IAsyncDisposable
         _host = host;
         _activityListener = new ActivityListener
         {
-            ShouldListenTo = a => a.Name == Diagnostic.ActivitySource.Name,
+            ShouldListenTo = a => a.Name == Diagnostic.SourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = a =>
             {

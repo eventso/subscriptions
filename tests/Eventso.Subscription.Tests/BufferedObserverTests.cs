@@ -119,6 +119,7 @@ public sealed class BufferedObserverTests
         var events = _fixture.CreateMany<TestEvent>(capacity).ToArray();
 
         await observer.OnEventAppeared(events[0], CancellationToken.None);
+        await Task.Delay(100);
 
         var act = () => observer.OnEventAppeared(events[1], CancellationToken.None);
 

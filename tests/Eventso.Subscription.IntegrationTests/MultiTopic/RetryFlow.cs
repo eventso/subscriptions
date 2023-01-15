@@ -46,6 +46,8 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.BlueSet.FailOn(topics.Blue.Messages.GetByIndex(25, 67), count: 3);
         messageHandler.BlackSet.FailOn(topics.Black.Messages.GetByIndex(15, 16), count: 3);
 
+        using var exceptionsCollector = new DiagnosticExceptionCollector();
+
         await host.Start();
 
         await host.WhenAll(
@@ -58,6 +60,8 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.GreenSet.Should().HaveCount(messageCount);
         messageHandler.BlueSet.Should().HaveCount(messageCount);
         messageHandler.BlackSet.Should().HaveCount(messageCount);
+
+        exceptionsCollector.HandlerExceptions.Should().HaveCount(5 + 2 * 3 + 2 * 3 + 2 * 3);
     }
 
     [Fact]
@@ -77,12 +81,15 @@ public sealed class RetryFlow : IAsyncLifetime
 
         var messageHandler = host.GetHandler();
         messageHandler.BlackSet.FailOn(messages.GetByIndex(12, 79), count: 2);
+        
+        using var exceptionsCollector = new DiagnosticExceptionCollector();
 
         await host.Start();
 
         await host.WhenAll(messageHandler.BlackSet.WaitUntil(messageCount));
 
         messageHandler.BlackSet.Should().HaveCount(messageCount);
+        exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
     }
 
 
@@ -104,11 +111,14 @@ public sealed class RetryFlow : IAsyncLifetime
         var messageHandler = host.GetHandler();
         messageHandler.RedSet.FailOn(messages.GetByIndex(12, 79), count: 2);
 
+        using var exceptionsCollector = new DiagnosticExceptionCollector();
+
         await host.Start();
 
         await host.WhenAll(messageHandler.RedSet.WaitUntil(messageCount));
 
         messageHandler.RedSet.Should().HaveCount(messageCount);
+        exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
     }
 
     public Task InitializeAsync()
