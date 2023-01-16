@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,6 +74,8 @@ namespace Eventso.Subscription.Kafka
             using var observers = new ObserverCollection(
                 _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
 
+            using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Consume);
+
             while (!tokenSource.IsCancellationRequested)
             {
                 var result = await Consume(tokenSource.Token);
@@ -109,6 +112,8 @@ namespace Eventso.Subscription.Kafka
                     if (!string.IsNullOrEmpty(result.Topic))
                         result.Topic = _topics.Get(result.Topic); // topic name interning
 
+                    Activity.Current?.SetTags(result);
+
                     return result;
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
@@ -120,6 +125,9 @@ namespace Eventso.Subscription.Kafka
 
                     _logger.LogError(ex,
                         "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
+
+                    Activity.Current?.SetException(ex);
+
                     throw;
                 }
             }

@@ -64,8 +64,7 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
         }
         catch (Exception ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.SetCustomProperty("exception", ex);
+            activity?.SetException(ex);
             throw;
         }
     }
