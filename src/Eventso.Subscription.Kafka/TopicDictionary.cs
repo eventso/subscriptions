@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Eventso.Subscription.Kafka;
 
 internal readonly struct TopicDictionary<T>

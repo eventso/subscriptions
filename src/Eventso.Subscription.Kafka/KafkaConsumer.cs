@@ -109,8 +109,9 @@ namespace Eventso.Subscription.Kafka
                 {
                     var result = _consumer.Consume(token);
 
+                    //TODO:https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.HighPerformance/Buffers/StringPool.cs
                     if (!string.IsNullOrEmpty(result.Topic))
-                        result.Topic = _topics.Get(result.Topic); // topic name interning
+                        result.Topic = _topics.Get(result.Topic); // topic name interning 
 
                     Activity.Current?.SetTags(result);
 
