@@ -7,6 +7,17 @@ public sealed record KafkaConfig(
     string GroupId = null,
     string GroupInstanceId = "test-group-id")
 {
+    public ConsumerSettings ToSettings(string topic)
+    {
+        return new ConsumerSettings(
+            Brokers,
+            GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
+            groupInstanceId: GroupInstanceId)
+        {
+            Topic = topic
+        };
+    }
+
     public static implicit operator KafkaConsumerSettings(KafkaConfig config)
     {
         return new KafkaConsumerSettings(

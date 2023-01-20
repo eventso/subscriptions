@@ -25,46 +25,46 @@ public sealed class CollectingHandler : IMessageHandler<RedMessage>,
     public WaitingCollection<BlackMessage> BlackSet { get; } = new(new HashSet<BlackMessage>());
 
 
-    public Task Handle(RedMessage message, CancellationToken token)
+    public async Task Handle(RedMessage message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Red.Add(message);
         RedSet.Add(message);
-        return Task.Delay(_options.Delay, token);
     }
 
-    public Task Handle(GreenMessage message, CancellationToken token)
+    public async Task Handle(GreenMessage message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Green.Add(message);
         GreenSet.Add(message);
-        return Task.Delay(_options.Delay, token);
     }
 
-    public Task Handle(BlueMessage message, CancellationToken token)
+    public async Task Handle(BlueMessage message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Blue.Add(message);
         BlueSet.Add(message);
-        return Task.Delay(_options.Delay, token);
     }
 
-    public Task Handle(IReadOnlyCollection<GreenMessage> message, CancellationToken token)
+    public async Task Handle(IReadOnlyCollection<GreenMessage> message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Green.AddRange(message);
         GreenSet.AddRange(message);
-        return Task.Delay(_options.Delay, token);
     }
 
-    public Task Handle(IReadOnlyCollection<BlueMessage> message, CancellationToken token)
+    public async Task Handle(IReadOnlyCollection<BlueMessage> message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Blue.AddRange(message);
         BlueSet.AddRange(message);
-        return Task.Delay(_options.Delay, token);
     }
 
-    public Task Handle(IReadOnlyCollection<BlackMessage> message, CancellationToken token)
+    public async Task Handle(IReadOnlyCollection<BlackMessage> message, CancellationToken token)
     {
+        await Task.Delay(_options.Delay, token);
         Black.AddRange(message);
         BlackSet.AddRange(message);
-        return Task.Delay(_options.Delay, token);
     }
 
     public record Options(TimeSpan Delay);

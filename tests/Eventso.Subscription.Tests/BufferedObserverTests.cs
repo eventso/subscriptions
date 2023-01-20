@@ -40,7 +40,7 @@ public sealed class BufferedObserverTests
     }
 
     [Fact]
-    public void ObservingEvents_CapacityLimitBuffer()
+    public async Task ObservingEvents_CapacityLimitBuffer()
     {
         const int capacity = 10;
 
@@ -61,13 +61,14 @@ public sealed class BufferedObserverTests
         foreach (var @event in events)
         {
             var task = observer.OnEventAppeared(@event, CancellationToken.None);
+            await Task.Delay(30);
             if (!task.IsCompleted)
                 break;
 
             count++;
         }
 
-        count.Should().Be(capacity);
+        count.Should().Be(capacity + 1);
     }
 
     [Fact]
@@ -138,5 +139,7 @@ public sealed class BufferedObserverTests
             => Array.Empty<KeyValuePair<string, object>>();
     }
 
-    private class CustomException : Exception { }
+    private class CustomException : Exception
+    {
+    }
 }

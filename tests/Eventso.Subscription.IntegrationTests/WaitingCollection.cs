@@ -3,6 +3,7 @@
 namespace Eventso.Subscription.IntegrationTests;
 
 public sealed class WaitingCollection<T> : ICollection<T>
+    where T : IEquatable<T>
 {
     private readonly ICollection<T> _inner;
     private readonly List<(int count, TaskCompletionSource tcs)> waiters = new();
@@ -30,6 +31,7 @@ public sealed class WaitingCollection<T> : ICollection<T>
 
         waiters.Add((count, tcs));
 
+        Wakeup();
         return Task.WhenAny(tcs.Task, TimeoutDelay());
 
         async Task TimeoutDelay()

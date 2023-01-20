@@ -1,17 +1,23 @@
 ﻿using Confluent.Kafka;
 using Confluent.Kafka.Admin;
+using Eventso.Subscription.Kafka;
+using System.Collections.Concurrent;
 
 namespace Eventso.Subscription.IntegrationTests;
 
 public sealed class TopicSource : IAsyncDisposable
 {
+    private readonly KafkaConfig _config;
     private readonly KafkaJsonProducer _producer;
     private readonly IAdminClient _adminClient;
 
     private readonly List<string> _topics = new();
 
+    public const int NumPartitions = 3;
+
     public TopicSource(KafkaConfig config, KafkaJsonProducer producer)
     {
+        _config = config;
         _producer = producer;
         _adminClient = new AdminClientBuilder(
                 new AdminClientConfig
@@ -31,7 +37,7 @@ public sealed class TopicSource : IAsyncDisposable
                 new TopicSpecification
                 {
                     Name = name,
-                    NumPartitions = 3
+                    NumPartitions = NumPartitions
                 }
             },
             new CreateTopicsOptions()
@@ -53,6 +59,37 @@ public sealed class TopicSource : IAsyncDisposable
         await _producer.Publish(topic, messages);
 
         return (topic, messages);
+    }
+
+    public IEnumerable<TopicPartitionOffset> GetCommittedOffsets(string topic, string groupId)
+    {
+        using var consumer = new ConsumerBuilder<Ignore, Ignore>(((KafkaConsumerSettings)_config).Config)
+            .Build();
+
+        return consumer.Committed(
+            Enumerable
+                .Range(0, NumPartitions)
+                .Select(p => new TopicPartition(topic, p)),
+            TimeSpan.FromMinutes(1));
+    }
+
+    public IEnumerable<(int partition, long lag)> GetLag(string topic, string groupId)
+    {
+        KafkaConsumerSettings config = _config with { GroupId = groupId };
+        using var consumer = new ConsumerBuilder<Ignore, Ignore>(config.Config)
+            .Build();
+
+        var offsets = consumer.Committed(
+            Enumerable
+                .Range(0, NumPartitions)
+                .Select(p => new TopicPartition(topic, p)),
+            TimeSpan.FromMinutes(1));
+
+        return offsets
+            .Select(o => (
+                o.Partition.Value,
+                consumer.QueryWatermarkOffsets(o.TopicPartition, TimeSpan.FromSeconds(1)).High - o.Offset))
+            .ToArray();
     }
 
     public async ValueTask DisposeAsync()
