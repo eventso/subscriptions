@@ -1,4 +1,5 @@
 ﻿using Eventso.Subscription.Hosting;
+using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.IntegrationTests.MultiTopic;
 
@@ -27,11 +28,13 @@ public sealed class RetryFlow : IAsyncLifetime
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
 
+        var consumerSettings = _config.ToSettings();
+
         await using var host = _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddJson<RedMessage>(topics.Red.Topic, bufferSize: 100)
                         .AddJson<GreenMessage>(topics.Green.Topic, bufferSize: 10)
@@ -62,6 +65,10 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.BlackSet.Should().HaveCount(messageCount);
 
         exceptionsCollector.HandlerExceptions.Should().HaveCount(5 + 2 * 3 + 2 * 3 + 2 * 3);
+
+        topics.GetAll().SelectMany(t =>
+                _topicSource.GetLag(t, consumerSettings.Config.GroupId))
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
     [Fact]
@@ -70,18 +77,20 @@ public sealed class RetryFlow : IAsyncLifetime
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
 
+        var consumerSettings = _config.ToSettings();
+
         await using var host = _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddBatchJson<BlackMessage>(topic)))
             .CreateHost();
 
         var messageHandler = host.GetHandler();
         messageHandler.BlackSet.FailOn(messages.GetByIndex(12, 79), count: 2);
-        
+
         using var exceptionsCollector = new DiagnosticExceptionCollector();
 
         await host.Start();
@@ -90,6 +99,9 @@ public sealed class RetryFlow : IAsyncLifetime
 
         messageHandler.BlackSet.Should().HaveCount(messageCount);
         exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
+
+        _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
 
@@ -98,12 +110,13 @@ public sealed class RetryFlow : IAsyncLifetime
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<RedMessage>(_fixture, messageCount);
+        var consumerSettings = _config.ToSettings();
 
         await using var host = _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddJson<RedMessage>(topic, bufferSize: 20)))
             .CreateHost();
@@ -119,6 +132,9 @@ public sealed class RetryFlow : IAsyncLifetime
 
         messageHandler.RedSet.Should().HaveCount(messageCount);
         exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
+
+        _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
     public Task InitializeAsync()

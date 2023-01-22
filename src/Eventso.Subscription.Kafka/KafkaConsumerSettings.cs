@@ -1,4 +1,3 @@
-using System;
 using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka;

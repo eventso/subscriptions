@@ -61,9 +61,17 @@ public static class Extensions
         TopicMessages<RedMessage> Red,
         TopicMessages<GreenMessage> Green,
         TopicMessages<BlueMessage> Blue,
-        TopicMessages<BlackMessage> Black);
-
-
+        TopicMessages<BlackMessage> Black)
+    {
+        public IEnumerable<string> GetAll()
+        {
+            yield return Red.Topic;
+            yield return Green.Topic;
+            yield return Blue.Topic;
+            yield return Black.Topic;
+        }
+    }
+    
     public static async Task<ColoredTopics> CreateTopics(
         this TopicSource topicSource,
         IFixture fixture,

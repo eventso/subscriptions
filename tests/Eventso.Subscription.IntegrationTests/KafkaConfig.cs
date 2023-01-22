@@ -18,11 +18,11 @@ public sealed record KafkaConfig(
         };
     }
 
-    public static implicit operator KafkaConsumerSettings(KafkaConfig config)
+    public KafkaConsumerSettings ToSettings()
     {
         return new KafkaConsumerSettings(
-            config.Brokers,
-            config.GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
-            groupInstanceId: config.GroupInstanceId);
+            Brokers,
+            GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
+            groupInstanceId: GroupInstanceId);
     }
 };

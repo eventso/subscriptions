@@ -26,12 +26,13 @@ public sealed class SuccessFlow : IAsyncLifetime
     {
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
+        var consumerSettings = _config.ToSettings();
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddJson<RedMessage>(topics.Red.Topic, bufferSize: 0)
                         .AddJson<GreenMessage>(topics.Green.Topic, bufferSize: 10)
@@ -51,6 +52,10 @@ public sealed class SuccessFlow : IAsyncLifetime
         messageHandler.Green.Should().HaveCount(messageCount);
         messageHandler.Blue.Should().HaveCount(messageCount * 2);
         messageHandler.Black.Should().HaveCount(messageCount);
+
+        topics.GetAll().SelectMany(t =>
+                _topicSource.GetLag(t, consumerSettings.Config.GroupId))
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
     [Fact]
@@ -58,12 +63,13 @@ public sealed class SuccessFlow : IAsyncLifetime
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
+        var consumerSettings = _config.ToSettings();
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddBatchJson<BlackMessage>(topic)))
             .RunHost();
@@ -73,6 +79,9 @@ public sealed class SuccessFlow : IAsyncLifetime
         await host.WhenAll(messageHandler.Black.WaitUntil(messageCount));
 
         messageHandler.Black.Should().HaveCount(messageCount);
+
+        _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
 
@@ -81,12 +90,13 @@ public sealed class SuccessFlow : IAsyncLifetime
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<RedMessage>(_fixture, messageCount);
+        var consumerSettings = _config.ToSettings();
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
                 s.AddMultiTopic(
-                    _config,
+                    consumerSettings,
                     c => c
                         .AddJson<RedMessage>(topic, bufferSize: 20)))
             .RunHost();
@@ -96,6 +106,9 @@ public sealed class SuccessFlow : IAsyncLifetime
         await host.WhenAll(messageHandler.Red.WaitUntil(messageCount));
 
         messageHandler.Red.Should().HaveCount(messageCount);
+
+        _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
+            .Should().OnlyContain(x => x.lag == 0);
     }
 
     public Task InitializeAsync()

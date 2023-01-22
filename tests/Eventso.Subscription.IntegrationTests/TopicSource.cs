@@ -63,7 +63,8 @@ public sealed class TopicSource : IAsyncDisposable
 
     public IEnumerable<TopicPartitionOffset> GetCommittedOffsets(string topic, string groupId)
     {
-        using var consumer = new ConsumerBuilder<Ignore, Ignore>(((KafkaConsumerSettings)_config).Config)
+        var config = _config with { GroupId = groupId };
+        using var consumer = new ConsumerBuilder<Ignore, Ignore>(config.ToSettings().Config)
             .Build();
 
         return consumer.Committed(
@@ -75,8 +76,8 @@ public sealed class TopicSource : IAsyncDisposable
 
     public IEnumerable<(int partition, long lag)> GetLag(string topic, string groupId)
     {
-        KafkaConsumerSettings config = _config with { GroupId = groupId };
-        using var consumer = new ConsumerBuilder<Ignore, Ignore>(config.Config)
+        var config = _config with { GroupId = groupId };
+        using var consumer = new ConsumerBuilder<Ignore, Ignore>(config.ToSettings().Config)
             .Build();
 
         var offsets = consumer.Committed(
@@ -88,7 +89,8 @@ public sealed class TopicSource : IAsyncDisposable
         return offsets
             .Select(o => (
                 o.Partition.Value,
-                consumer.QueryWatermarkOffsets(o.TopicPartition, TimeSpan.FromSeconds(1)).High - o.Offset))
+                consumer.QueryWatermarkOffsets(o.TopicPartition, TimeSpan.FromSeconds(1)).High
+                - (o.Offset == Offset.Unset ? 0 : o.Offset.Value)))
             .ToArray();
     }
 
