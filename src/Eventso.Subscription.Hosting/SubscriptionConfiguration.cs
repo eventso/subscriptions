@@ -15,6 +15,9 @@ public sealed class SubscriptionConfiguration
                 consumerInstances,
                 "Instances should be >= 1.");
 
+        if (topicConfigurations is null || topicConfigurations.Length == 0)
+            throw new ArgumentException("Value cannot be null or empty collection.", nameof(topicConfigurations));
+
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ConsumerInstances = consumerInstances;
         TopicConfigurations = topicConfigurations;
