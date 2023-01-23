@@ -165,6 +165,9 @@ namespace Eventso.Subscription.Kafka
 
             public IObserver<Event> GetObserver(string topic)
             {
+                if (_items.Length == 1)
+                    return _items[0].observer;
+
                 for (var index = 0; index < _items.Length; index++)
                 {
                     ref readonly var item = ref _items[index];
