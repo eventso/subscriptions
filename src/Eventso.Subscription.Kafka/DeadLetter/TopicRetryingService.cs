@@ -72,7 +72,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 TopicPartitionOffset = new TopicPartitionOffset(_topic, storedEvent.Partition, storedEvent.Offset)
             };
 
-            return new Event(consumeResult, _topic);
+            return new Event(consumeResult);
         }
     }
 }

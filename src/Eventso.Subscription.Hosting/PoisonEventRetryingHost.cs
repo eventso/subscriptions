@@ -1,16 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Eventso.Subscription.Configurations;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
-using Eventso.Subscription.Observing.Batch;
 using Eventso.Subscription.Observing.DeadLetter;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Hosting
 {
@@ -33,6 +24,7 @@ namespace Eventso.Subscription.Hosting
 
             _topicRetryingServices = (subscriptions ?? throw new ArgumentNullException(nameof(subscriptions)))
                 .SelectMany(x => x)
+                .SelectMany(x => x.TopicConfigurations)
                 .Where(x => x.EnableDeadLetterQueue)
                 .Select(x => CreateTopicRetryingService(x, pipelineFactory, handlersRegistry, poisonEventStore, deadLetterQueueScopeFactory, loggerFactory))
                 .ToArray();
@@ -60,7 +52,7 @@ namespace Eventso.Subscription.Hosting
         }
 
         private static TopicRetryingService CreateTopicRetryingService(
-            SubscriptionConfiguration config,
+            TopicSubscriptionConfiguration config,
             IMessagePipelineFactory messagePipelineFactory,
             IMessageHandlersRegistry handlersRegistry,
             IPoisonEventStore poisonEventStore,
@@ -86,9 +78,9 @@ namespace Eventso.Subscription.Hosting
                 };
 
             return new TopicRetryingService(
-                config.Settings.Topic,
+                config.Topic,
                 poisonEventStore,
-                new ValueObjectDeserializer(config.Serializer, handlersRegistry),
+                new ValueDeserializer(config.Serializer, handlersRegistry),
                 eventHandler,
                 loggerFactory.CreateLogger<TopicRetryingService>());
         }

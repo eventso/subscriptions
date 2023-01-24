@@ -1,10 +1,3 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Confluent.Kafka;
 using Eventso.Subscription;
 using Eventso.Subscription.Hosting;
@@ -31,18 +24,6 @@ namespace SampleApplication
                         new JsonMessageDeserializer<Message>()),
                 types => types.FromAssemblyOf<Startup>());
 
-            // services.AddKafkaListener(
-            //     kafka => kafka
-            //         .AddSubscriptions((subs, _) =>
-            //             subs.Add(
-            //                 new ConsumerSettings("kafka:9092", "test-group-id", autoOffsetReset: AutoOffsetReset.Latest)
-            //                 {
-            //                     Topic = "some-topic"
-            //                 },
-            //                 new JsonMessageDeserializer<Message>()))
-            //         .ConfigureHandlersSelector(types => types.FromAssemblyOf<Startup>())
-            //         .ConfigureDeadLetterQueue(e => e.UsePostgresStore(default(IConnectionFactory))));
-            
             services.AddMvc()
                 .AddKafkaInsights();
 

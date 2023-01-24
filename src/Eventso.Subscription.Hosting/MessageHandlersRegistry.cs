@@ -1,74 +1,68 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Extensions.DependencyInjection;
+﻿namespace Eventso.Subscription.Hosting;
 
-namespace Eventso.Subscription.Hosting
+internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
 {
-    internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
+    private readonly Dictionary<Type, HandlerKind> _types;
+
+    public static MessageHandlersRegistry Create(IEnumerable<ServiceDescriptor> registrations)
     {
-        private readonly Dictionary<Type, HandlerKind> _types;
+        var handlers = registrations
+            .Select(d => d.ServiceType)
+            .Where(t => t.IsGenericType &&
+                        t.GetGenericTypeDefinition() == typeof(IMessageHandler<>));
 
-        public static MessageHandlersRegistry Create(IEnumerable<ServiceDescriptor> registrations)
+        var messageTypes = new Dictionary<Type, HandlerKind>();
+
+        foreach (var handler in handlers)
         {
-            var handlers = registrations
-                .Select(d => d.ServiceType)
-                .Where(t => t.IsGenericType &&
-                            t.GetGenericTypeDefinition() == typeof(IMessageHandler<>));
+            if (handler.IsGenericTypeDefinition)
+                //open generic can handle any message type
+                return new MessageHandlersRegistry();
 
-            var messageTypes = new Dictionary<Type, HandlerKind>();
+            var parameter = handler.GenericTypeArguments[0];
 
-            foreach (var handler in handlers)
+            if (parameter.IsGenericType)
             {
-                if (handler.IsGenericTypeDefinition)
-                    //open generic can handle any message type
-                    return new MessageHandlersRegistry();
+                var definition = parameter.GetGenericTypeDefinition();
 
-                var parameter = handler.GenericTypeArguments[0];
-
-                if (parameter.IsGenericType)
+                if (definition == typeof(IReadOnlyCollection<>))
                 {
-                    var definition = parameter.GetGenericTypeDefinition();
+                    if (parameter.IsGenericTypeDefinition)
+                        //open generic can handle any message type
+                        return new MessageHandlersRegistry();
 
-                    if (definition == typeof(IReadOnlyCollection<>))
-                    {
-                        if (parameter.IsGenericTypeDefinition)
-                            //open generic can handle any message type
-                            return new MessageHandlersRegistry();
+                    var type = parameter.GenericTypeArguments[0];
 
-                        var type = parameter.GenericTypeArguments[0];
+                    messageTypes[type] =
+                        messageTypes.TryGetValue(type, out var existing)
+                            ? existing | HandlerKind.Batch
+                            : HandlerKind.Batch;
 
-                        messageTypes[type] =
-                            messageTypes.TryGetValue(type, out var existing)
-                                ? existing | HandlerKind.Batch
-                                : HandlerKind.Batch;
-
-                        continue;
-                    }
+                    continue;
                 }
-
-                messageTypes[parameter] =
-                    messageTypes.TryGetValue(parameter, out var other)
-                        ? other | HandlerKind.Single
-                        : HandlerKind.Single;
             }
 
-            return new MessageHandlersRegistry(messageTypes);
+            messageTypes[parameter] =
+                messageTypes.TryGetValue(parameter, out var other)
+                    ? other | HandlerKind.Single
+                    : HandlerKind.Single;
         }
 
-        public MessageHandlersRegistry(Dictionary<Type, HandlerKind> messageTypes)
-            => _types = messageTypes;
+        return new MessageHandlersRegistry(messageTypes);
+    }
 
-        public MessageHandlersRegistry()
-        {
-            //handle any
-        }
+    public MessageHandlersRegistry(Dictionary<Type, HandlerKind> messageTypes)
+        => _types = messageTypes;
 
-        public bool ContainsHandlersFor(Type messageType, out HandlerKind kind)
-        {
-            kind = HandlerKind.Single | HandlerKind.Batch;
+    public MessageHandlersRegistry()
+    {
+        //handle any
+    }
 
-            return _types?.TryGetValue(messageType, out kind) ?? true;
-        }
+    public bool ContainsHandlersFor(Type messageType, out HandlerKind kind)
+    {
+        kind = HandlerKind.Single | HandlerKind.Batch;
+
+        return _types?.TryGetValue(messageType, out kind) ?? true;
     }
 }

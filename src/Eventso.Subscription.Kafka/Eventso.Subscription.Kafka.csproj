@@ -5,8 +5,8 @@
     <Description>Kafka consumer for Eventso subscription</Description>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="1.9.2" />
-    <PackageReference Include="HashDepot" Version="2.0.3" />
+    <PackageReference Include="Confluent.Kafka" Version="1.9.3" />
+    <PackageReference Include="HashDepot" Version="3.1.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
@@ -17,4 +17,12 @@
       <_Parameter1>Eventso.Subscription.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+	<ItemGroup>
+		
+		<Using Include="Eventso.Subscription.Configurations" />
+		<Using Include="Eventso.Subscription.Observing" />
+		<Using Include="Eventso.Subscription.Observing.Batch" />
+
+	</ItemGroup>
 </Project>

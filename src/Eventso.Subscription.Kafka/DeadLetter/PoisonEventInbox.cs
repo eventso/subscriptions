@@ -37,6 +37,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter
                 AllowAutoCreateTopics = false,
                 GroupId = settings.Config.GroupId + "_cemetery" // boo!
             };
+
             _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
                 .SetKeyDeserializer(Deserializers.ByteArray)
                 .SetValueDeserializer(Deserializers.ByteArray)

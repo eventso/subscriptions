@@ -23,7 +23,7 @@ namespace Eventso.Subscription.Http
             _messageHandlersRegistry = messageHandlersRegistry;
         }
 
-        public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer)
+        public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
             where TEvent : IEvent
         {
             var eventHandler = new Observing.EventHandler<TEvent>(

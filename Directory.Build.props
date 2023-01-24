@@ -14,7 +14,7 @@
 		<!-- Embed source files that are not tracked by the source control manager in the PDB -->
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 
-		<Copyright>Copyright 2021 © Eventso Team</Copyright>
+		<Copyright>Copyright 2023 © Eventso Team</Copyright>
 		<Company>Eventso</Company>
 		<Authors>Eventso</Authors>
 		<PackageTags>subscription;events;eventso;kafka;messages</PackageTags>
@@ -22,6 +22,7 @@
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<ImplicitUsings>enable</ImplicitUsings>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
@@ -31,4 +32,5 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 	</ItemGroup>
+	
 </Project>

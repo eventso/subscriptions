@@ -3,12 +3,12 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka
 {
-    public sealed class ValueObjectDeserializer : IDeserializer<ConsumedMessage>
+    public sealed class ValueDeserializer : IDeserializer<ConsumedMessage>
     {
         private readonly IMessageDeserializer _deserializer;
         private readonly IMessageHandlersRegistry _registry;
 
-        public ValueObjectDeserializer(
+        public ValueDeserializer(
             IMessageDeserializer deserializer,
             IMessageHandlersRegistry registry)
         {
@@ -23,9 +23,9 @@ namespace Eventso.Subscription.Kafka
         {
             try
             {
-                var headers = new DeserializationContext(context.Topic, context.Headers, _registry);
+                var internalContext = new DeserializationContext(context.Topic, context.Headers, _registry);
 
-                return _deserializer.Deserialize(data, headers);
+                return _deserializer.Deserialize(data, internalContext);
             }
             catch (Exception ex)
             {

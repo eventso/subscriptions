@@ -33,5 +33,16 @@ namespace Eventso.Subscription.Configurations
 
         internal int GetMaxBufferSize()
             => MaxBufferSize != 0 ? MaxBufferSize : MaxBatchSize * 3;
+
+        public void Validate()
+        {
+            if (MaxBatchSize <= 1)
+                throw new ApplicationException(
+                    $"Max batch size ({MaxBatchSize} should not be less or equal than 1.");
+
+            if (MaxBufferSize != default && MaxBufferSize < MaxBatchSize)
+                throw new ApplicationException(
+                    $"Max buffer size ({MaxBufferSize} should not be less than max batch size ({MaxBatchSize}).");
+        }
     }
 }

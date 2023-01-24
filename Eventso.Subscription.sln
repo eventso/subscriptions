@@ -22,6 +22,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{25A31557-5D5D-4F43-AC5A-EF4A0D8C2013}"
 	ProjectSection(SolutionItems) = preProject
 		Directory.Build.props = Directory.Build.props
+		docker-compose.yml = docker-compose.yml
 		.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
 		.github\workflows\nuget-internal-publish.yml = .github\workflows\nuget-internal-publish.yml
 		.github\workflows\nuget-publish.yml = .github\workflows\nuget-publish.yml
@@ -34,6 +35,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka.DeadLetter.Postgres", "src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj", "{FD908298-AF0B-4733-B56F-751570918049}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Http", "src\Eventso.Subscription.Http\Eventso.Subscription.Http.csproj", "{E03D6E51-75A7-46EC-805C-84A2EBD840AB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Eventso.Subscription.IntegrationTests", "tests\Eventso.Subscription.IntegrationTests\Eventso.Subscription.IntegrationTests.csproj", "{C5B16166-043B-4955-A731-2E32C901CD9F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -81,6 +84,10 @@ Global
 		{E03D6E51-75A7-46EC-805C-84A2EBD840AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E03D6E51-75A7-46EC-805C-84A2EBD840AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E03D6E51-75A7-46EC-805C-84A2EBD840AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5B16166-043B-4955-A731-2E32C901CD9F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5B16166-043B-4955-A731-2E32C901CD9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5B16166-043B-4955-A731-2E32C901CD9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5B16166-043B-4955-A731-2E32C901CD9F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -96,6 +103,7 @@ Global
 		{EBDC7651-CA00-4132-9290-80886B05CDD8} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
 		{FD908298-AF0B-4733-B56F-751570918049} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
 		{E03D6E51-75A7-46EC-805C-84A2EBD840AB} = {25BFCA25-2ABE-4D7D-90F1-7A6F992D4A52}
+		{C5B16166-043B-4955-A731-2E32C901CD9F} = {7BEB0A03-25BD-4B29-8496-8236790718F1}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F4F1C631-F527-4416-AEED-8E8B09F7AE4D}

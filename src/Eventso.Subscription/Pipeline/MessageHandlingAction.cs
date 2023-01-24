@@ -1,59 +1,71 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Diagnostics;
 
-namespace Eventso.Subscription.Pipeline
+namespace Eventso.Subscription.Pipeline;
+
+public sealed class MessageHandlingAction : IMessagePipelineAction
 {
-    public sealed class MessageHandlingAction : IMessagePipelineAction
+    private readonly IMessageHandlerScopeFactory _scopeFactory;
+    private readonly bool _executeInParallel;
+
+    public MessageHandlingAction(IMessageHandlerScopeFactory scopeFactory, bool executeInParallel)
     {
-        private readonly IMessageHandlerScopeFactory _scopeFactory;
-        private readonly bool _executeInParallel;
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _executeInParallel = executeInParallel;
+    }
 
-        public MessageHandlingAction(IMessageHandlerScopeFactory scopeFactory, bool executeInParallel)
+    public async Task Invoke<T>(T message, CancellationToken token)
+    {
+        if (message == null) throw new ArgumentNullException(nameof(message));
+
+        using var scope = _scopeFactory.BeginScope();
+
+        var handlers = scope.Resolve<T>();
+
+        if (_executeInParallel)
+            await ExecuteInParallel(message, handlers, token);
+        else
+            await ExecuteSequentially(message, handlers, token);
+    }
+
+    private static async Task ExecuteSequentially<T>(
+        T message,
+        IEnumerable<IMessageHandler<T>> handlers,
+        CancellationToken token)
+    {
+        foreach (var handler in handlers)
         {
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-            _executeInParallel = executeInParallel;
+            token.ThrowIfCancellationRequested();
+
+            await Handle(handler, message, token);
         }
+    }
 
-        public async Task Invoke<T>(T message, CancellationToken token)
+    private static Task ExecuteInParallel<T>(
+        T message,
+        IEnumerable<IMessageHandler<T>> handlers,
+        CancellationToken token)
+    {
+        var tasks = new List<Task>();
+
+        foreach (var handler in handlers)
+            tasks.Add(Handle(handler, message, token));
+
+        return Task.WhenAll(tasks);
+    }
+
+    private static async Task Handle<T>(IMessageHandler<T> handler, T message, CancellationToken token)
+    {
+        using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.PipelineHandle)?
+            .AddTag("type", handler.GetType());
+
+        try
         {
-            if (message == null) throw new ArgumentNullException(nameof(message));
-
-            using var scope = _scopeFactory.BeginScope();
-
-            var handlers = scope.Resolve<T>();
-
-            if (_executeInParallel)
-                await ExecuteInParallel(message, handlers, token);
-            else
-                await ExecuteSequentially(message, handlers, token);
+            await handler.Handle(message, token);
         }
-
-        private static async Task ExecuteSequentially<T>(
-            T message,
-            IEnumerable<IMessageHandler<T>> handlers,
-            CancellationToken token)
+        catch (Exception ex)
         {
-            foreach (var handler in handlers)
-            {
-                token.ThrowIfCancellationRequested();
-
-                await handler.Handle(message, token);
-            }
-        }
-
-        private static Task ExecuteInParallel<T>(
-            T message,
-            IEnumerable<IMessageHandler<T>> handlers,
-            CancellationToken token)
-        {
-            var tasks = new List<Task>();
-
-            foreach (var handler in handlers)
-                tasks.Add(handler.Handle(message, token));
-
-            return Task.WhenAll(tasks);
+            activity?.SetException(ex);
+            throw;
         }
     }
 }

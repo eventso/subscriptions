@@ -44,7 +44,7 @@ namespace Eventso.Subscription.Http
                 _messageHandlersRegistry);
 
             var consumer = new Consumer(topic);
-            var observer = observerFactory.Create(consumer);
+            var observer = observerFactory.Create(consumer, topic);
 
             var message = new Event(consumedMessage);
 
