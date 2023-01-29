@@ -1,63 +1,58 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+namespace Eventso.Subscription.Observing.Batch;
 
-namespace Eventso.Subscription.Observing.Batch
+public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent>
+    where TEvent : IEvent
 {
-    public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent>
-        where TEvent : IEvent
+    private readonly IEventHandler<TEvent> _nextHandler;
+
+    public OrderedWithinTypeEventHandler(IEventHandler<TEvent> nextHandler)
     {
-        private readonly IEventHandler<TEvent> _nextHandler;
+        _nextHandler = nextHandler;
+    }
 
-        public OrderedWithinTypeEventHandler(IEventHandler<TEvent> nextHandler)
+    public Task Handle(TEvent @event, CancellationToken cancellationToken)
+        => _nextHandler.Handle(@event, cancellationToken);
+
+    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
+    {
+        if (events.Count == 0)
+            return;
+
+        if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
         {
-            _nextHandler = nextHandler;
+            await _nextHandler.Handle(events, token);
+
+            return;
         }
 
-        public Task Handle(TEvent @event, CancellationToken cancellationToken)
-            => _nextHandler.Handle(@event, cancellationToken);
+        using var batches = OrderWithinType(events);
+        foreach (var batch in batches)
+            using (batch)
+                await _nextHandler.Handle(batch.Events, token);
+    }
 
-        public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
+    private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IEnumerable<TEvent> events)
+    {
+        var batches = new PooledList<BatchWithSameMessageType<TEvent>>(4);
+
+        foreach (var @event in events)
         {
-            if (events.Count == 0)
-                return;
-
-            if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
+            var batchFound = false;
+            for (var i = 0; i < batches.Count; i++)
             {
-                await _nextHandler.Handle(events, token);
-
-                return;
-            }
-
-            using var batches = OrderWithinType(events);
-            foreach (var batch in batches)
-                using (batch)
-                    await _nextHandler.Handle(batch.Events, token);
-        }
-
-        private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IEnumerable<TEvent> events)
-        {
-            var batches = new PooledList<BatchWithSameMessageType<TEvent>>(4);
-
-            foreach (var @event in events)
-            {
-                var batchFound = false;
-                for (var i = 0; i < batches.Count; i++)
-                {
-                    if (!batches[i].TryAdd(@event))
-                        continue;
-
-                    batchFound = true;
-                    break;
-                }
-
-                if (batchFound)
+                if (!batches[i].TryAdd(@event))
                     continue;
 
-                batches.Add(new BatchWithSameMessageType<TEvent>(@event));
+                batchFound = true;
+                break;
             }
 
-            return batches;
+            if (batchFound)
+                continue;
+
+            batches.Add(new BatchWithSameMessageType<TEvent>(@event));
         }
+
+        return batches;
     }
 }

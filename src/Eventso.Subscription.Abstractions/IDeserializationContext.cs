@@ -1,18 +1,15 @@
-﻿using System;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IDeserializationContext
 {
-    public interface IDeserializationContext
-    {
-        int HeadersCount { get; }
-        (string name, byte[] value) GetHeader(int index);
-        byte[] GetHeaderValue(string name);
+    int HeadersCount { get; }
+    (string name, byte[] value) GetHeader(int index);
+    byte[] GetHeaderValue(string name);
 
-        public string Topic { get; }
+    public string Topic { get; }
 
-        /// <summary>
-        /// Returns true if there is any registered handler for messageType.
-        /// </summary>
-        bool IsHandlerRegisteredFor(Type messageType);
-    }
+    /// <summary>
+    /// Returns true if there is any registered handler for messageType.
+    /// </summary>
+    bool IsHandlerRegisteredFor(Type messageType);
 }

@@ -1,6 +1,5 @@
 ﻿using Confluent.Kafka;
 using Eventso.Subscription.Hosting;
-using Eventso.Subscription.SpanJson;
 
 namespace Eventso.Subscription.IntegrationTests.MultiTopic;
 

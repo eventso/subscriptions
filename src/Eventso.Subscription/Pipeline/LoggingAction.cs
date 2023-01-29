@@ -1,26 +1,20 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+namespace Eventso.Subscription.Pipeline;
 
-namespace Eventso.Subscription.Pipeline
+public sealed class LoggingAction : IMessagePipelineAction
 {
-    public sealed class LoggingAction : IMessagePipelineAction
+    private readonly IMessagePipelineAction _next;
+    private readonly ILogger<LoggingAction> _logger;
+
+    public LoggingAction(ILoggerFactory factory, IMessagePipelineAction next)
     {
-        private readonly IMessagePipelineAction _next;
-        private readonly ILogger<LoggingAction> _logger;
+        _next = next ?? throw new ArgumentNullException(nameof(next));
+        _logger = factory.CreateLogger<LoggingAction>();
+    }
 
-        public LoggingAction(ILoggerFactory factory, IMessagePipelineAction next)
-        {
-            _next = next ?? throw new ArgumentNullException(nameof(next));
-            _logger = factory.CreateLogger<LoggingAction>();
-        }
+    public Task Invoke<T>(T message, CancellationToken token)
+    {
+        _logger.LogInformation($"Message received: {message.GetType().Name}.");
 
-        public Task Invoke<T>(T message, CancellationToken token)
-        {
-            _logger.LogInformation($"Message received: {message.GetType().Name}.");
-
-            return _next.Invoke(message, token);
-        }
+        return _next.Invoke(message, token);
     }
 }

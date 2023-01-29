@@ -1,12 +1,9 @@
-﻿using System;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public class EventHandlingException : Exception
 {
-    public class EventHandlingException : Exception
+    public EventHandlingException(string eventSource, string message, Exception innerException)
+        : base($"{message} Source: '{eventSource}'", innerException)
     {
-        public EventHandlingException(string eventSource, string message, Exception innerException)
-            : base($"{message} Source: '{eventSource}'", innerException)
-        {
-        }
     }
 }

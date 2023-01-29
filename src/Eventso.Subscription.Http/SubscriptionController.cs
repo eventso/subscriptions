@@ -1,115 +1,110 @@
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Eventso.Subscription.Http.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Eventso.Subscription.Http
+namespace Eventso.Subscription.Http;
+
+[Route("api/subscription")]
+[ApiController]
+public sealed class SubscriptionController : ControllerBase
 {
-    [Route("api/subscription")]
-    [ApiController]
-    public sealed class SubscriptionController : ControllerBase
+    private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
+    private readonly IMessagePipelineFactory _messagePipelineFactory;
+    private readonly IMessageHandlersRegistry _messageHandlersRegistry;
+
+    public SubscriptionController(
+        ISubscriptionConfigurationRegistry subscriptionConfigurationRegistry,
+        IMessagePipelineFactory messagePipelineFactory,
+        IMessageHandlersRegistry messageHandlersRegistry)
     {
-        private readonly ISubscriptionConfigurationRegistry _subscriptionConfigurationRegistry;
-        private readonly IMessagePipelineFactory _messagePipelineFactory;
-        private readonly IMessageHandlersRegistry _messageHandlersRegistry;
+        _subscriptionConfigurationRegistry = subscriptionConfigurationRegistry;
+        _messagePipelineFactory = messagePipelineFactory;
+        _messageHandlersRegistry = messageHandlersRegistry;
+    }
 
-        public SubscriptionController(
-            ISubscriptionConfigurationRegistry subscriptionConfigurationRegistry,
-            IMessagePipelineFactory messagePipelineFactory,
-            IMessageHandlersRegistry messageHandlersRegistry)
+    [HttpPost]
+    [Route("publish/{topic}")]
+    public async Task<IActionResult> Publish(string topic)
+    {
+        var subscriptionConfiguration = _subscriptionConfigurationRegistry.Get(topic);
+
+        var deserializer = new ValueObjectDeserializer(
+            subscriptionConfiguration.Deserializer,
+            _messageHandlersRegistry);
+
+        var messageBytes = await GetMessageBytes();
+        var consumedMessage = deserializer.Deserialize(messageBytes.AsSpan(), topic);
+
+        var observerFactory = new ObserverFactory(
+            subscriptionConfiguration,
+            _messagePipelineFactory,
+            _messageHandlersRegistry);
+
+        var consumer = new Consumer(topic);
+        var observer = observerFactory.Create(consumer, topic);
+
+        var message = new Event(consumedMessage);
+
+        await observer.OnEventAppeared(message, CancellationToken.None);
+
+        return Ok();
+    }
+
+    private async Task<byte[]> GetMessageBytes()
+    {
+        await using var memoryStream = new MemoryStream();
+        await Request.Body.CopyToAsync(memoryStream);
+        return memoryStream.ToArray();
+    }
+
+    private sealed class ValueObjectDeserializer
+    {
+        private readonly IMessageDeserializer _deserializer;
+        private readonly IMessageHandlersRegistry _registry;
+
+        public ValueObjectDeserializer(
+            IMessageDeserializer deserializer,
+            IMessageHandlersRegistry registry)
         {
-            _subscriptionConfigurationRegistry = subscriptionConfigurationRegistry;
-            _messagePipelineFactory = messagePipelineFactory;
-            _messageHandlersRegistry = messageHandlersRegistry;
+            _deserializer = deserializer;
+            _registry = registry;
         }
 
-        [HttpPost]
-        [Route("publish/{topic}")]
-        public async Task<IActionResult> Publish(string topic)
+        public ConsumedMessage Deserialize(ReadOnlySpan<byte> data, string topic)
         {
-            var subscriptionConfiguration = _subscriptionConfigurationRegistry.Get(topic);
-
-            var deserializer = new ValueObjectDeserializer(
-                subscriptionConfiguration.Deserializer,
-                _messageHandlersRegistry);
-
-            var messageBytes = await GetMessageBytes();
-            var consumedMessage = deserializer.Deserialize(messageBytes.AsSpan(), topic);
-
-            var observerFactory = new ObserverFactory(
-                subscriptionConfiguration,
-                _messagePipelineFactory,
-                _messageHandlersRegistry);
-
-            var consumer = new Consumer(topic);
-            var observer = observerFactory.Create(consumer, topic);
-
-            var message = new Event(consumedMessage);
-
-            await observer.OnEventAppeared(message, CancellationToken.None);
-
-            return Ok();
+            try
+            {
+                var context = new DeserializationContext(topic, _registry);
+                return _deserializer.Deserialize(data, context);
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidEventException(
+                    topic,
+                    $"Can't deserialize message. Deserializer type {_deserializer.GetType().Name}",
+                    exception);
+            }
         }
 
-        private async Task<byte[]> GetMessageBytes()
+        private readonly struct DeserializationContext : IDeserializationContext
         {
-            await using var memoryStream = new MemoryStream();
-            await Request.Body.CopyToAsync(memoryStream);
-            return memoryStream.ToArray();
-        }
-
-        private sealed class ValueObjectDeserializer
-        {
-            private readonly IMessageDeserializer _deserializer;
             private readonly IMessageHandlersRegistry _registry;
 
-            public ValueObjectDeserializer(
-                IMessageDeserializer deserializer,
-                IMessageHandlersRegistry registry)
+            public DeserializationContext(string topic, IMessageHandlersRegistry registry)
             {
-                _deserializer = deserializer;
+                Topic = topic;
                 _registry = registry;
             }
 
-            public ConsumedMessage Deserialize(ReadOnlySpan<byte> data, string topic)
-            {
-                try
-                {
-                    var context = new DeserializationContext(topic, _registry);
-                    return _deserializer.Deserialize(data, context);
-                }
-                catch (Exception exception)
-                {
-                    throw new InvalidEventException(
-                        topic,
-                        $"Can't deserialize message. Deserializer type {_deserializer.GetType().Name}",
-                        exception);
-                }
-            }
+            public int HeadersCount => 0;
 
-            private readonly struct DeserializationContext : IDeserializationContext
-            {
-                private readonly IMessageHandlersRegistry _registry;
+            public string Topic { get; }
 
-                public DeserializationContext(string topic, IMessageHandlersRegistry registry)
-                {
-                    Topic = topic;
-                    _registry = registry;
-                }
+            public (string name, byte[] value) GetHeader(int index) => default;
 
-                public int HeadersCount => 0;
+            public byte[] GetHeaderValue(string name) => null;
 
-                public string Topic { get; }
-
-                public (string name, byte[] value) GetHeader(int index) => default;
-
-                public byte[] GetHeaderValue(string name) => null;
-
-                public bool IsHandlerRegisteredFor(Type messageType) =>
-                    _registry.ContainsHandlersFor(messageType, out _);
-            }
+            public bool IsHandlerRegisteredFor(Type messageType) =>
+                _registry.ContainsHandlersFor(messageType, out _);
         }
     }
 }

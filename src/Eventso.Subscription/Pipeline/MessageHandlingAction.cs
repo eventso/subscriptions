@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Eventso.Subscription.Pipeline;
 
 public sealed class MessageHandlingAction : IMessagePipelineAction

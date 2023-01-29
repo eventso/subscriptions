@@ -1,10 +1,6 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IMessageHandler<in TMessage>
 {
-    public interface IMessageHandler<in TMessage>
-    {
-        Task Handle(TMessage message, CancellationToken token);
-    }
+    Task Handle(TMessage message, CancellationToken token);
 }

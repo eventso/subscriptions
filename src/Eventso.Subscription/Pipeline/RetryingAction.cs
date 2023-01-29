@@ -1,46 +1,41 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Polly;
 
-namespace Eventso.Subscription.Pipeline
+namespace Eventso.Subscription.Pipeline;
+
+public sealed class RetryingAction : IMessagePipelineAction
 {
-    public sealed class RetryingAction : IMessagePipelineAction
+    private readonly IMessagePipelineAction _next;
+    private readonly IAsyncPolicy _policy;
+    private readonly ILogger<RetryingAction> _logger;
+
+    public RetryingAction(IAsyncPolicy policy, ILogger<RetryingAction> logger, IMessagePipelineAction next)
     {
-        private readonly IMessagePipelineAction _next;
-        private readonly IAsyncPolicy _policy;
-        private readonly ILogger<RetryingAction> _logger;
+        _next = next ?? throw new ArgumentNullException(nameof(next));
+        _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
-        public RetryingAction(IAsyncPolicy policy, ILogger<RetryingAction> logger, IMessagePipelineAction next)
+    public async Task Invoke<T>(T message, CancellationToken token)
+    {
+        try
         {
-            _next = next ?? throw new ArgumentNullException(nameof(next));
-            _policy = policy ?? throw new ArgumentNullException(nameof(policy));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            await _next.Invoke(message, token);
         }
-
-        public async Task Invoke<T>(T message, CancellationToken token)
+        catch (Exception ex)
         {
-            try
-            {
-                await _next.Invoke(message, token);
-            }
-            catch (Exception ex)
-            {
-                var delay = TimeSpan.FromMilliseconds(100);
+            var delay = TimeSpan.FromMilliseconds(100);
 
-                LogError(ex, delay, 0);
+            LogError(ex, delay, 0);
 
-                await Task.Delay(delay, token);
+            await Task.Delay(delay, token);
 
-                await _policy.ExecuteAsync(ct => _next.Invoke(message, ct), token);
-            }
+            await _policy.ExecuteAsync(ct => _next.Invoke(message, ct), token);
         }
+    }
 
-        private void LogError(Exception ex, TimeSpan timeout, int attempt)
-        {
-            _logger.LogError(ex,
-                $"Message processing failed and will be retried. Attempt = {attempt}, timeout = {timeout}.");
-        }
+    private void LogError(Exception ex, TimeSpan timeout, int attempt)
+    {
+        _logger.LogError(ex,
+            $"Message processing failed and will be retried. Attempt = {attempt}, timeout = {timeout}.");
     }
 }

@@ -1,19 +1,17 @@
-using System;
 using System.Runtime.InteropServices;
 
-namespace Eventso.Subscription.Kafka.DeadLetter.Store
+namespace Eventso.Subscription.Kafka.DeadLetter.Store;
+
+[StructLayout(LayoutKind.Auto)]
+public readonly struct EventHeader
 {
-    [StructLayout(LayoutKind.Auto)]
-    public readonly struct EventHeader
+    public EventHeader(string key, ReadOnlyMemory<byte> data)
     {
-        public EventHeader(string key, ReadOnlyMemory<byte> data)
-        {
-            Key = key;
-            Data = data;
-        }
-
-        public string Key { get; }
-
-        public ReadOnlyMemory<byte> Data { get; }
+        Key = key;
+        Data = data;
     }
+
+    public string Key { get; }
+
+    public ReadOnlyMemory<byte> Data { get; }
 }

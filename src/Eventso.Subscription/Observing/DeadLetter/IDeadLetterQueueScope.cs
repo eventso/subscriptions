@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
+namespace Eventso.Subscription.Observing.DeadLetter;
 
-namespace Eventso.Subscription.Observing.DeadLetter
+public interface IDeadLetterQueueScope<TEvent> : IDisposable
+    where TEvent : IEvent
 {
-    public interface IDeadLetterQueueScope<TEvent> : IDisposable
-        where TEvent : IEvent
-    {
-        IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents();
-    }
+    IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents();
 }

@@ -1,7 +1,6 @@
-namespace Eventso.Subscription.Http.Hosting
+namespace Eventso.Subscription.Http.Hosting;
+
+public interface ISubscriptionConfigurationRegistry
 {
-    public interface ISubscriptionConfigurationRegistry
-    {
-        SubscriptionConfiguration Get(string topic);
-    }
+    SubscriptionConfiguration Get(string topic);
 }

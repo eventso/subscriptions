@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Eventso.Subscription.Hosting;
 
 public sealed class SubscriptionHost : BackgroundService

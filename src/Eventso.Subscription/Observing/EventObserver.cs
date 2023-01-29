@@ -1,107 +1,101 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Eventso.Subscription.Configurations;
-using Microsoft.Extensions.Logging;
 
-namespace Eventso.Subscription.Observing
+namespace Eventso.Subscription.Observing;
+
+public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
+    where TEvent : IEvent
 {
-    public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
-        where TEvent : IEvent
+    private readonly IEventHandler<TEvent> _eventHandler;
+    private readonly IConsumer<TEvent> _consumer;
+    private readonly IMessageHandlersRegistry _messageHandlersRegistry;
+
+    private readonly bool _skipUnknown;
+    private readonly DeferredAckConfiguration _deferredAckConfig;
+    private readonly ILogger<EventObserver<TEvent>> _logger;
+    private readonly List<TEvent> _skipped = new();
+    private readonly Timer _deferredAckTimer;
+
+    public EventObserver(
+        IEventHandler<TEvent> eventHandler,
+        IConsumer<TEvent> consumer,
+        IMessageHandlersRegistry messageHandlersRegistry,
+        bool skipUnknown,
+        DeferredAckConfiguration deferredAckConfiguration,
+        ILogger<EventObserver<TEvent>> logger)
     {
-        private readonly IEventHandler<TEvent> _eventHandler;
-        private readonly IConsumer<TEvent> _consumer;
-        private readonly IMessageHandlersRegistry _messageHandlersRegistry;
+        _eventHandler = eventHandler;
+        _consumer = consumer;
+        _messageHandlersRegistry = messageHandlersRegistry;
+        _skipUnknown = skipUnknown;
+        _deferredAckConfig = deferredAckConfiguration;
+        _logger = logger;
+        _deferredAckTimer = new Timer(_ => AckDeferredMessages(isTimeout: true));
+    }
 
-        private readonly bool _skipUnknown;
-        private readonly DeferredAckConfiguration _deferredAckConfig;
-        private readonly ILogger<EventObserver<TEvent>> _logger;
-        private readonly List<TEvent> _skipped = new();
-        private readonly Timer _deferredAckTimer;
-
-        public EventObserver(
-            IEventHandler<TEvent> eventHandler,
-            IConsumer<TEvent> consumer,
-            IMessageHandlersRegistry messageHandlersRegistry,
-            bool skipUnknown,
-            DeferredAckConfiguration deferredAckConfiguration,
-            ILogger<EventObserver<TEvent>> logger)
+    public async Task OnEventAppeared(TEvent @event, CancellationToken token)
+    {
+        if (@event.CanSkip(_skipUnknown))
         {
-            _eventHandler = eventHandler;
-            _consumer = consumer;
-            _messageHandlersRegistry = messageHandlersRegistry;
-            _skipUnknown = skipUnknown;
-            _deferredAckConfig = deferredAckConfiguration;
-            _logger = logger;
-            _deferredAckTimer = new Timer(_ => AckDeferredMessages(isTimeout: true));
+            DeferAck(@event);
+            return;
         }
 
-        public async Task OnEventAppeared(TEvent @event, CancellationToken token)
+        var hasHandler = _messageHandlersRegistry.ContainsHandlersFor(
+            @event.GetMessage().GetType(), out var handlerKind);
+
+        if (!hasHandler)
         {
-            if (@event.CanSkip(_skipUnknown))
-            {
-                DeferAck(@event);
-                return;
-            }
+            DeferAck(@event);
+            return;
+        }
 
-            var hasHandler = _messageHandlersRegistry.ContainsHandlersFor(
-                @event.GetMessage().GetType(), out var handlerKind);
+        var metadata = @event.GetMetadata();
 
-            if (!hasHandler)
-            {
-                DeferAck(@event);
-                return;
-            }
+        using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
 
-            var metadata = @event.GetMetadata();
+        AckDeferredMessages();
 
-            using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
+        if ((handlerKind & HandlerKind.Single) == 0)
+            throw new InvalidOperationException(
+                $"There is no single message handler for subscription {_consumer.Subscription}");
 
+        await _eventHandler.Handle(@event, token);
+
+        _consumer.Acknowledge(@event);
+    }
+
+    public void Dispose()
+        => _deferredAckTimer.Dispose();
+
+    private void DeferAck(in TEvent skippedMessage)
+    {
+        if (_deferredAckConfig.MaxBufferSize <= 1)
+        {
+            _consumer.Acknowledge(skippedMessage);
+            return;
+        }
+
+        lock (_skipped)
+            _skipped.Add(skippedMessage);
+
+        if (_skipped.Count >= _deferredAckConfig.MaxBufferSize)
             AckDeferredMessages();
+        else
+            _deferredAckTimer.Change(_deferredAckConfig.Timeout, Timeout.InfiniteTimeSpan);
+    }
 
-            if ((handlerKind & HandlerKind.Single) == 0)
-                throw new InvalidOperationException(
-                    $"There is no single message handler for subscription {_consumer.Subscription}");
+    private void AckDeferredMessages(bool isTimeout = false)
+    {
+        if (_skipped.Count == 0)
+            return;
 
-            await _eventHandler.Handle(@event, token);
+        if (!isTimeout)
+            _deferredAckTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
-            _consumer.Acknowledge(@event);
-        }
-
-        public void Dispose()
-            => _deferredAckTimer.Dispose();
-
-        private void DeferAck(in TEvent skippedMessage)
+        lock (_skipped)
         {
-            if (_deferredAckConfig.MaxBufferSize <= 1)
-            {
-                _consumer.Acknowledge(skippedMessage);
-                return;
-            }
-
-            lock (_skipped)
-                _skipped.Add(skippedMessage);
-
-            if (_skipped.Count >= _deferredAckConfig.MaxBufferSize)
-                AckDeferredMessages();
-            else
-                _deferredAckTimer.Change(_deferredAckConfig.Timeout, Timeout.InfiniteTimeSpan);
-        }
-
-        private void AckDeferredMessages(bool isTimeout = false)
-        {
-            if (_skipped.Count == 0)
-                return;
-
-            if (!isTimeout)
-                _deferredAckTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-
-            lock (_skipped)
-            {
-                _consumer.Acknowledge(_skipped);
-                _skipped.Clear();
-            }
+            _consumer.Acknowledge(_skipped);
+            _skipped.Clear();
         }
     }
 }

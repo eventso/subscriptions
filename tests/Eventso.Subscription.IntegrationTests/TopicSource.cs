@@ -1,7 +1,5 @@
 ﻿using Confluent.Kafka;
 using Confluent.Kafka.Admin;
-using Eventso.Subscription.Kafka;
-using System.Collections.Concurrent;
 
 namespace Eventso.Subscription.IntegrationTests;
 

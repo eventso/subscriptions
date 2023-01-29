@@ -1,11 +1,8 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-using Confluent.Kafka;
+﻿using Confluent.Kafka;
 
-namespace Eventso.Subscription.Kafka.DeadLetter
+namespace Eventso.Subscription.Kafka.DeadLetter;
+
+public interface IPoisonRecordInbox
 {
-    public interface IPoisonRecordInbox
-    {
-        Task Add(ConsumeResult<byte[], byte[]> consumeResult, string failureReason, CancellationToken token);
-    }
+    Task Add(ConsumeResult<byte[], byte[]> consumeResult, string failureReason, CancellationToken token);
 }

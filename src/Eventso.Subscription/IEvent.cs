@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IEvent
 {
-    public interface IEvent
-    {
-        DeserializationStatus DeserializationResult { get; }
+    DeserializationStatus DeserializationResult { get; }
 
-        Guid GetKey();
-        object GetMessage();
+    Guid GetKey();
+    object GetMessage();
 
-        string GetIdentity();
+    string GetIdentity();
 
-        IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata();
-    }
+    IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata();
 }

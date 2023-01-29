@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace Eventso.Subscription.Tests;
 
 public sealed class BufferedObserverTests

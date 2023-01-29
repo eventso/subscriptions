@@ -1,11 +1,8 @@
-using System.Collections.Generic;
+namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IDeadLetterQueue
 {
-    public interface IDeadLetterQueue
-    {
-        void Enqueue(DeadLetter message);
+    void Enqueue(DeadLetter message);
 
-        void EnqueueRange(IEnumerable<DeadLetter> messages);
-    }
+    void EnqueueRange(IEnumerable<DeadLetter> messages);
 }

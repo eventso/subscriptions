@@ -5,59 +5,58 @@ using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.Insights;
 using Eventso.Subscription.SpanJson;
 
-namespace SampleApplication
+namespace SampleApplication;
+
+public class Startup
 {
-    public class Startup
+    public void ConfigureServices(IServiceCollection services)
     {
-        public void ConfigureServices(IServiceCollection services)
+        services.AddSubscriptions(
+            (subs, _) =>
+                subs.Add(
+                    new ConsumerSettings(
+                        "kafka:9092",
+                        "test-group-id",
+                        autoOffsetReset: AutoOffsetReset.Latest)
+                    {
+                        Topic = "some-topic"
+                    },
+                    new JsonMessageDeserializer<Message>()),
+            types => types.FromAssemblyOf<Startup>());
+
+        services.AddMvc()
+            .AddKafkaInsights();
+
+        services.AddSwaggerGen();
+    }
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        if (env.IsDevelopment())
         {
-            services.AddSubscriptions(
-                (subs, _) =>
-                    subs.Add(
-                        new ConsumerSettings(
-                            "kafka:9092",
-                            "test-group-id",
-                            autoOffsetReset: AutoOffsetReset.Latest)
-                        {
-                            Topic = "some-topic"
-                        },
-                        new JsonMessageDeserializer<Message>()),
-                types => types.FromAssemblyOf<Startup>());
-
-            services.AddMvc()
-                .AddKafkaInsights();
-
-            services.AddSwaggerGen();
+            app.UseDeveloperExceptionPage();
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        app.UseRouting();
+
+        app.UseEndpoints(endpoints =>
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
+            endpoints.MapControllers();
+            endpoints.MapSwagger();
+        });
 
-            app.UseRouting();
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
-                endpoints.MapSwagger();
-            });
+    public record Message(string message, DateTime date, long id);
 
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        }
-
-        public record Message(string message, DateTime date, long id);
-
-        public class MessageHandler : IMessageHandler<Message>
+    public class MessageHandler : IMessageHandler<Message>
+    {
+        public Task Handle(Message message, CancellationToken token)
         {
-            public Task Handle(Message message, CancellationToken token)
-            {
-                Console.WriteLine($"Message received {message.message}, {message.date}, {message.id}");
-                return Task.CompletedTask;
-            }
+            Console.WriteLine($"Message received {message.message}, {message.date}, {message.id}");
+            return Task.CompletedTask;
         }
     }
 }

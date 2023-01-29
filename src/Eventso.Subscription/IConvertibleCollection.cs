@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IConvertibleCollection<out T> : IReadOnlyList<T>
 {
-    public interface IConvertibleCollection<out T> : IReadOnlyList<T>
-    {
-        IReadOnlyCollection<TOut> Convert<TOut>(Converter<T, TOut> converter);
-        bool OnlyContainsSame<TValue>(Func<T, TValue> valueConverter);
-    }
+    IReadOnlyCollection<TOut> Convert<TOut>(Converter<T, TOut> converter);
+    bool OnlyContainsSame<TValue>(Func<T, TValue> valueConverter);
 }

@@ -1,5 +1,4 @@
-﻿using Eventso.Subscription.Hosting;
-using Xunit.DependencyInjection;
+﻿using Xunit.DependencyInjection;
 using Xunit.DependencyInjection.Logging;
 
 namespace Eventso.Subscription.IntegrationTests;

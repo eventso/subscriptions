@@ -1,57 +1,53 @@
-using System;
-using System.Collections.Generic;
+namespace Eventso.Subscription.Observing.DeadLetter;
 
-namespace Eventso.Subscription.Observing.DeadLetter
+public sealed class DeadLetterQueue : IDeadLetterQueue
 {
-    public sealed class DeadLetterQueue : IDeadLetterQueue
-    {
-        private static readonly Dictionary<object, string> EmptyDeadLetters = new(); 
+    private static readonly Dictionary<object, string> EmptyDeadLetters = new(); 
         
-        private readonly object _lockObject = new();
+    private readonly object _lockObject = new();
 
-        private Dictionary<object, string> _deadLetters;
+    private Dictionary<object, string> _deadLetters;
 
-        public void Enqueue(Subscription.DeadLetter deadLetter)
+    public void Enqueue(Subscription.DeadLetter deadLetter)
+    {
+        lock (_lockObject)
         {
-            lock (_lockObject)
+            if (_deadLetters == null)
             {
-                if (_deadLetters == null)
+                _deadLetters = new Dictionary<object, string>(1, Subscription.DeadLetter.MessageComparer)
                 {
-                    _deadLetters = new Dictionary<object, string>(1, Subscription.DeadLetter.MessageComparer)
-                    {
-                        [deadLetter.Message] = deadLetter.Reason
-                    };
-                    return;
-                }
-
-                _deadLetters[deadLetter.Message] = _deadLetters.TryGetValue(deadLetter.Message, out var reason)
-                        ? JoinReasons(reason, deadLetter.Reason)
-                        : deadLetter.Reason;
+                    [deadLetter.Message] = deadLetter.Reason
+                };
+                return;
             }
-        }
 
-        public void EnqueueRange(IEnumerable<Subscription.DeadLetter> deadLetters)
-        {
-            lock (_lockObject)
-            {
-                _deadLetters ??= new Dictionary<object, string>(1, Subscription.DeadLetter.MessageComparer);
-                foreach (var deadLetter in deadLetters)
-                {
-                    _deadLetters[deadLetter.Message] = _deadLetters.TryGetValue(deadLetter.Message, out var reason)
-                        ? JoinReasons(reason, deadLetter.Reason)
-                        : deadLetter.Reason;
-                }
-            }
+            _deadLetters[deadLetter.Message] = _deadLetters.TryGetValue(deadLetter.Message, out var reason)
+                ? JoinReasons(reason, deadLetter.Reason)
+                : deadLetter.Reason;
         }
-
-        public IReadOnlyDictionary<object, string> GetDeadLetters()
-        {
-            // this method will be called after all Enqueue methods in not concurrent conditions
-            // ReSharper disable once InconsistentlySynchronizedField
-            return _deadLetters ?? EmptyDeadLetters;
-        }
-
-        private static string JoinReasons(string initial, string @new)
-            => $"{initial}{Environment.NewLine}{Environment.NewLine}{@new}";
     }
+
+    public void EnqueueRange(IEnumerable<Subscription.DeadLetter> deadLetters)
+    {
+        lock (_lockObject)
+        {
+            _deadLetters ??= new Dictionary<object, string>(1, Subscription.DeadLetter.MessageComparer);
+            foreach (var deadLetter in deadLetters)
+            {
+                _deadLetters[deadLetter.Message] = _deadLetters.TryGetValue(deadLetter.Message, out var reason)
+                    ? JoinReasons(reason, deadLetter.Reason)
+                    : deadLetter.Reason;
+            }
+        }
+    }
+
+    public IReadOnlyDictionary<object, string> GetDeadLetters()
+    {
+        // this method will be called after all Enqueue methods in not concurrent conditions
+        // ReSharper disable once InconsistentlySynchronizedField
+        return _deadLetters ?? EmptyDeadLetters;
+    }
+
+    private static string JoinReasons(string initial, string @new)
+        => $"{initial}{Environment.NewLine}{Environment.NewLine}{@new}";
 }

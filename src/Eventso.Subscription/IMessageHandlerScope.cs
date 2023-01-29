@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace Eventso.Subscription;
 
-namespace Eventso.Subscription
+public interface IMessageHandlerScope : IDisposable
 {
-    public interface IMessageHandlerScope : IDisposable
-    {
-        IEnumerable<IMessageHandler<T>> Resolve<T>();
-    }
+    IEnumerable<IMessageHandler<T>> Resolve<T>();
 }

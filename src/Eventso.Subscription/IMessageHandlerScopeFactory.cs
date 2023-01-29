@@ -1,7 +1,6 @@
-﻿namespace Eventso.Subscription
+﻿namespace Eventso.Subscription;
+
+public interface IMessageHandlerScopeFactory
 {
-    public interface IMessageHandlerScopeFactory
-    {
-        IMessageHandlerScope BeginScope();
-    }
+    IMessageHandlerScope BeginScope();
 }

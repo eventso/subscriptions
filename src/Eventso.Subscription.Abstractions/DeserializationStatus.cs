@@ -1,9 +1,8 @@
-﻿namespace Eventso.Subscription
+﻿namespace Eventso.Subscription;
+
+public enum DeserializationStatus : byte
 {
-    public enum DeserializationStatus : byte
-    {
-        Success,
-        UnknownType,
-        Skipped 
-    }
+    Success,
+    UnknownType,
+    Skipped 
 }

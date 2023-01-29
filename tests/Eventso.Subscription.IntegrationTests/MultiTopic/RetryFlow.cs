@@ -1,5 +1,4 @@
 ﻿using Eventso.Subscription.Hosting;
-using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.IntegrationTests.MultiTopic;
 

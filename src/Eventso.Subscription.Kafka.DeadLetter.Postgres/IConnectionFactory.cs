@@ -1,10 +1,9 @@
 using Npgsql;
 
-namespace Eventso.Subscription.Kafka.DeadLetter.Postgres
+namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
+
+public interface IConnectionFactory
 {
-    public interface IConnectionFactory
-    {
-        NpgsqlConnection ReadWrite();
-        NpgsqlConnection ReadOnly();
-    }
+    NpgsqlConnection ReadWrite();
+    NpgsqlConnection ReadOnly();
 }

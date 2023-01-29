@@ -1,235 +1,231 @@
-using System;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
-namespace Eventso.Subscription.Observing.Batch
+namespace Eventso.Subscription.Observing.Batch;
+
+internal sealed class Buffer<TEvent> : IDisposable
 {
-    internal sealed class Buffer<TEvent> : IDisposable
+    private readonly int _maxBatchSize;
+    private readonly int _maxBufferSize;
+    private readonly TimeSpan _timeout;
+    private readonly ITargetBlock<Batch> _target;
+    private readonly CancellationTokenSource _tokenSource;
+    private readonly Channel<BufferAction> _channel;
+    private readonly Task _readingTask;
+
+    private readonly Timer _timer;
+    private int _timerStartVersion;
+    private int _version;
+
+    private PooledList<BufferedEvent> _events;
+    private int _toBeHandledEventsCount;
+
+    private bool _disposed;
+
+    public Buffer(
+        int maxBatchSize,
+        TimeSpan timeout,
+        ITargetBlock<Batch> target,
+        int maxBufferSize,
+        CancellationToken token)
     {
-        private readonly int _maxBatchSize;
-        private readonly int _maxBufferSize;
-        private readonly TimeSpan _timeout;
-        private readonly ITargetBlock<Batch> _target;
-        private readonly CancellationTokenSource _tokenSource;
-        private readonly Channel<BufferAction> _channel;
-        private readonly Task _readingTask;
+        if (maxBatchSize <= 1)
+            throw new ArgumentException("Buffer size must be greater than 1.");
 
-        private readonly Timer _timer;
-        private int _timerStartVersion;
-        private int _version;
+        _maxBatchSize = maxBatchSize;
+        _maxBufferSize = maxBufferSize;
 
-        private PooledList<BufferedEvent> _events;
-        private int _toBeHandledEventsCount;
+        _timeout = timeout;
+        _target = target;
+        _tokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
 
-        private bool _disposed;
-
-        public Buffer(
-            int maxBatchSize,
-            TimeSpan timeout,
-            ITargetBlock<Batch> target,
-            int maxBufferSize,
-            CancellationToken token)
-        {
-            if (maxBatchSize <= 1)
-                throw new ArgumentException("Buffer size must be greater than 1.");
-
-            _maxBatchSize = maxBatchSize;
-            _maxBufferSize = maxBufferSize;
-
-            _timeout = timeout;
-            _target = target;
-            _tokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
-
-            _events = new PooledList<BufferedEvent>(maxBufferSize);
-            _channel = Channel.CreateBounded<BufferAction>(
-                new BoundedChannelOptions(1) 
-                {
-                    SingleReader = true,
-                    SingleWriter = false,
-                    FullMode = BoundedChannelFullMode.Wait,
-                });
-
-            _readingTask = Task.Run(BeginReadChannel);
-
-            _timer = new Timer(TriggerTimer);
-        }
-
-        public async Task Add(TEvent message, bool skipped, CancellationToken token)
-        {
-            CheckDisposed();
-
-            if (_readingTask.IsCanceled || _tokenSource.IsCancellationRequested)
-                throw new OperationCanceledException("Buffer is cancelled");
-
-            if (_readingTask.IsFaulted)
-                await _readingTask;
-
-            if (_target.Completion.IsFaulted)
-                await _target.Completion;
-
-            if (_readingTask.IsCompleted || _target.Completion.IsCompleted)
-                throw new InvalidOperationException("Buffer already completed.");
-
-            await _channel.Writer.WriteAsync(
-                new BufferAction(new BufferedEvent(message, skipped)),
-                token);
-        }
-
-        public async Task Complete()
-        {
-            CheckDisposed();
-
-            _channel.Writer.TryComplete();
-
-            if (!_readingTask.IsCanceled)
-                await _readingTask;
-
-            await _channel.Reader.Completion;
-
-            await TriggerSend();
-        }
-
-        public void Dispose()
-        {
-            _disposed = true;
-
-            if (!_tokenSource.IsCancellationRequested)
-                _tokenSource.Cancel();
-
-            _timer.Dispose();
-            _channel.Writer.TryComplete();
-            _events.Dispose();
-
-            _tokenSource.Dispose();
-        }
-
-        private async Task BeginReadChannel()
-        {
-            try
+        _events = new PooledList<BufferedEvent>(maxBufferSize);
+        _channel = Channel.CreateBounded<BufferAction>(
+            new BoundedChannelOptions(1) 
             {
-                await foreach (var action in _channel.Reader.ReadAllAsync(_tokenSource.Token))
-                {
-                    await Process(action);
-                }
-            }
-            catch (Exception ex)
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
+
+        _readingTask = Task.Run(BeginReadChannel);
+
+        _timer = new Timer(TriggerTimer);
+    }
+
+    public async Task Add(TEvent message, bool skipped, CancellationToken token)
+    {
+        CheckDisposed();
+
+        if (_readingTask.IsCanceled || _tokenSource.IsCancellationRequested)
+            throw new OperationCanceledException("Buffer is cancelled");
+
+        if (_readingTask.IsFaulted)
+            await _readingTask;
+
+        if (_target.Completion.IsFaulted)
+            await _target.Completion;
+
+        if (_readingTask.IsCompleted || _target.Completion.IsCompleted)
+            throw new InvalidOperationException("Buffer already completed.");
+
+        await _channel.Writer.WriteAsync(
+            new BufferAction(new BufferedEvent(message, skipped)),
+            token);
+    }
+
+    public async Task Complete()
+    {
+        CheckDisposed();
+
+        _channel.Writer.TryComplete();
+
+        if (!_readingTask.IsCanceled)
+            await _readingTask;
+
+        await _channel.Reader.Completion;
+
+        await TriggerSend();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+
+        if (!_tokenSource.IsCancellationRequested)
+            _tokenSource.Cancel();
+
+        _timer.Dispose();
+        _channel.Writer.TryComplete();
+        _events.Dispose();
+
+        _tokenSource.Dispose();
+    }
+
+    private async Task BeginReadChannel()
+    {
+        try
+        {
+            await foreach (var action in _channel.Reader.ReadAllAsync(_tokenSource.Token))
             {
-                _channel.Writer.TryComplete(ex);
-
-                //cleanup queue
-                while (_channel.Reader.TryRead(out _))
-                {
-                }
-
-                throw;
+                await Process(action);
             }
         }
-
-        private Task Process(BufferAction action)
+        catch (Exception ex)
         {
-            if (action.IsTimeout)
+            _channel.Writer.TryComplete(ex);
+
+            //cleanup queue
+            while (_channel.Reader.TryRead(out _))
             {
-                return action.Version == _version
-                    ? TriggerSend()
-                    : Task.CompletedTask;
             }
 
-            _events.Add(action.Event);
+            throw;
+        }
+    }
 
-            if (!action.Event.Skipped)
-            {
-                if (_toBeHandledEventsCount == 0)
-                    StartTimer();
-
-                ++_toBeHandledEventsCount;
-            }
-
-            if (_toBeHandledEventsCount >= _maxBatchSize ||
-                _events.Count >= _maxBufferSize)
-                return TriggerSend();
-
-            return Task.CompletedTask;
+    private Task Process(BufferAction action)
+    {
+        if (action.IsTimeout)
+        {
+            return action.Version == _version
+                ? TriggerSend()
+                : Task.CompletedTask;
         }
 
-        private void StartTimer()
+        _events.Add(action.Event);
+
+        if (!action.Event.Skipped)
         {
-            _timerStartVersion = _version;
-            _timer.Change(_timeout, Timeout.InfiniteTimeSpan);
+            if (_toBeHandledEventsCount == 0)
+                StartTimer();
+
+            ++_toBeHandledEventsCount;
         }
 
-        private void TriggerTimer(object state) =>
-            _ = _channel.Writer.WriteAsync(new BufferAction(_timerStartVersion), _tokenSource.Token);
+        if (_toBeHandledEventsCount >= _maxBatchSize ||
+            _events.Count >= _maxBufferSize)
+            return TriggerSend();
 
-        private async Task TriggerSend()
+        return Task.CompletedTask;
+    }
+
+    private void StartTimer()
+    {
+        _timerStartVersion = _version;
+        _timer.Change(_timeout, Timeout.InfiniteTimeSpan);
+    }
+
+    private void TriggerTimer(object state) =>
+        _ = _channel.Writer.WriteAsync(new BufferAction(_timerStartVersion), _tokenSource.Token);
+
+    private async Task TriggerSend()
+    {
+        if (_events.Count == 0)
+            return;
+
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
+
+        var batch = new Batch(_events, _toBeHandledEventsCount);
+
+        ++_version;
+        _events = new PooledList<BufferedEvent>(_maxBatchSize);
+        _toBeHandledEventsCount = 0;
+
+        if (!await _target.SendAsync(batch, _tokenSource.Token))
+            throw new InvalidOperationException("Unable to send data to target");
+    }
+
+    private void CheckDisposed()
+    {
+        if (_disposed) throw new ObjectDisposedException("Buffer disposed");
+    }
+
+    [StructLayout(LayoutKind.Auto)]
+    public readonly struct BufferedEvent
+    {
+        public readonly TEvent Event;
+        public readonly bool Skipped;
+
+        public BufferedEvent(TEvent @event, bool skipped)
         {
-            if (_events.Count == 0)
-                return;
+            Event = @event;
+            Skipped = skipped;
+        }
+    }
 
-            _timer.Change(Timeout.Infinite, Timeout.Infinite);
+    public readonly struct Batch
+    {
+        public readonly PooledList<BufferedEvent> Events;
+        public readonly int ToBeHandledEventCount;
 
-            var batch = new Batch(_events, _toBeHandledEventsCount);
+        public Batch(PooledList<BufferedEvent> events, int toBeHandledEventCount)
+        {
+            Events = events;
+            ToBeHandledEventCount = toBeHandledEventCount;
+        }
+    }
 
-            ++_version;
-            _events = new PooledList<BufferedEvent>(_maxBatchSize);
-            _toBeHandledEventsCount = 0;
+    [StructLayout(LayoutKind.Auto)]
+    private readonly struct BufferAction
+    {
+        public readonly BufferedEvent Event;
+        public readonly int Version;
+        public readonly bool IsTimeout;
 
-            if (!await _target.SendAsync(batch, _tokenSource.Token))
-                throw new InvalidOperationException("Unable to send data to target");
+        public BufferAction(BufferedEvent @event)
+        {
+            Event = @event;
+            Version = 0;
+            IsTimeout = false;
         }
 
-        private void CheckDisposed()
+        public BufferAction(int version)
         {
-            if (_disposed) throw new ObjectDisposedException("Buffer disposed");
-        }
-
-        [StructLayout(LayoutKind.Auto)]
-        public readonly struct BufferedEvent
-        {
-            public readonly TEvent Event;
-            public readonly bool Skipped;
-
-            public BufferedEvent(TEvent @event, bool skipped)
-            {
-                Event = @event;
-                Skipped = skipped;
-            }
-        }
-
-        public readonly struct Batch
-        {
-            public readonly PooledList<BufferedEvent> Events;
-            public readonly int ToBeHandledEventCount;
-
-            public Batch(PooledList<BufferedEvent> events, int toBeHandledEventCount)
-            {
-                Events = events;
-                ToBeHandledEventCount = toBeHandledEventCount;
-            }
-        }
-
-        [StructLayout(LayoutKind.Auto)]
-        private readonly struct BufferAction
-        {
-            public readonly BufferedEvent Event;
-            public readonly int Version;
-            public readonly bool IsTimeout;
-
-            public BufferAction(BufferedEvent @event)
-            {
-                Event = @event;
-                Version = 0;
-                IsTimeout = false;
-            }
-
-            public BufferAction(int version)
-            {
-                Event = default;
-                Version = version;
-                IsTimeout = true;
-            }
+            Event = default;
+            Version = version;
+            IsTimeout = true;
         }
     }
 }

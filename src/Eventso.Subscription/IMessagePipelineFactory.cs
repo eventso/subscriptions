@@ -1,9 +1,8 @@
 using Eventso.Subscription.Configurations;
 
-namespace Eventso.Subscription
+namespace Eventso.Subscription;
+
+public interface IMessagePipelineFactory
 {
-    public interface IMessagePipelineFactory
-    {
-        IMessagePipelineAction Create(HandlerConfiguration config);
-    }
+    IMessagePipelineAction Create(HandlerConfiguration config);
 }
