@@ -75,7 +75,7 @@ public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
 
     public Memory<T> Memory => _items.AsMemory(0, _size);
 
-    public ArraySegment<T> Segment => new ArraySegment<T>(_items, 0, _size);
+    public ArraySegment<T> Segment => new(_items, 0, _size);
 
     public int Count => _items != null ? _size : throw new ObjectDisposedException(nameof(PooledList<T>));
 

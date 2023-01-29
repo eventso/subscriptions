@@ -112,7 +112,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             }
             else if (toBeHandledEventCount > 0)
             {
-                using var eventsToHandle = GetEventsToHandle(events, toBeHandledEventCount);
+                using var eventsToHandle = GetEventsToHandle(events.Span, toBeHandledEventCount);
 
                 await _handler.Handle(eventsToHandle, _cancellationTokenSource.Token);
             }
@@ -127,11 +127,11 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     }
 
     private static PooledList<TEvent> GetEventsToHandle(
-        IReadOnlyList<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
+        ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
     {
         var list = new PooledList<TEvent>(handleMessageCount);
 
-        foreach (var message in messages)
+        foreach (ref readonly var message in messages)
         {
             if (!message.Skipped)
                 list.Add(message.Event);
@@ -168,7 +168,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             var comparer = EqualityComparer<TValue>.Default;
             var sample = valueConverter(_messages[0].Event);
 
-            foreach (var item in _messages.Segment)
+            foreach (ref readonly var item in _messages.Span)
             {
                 if (!comparer.Equals(valueConverter(item.Event), sample))
                     return false;
