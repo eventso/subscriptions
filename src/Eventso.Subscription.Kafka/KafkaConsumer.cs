@@ -78,7 +78,7 @@ namespace Eventso.Subscription.Kafka
 
             while (!tokenSource.IsCancellationRequested)
             {
-                var result = await Consume(tokenSource.Token);
+                var result = Consume(tokenSource.Token);
 
                 timeoutTokenSource.CancelAfter(_maxObserveInterval);
 
@@ -103,7 +103,7 @@ namespace Eventso.Subscription.Kafka
                 timeoutTokenSource.CancelAfter(Timeout.Infinite);
             }
 
-            async Task<ConsumeResult<Guid, ConsumedMessage>> Consume(CancellationToken token)
+            ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
             {
                 try
                 {
@@ -119,10 +119,10 @@ namespace Eventso.Subscription.Kafka
                 }
                 catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
                 {
-                    await _poisonRecordInbox?.Add(
-                        ex.ConsumerRecord,
-                        $"Deserialization failed: {ex.Message}.",
-                        token);
+                    //await _poisonRecordInbox?.Add(
+                    //    ex.ConsumerRecord,
+                    //    $"Deserialization failed: {ex.Message}.",
+                    //    token);
 
                     _logger.LogError(ex,
                         "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
