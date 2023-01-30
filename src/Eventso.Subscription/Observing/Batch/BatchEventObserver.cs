@@ -1,5 +1,5 @@
 using System.Collections;
-using System.Threading.Tasks.Dataflow;
+using System.Threading.Channels;
 using Eventso.Subscription.Configurations;
 
 namespace Eventso.Subscription.Observing.Batch;
@@ -8,7 +8,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     where TEvent : IEvent
 {
     private readonly IEventHandler<TEvent> _handler;
-    private readonly ActionBlock<Buffer<TEvent>.Batch> _actionBlock;
+    private readonly Channel<Buffer<TEvent>.Batch> _batchChannel;
     private readonly CancellationTokenSource _cancellationTokenSource;
     private readonly IConsumer<TEvent> _consumer;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
@@ -17,6 +17,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
 
     private bool _completed;
     private bool _disposed;
+    private readonly Task _batchHandlingTask;
 
     public BatchEventObserver(
         BatchConfiguration config,
@@ -33,22 +34,20 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
             consumer.CancellationToken);
 
-        _actionBlock = new ActionBlock<Buffer<TEvent>.Batch>(
-            async batch =>
+        _batchChannel = Channel.CreateBounded<Buffer<TEvent>.Batch>(
+            new BoundedChannelOptions(capacity: 1)
             {
-                using (batch.Events)
-                    await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                CancellationToken = _cancellationTokenSource.Token,
-                BoundedCapacity = 1
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
             });
+
+        _batchHandlingTask = Task.Run(BeginBatchHandling);
 
         _buffer = new Buffer<TEvent>(
             config.MaxBatchSize,
             config.BatchTriggerTimeout,
-            _actionBlock,
+            _batchChannel,
             config.GetMaxBufferSize(),
             _cancellationTokenSource.Token);
     }
@@ -57,11 +56,14 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     {
         CheckDisposed();
 
-        if (_completed)
-            throw new InvalidOperationException("Batch observer is completed and can't accept more messages");
+        if (_batchHandlingTask.IsFaulted)
+            return _batchHandlingTask;
 
-        if (_actionBlock.Completion.IsFaulted)
-            return _actionBlock.Completion;
+        if (_batchChannel.Reader.Completion.IsFaulted)
+            return _batchChannel.Reader.Completion;
+
+        if (_completed || _batchChannel.Reader.Completion.IsCompleted || _batchHandlingTask.IsCompleted)
+            throw new InvalidOperationException("Batch observer is completed and can't accept more messages");
 
         _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
@@ -75,26 +77,49 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     {
         CheckDisposed();
 
-        if (_actionBlock.Completion.IsFaulted)
-            await _actionBlock.Completion;
+        if (_batchChannel.Reader.Completion.IsFaulted)
+            await _batchChannel.Reader.Completion;
 
         _completed = true;
         await _buffer.Complete();
 
-        _actionBlock.Complete();
-        await _actionBlock.Completion;
+        _batchChannel.Writer.Complete();
+        await _batchChannel.Reader.Completion;
     }
 
     public void Dispose()
     {
         _disposed = true;
         _buffer.Dispose();
-        _actionBlock.Complete();
+        _batchChannel.Writer.Complete();
 
         if (!_cancellationTokenSource.IsCancellationRequested)
             _cancellationTokenSource.Cancel();
 
         _cancellationTokenSource.Dispose();
+    }
+
+    private async Task BeginBatchHandling()
+    {
+        try
+        {
+            await foreach (var batch in _batchChannel.Reader.ReadAllAsync(_cancellationTokenSource.Token))
+            {
+                using (batch.Events)
+                    await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _batchChannel.Writer.TryComplete(ex);
+
+            //cleanup queue
+            while (_batchChannel.Reader.TryRead(out _))
+            {
+            }
+
+            throw;
+        }
     }
 
     private async Task HandleBatch(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
@@ -127,7 +152,8 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     }
 
     private static PooledList<TEvent> GetEventsToHandle(
-        ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
+        ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages,
+        int handleMessageCount)
     {
         var list = new PooledList<TEvent>(handleMessageCount);
 

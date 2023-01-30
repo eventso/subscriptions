@@ -44,7 +44,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
+                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Items)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 

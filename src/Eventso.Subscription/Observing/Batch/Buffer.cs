@@ -9,7 +9,7 @@ internal sealed class Buffer<TEvent> : IDisposable
     private readonly int _maxBatchSize;
     private readonly int _maxBufferSize;
     private readonly TimeSpan _timeout;
-    private readonly ITargetBlock<Batch> _target;
+    private readonly ChannelWriter<Batch> _target;
     private readonly CancellationTokenSource _tokenSource;
     private readonly Channel<BufferAction> _channel;
     private readonly Task _readingTask;
@@ -26,7 +26,7 @@ internal sealed class Buffer<TEvent> : IDisposable
     public Buffer(
         int maxBatchSize,
         TimeSpan timeout,
-        ITargetBlock<Batch> target,
+        ChannelWriter<Batch> target,
         int maxBufferSize,
         CancellationToken token)
     {
@@ -42,7 +42,7 @@ internal sealed class Buffer<TEvent> : IDisposable
 
         _events = new PooledList<BufferedEvent>(maxBufferSize);
         _channel = Channel.CreateBounded<BufferAction>(
-            new BoundedChannelOptions(1) 
+            new BoundedChannelOptions(1)
             {
                 SingleReader = true,
                 SingleWriter = false,
@@ -64,10 +64,7 @@ internal sealed class Buffer<TEvent> : IDisposable
         if (_readingTask.IsFaulted)
             await _readingTask;
 
-        if (_target.Completion.IsFaulted)
-            await _target.Completion;
-
-        if (_readingTask.IsCompleted || _target.Completion.IsCompleted)
+        if (_readingTask.IsCompleted)
             throw new InvalidOperationException("Buffer already completed.");
 
         await _channel.Writer.WriteAsync(
@@ -173,8 +170,7 @@ internal sealed class Buffer<TEvent> : IDisposable
         _events = new PooledList<BufferedEvent>(_maxBatchSize);
         _toBeHandledEventsCount = 0;
 
-        if (!await _target.SendAsync(batch, _tokenSource.Token))
-            throw new InvalidOperationException("Unable to send data to target");
+        await _target.WriteAsync(batch, _tokenSource.Token);
     }
 
     private void CheckDisposed()
