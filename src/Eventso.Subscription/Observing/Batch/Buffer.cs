@@ -45,7 +45,7 @@ namespace Eventso.Subscription.Observing.Batch
 
             _events = new PooledList<BufferedEvent>(maxBufferSize);
             _channel = Channel.CreateBounded<BufferAction>(
-                new BoundedChannelOptions(1) 
+                new BoundedChannelOptions(1)
                 {
                     SingleReader = true,
                     SingleWriter = false,
@@ -128,7 +128,7 @@ namespace Eventso.Subscription.Observing.Batch
             }
         }
 
-        private Task Process(BufferAction action)
+        private Task Process(in BufferAction action)
         {
             if (action.IsTimeout)
             {
@@ -139,13 +139,11 @@ namespace Eventso.Subscription.Observing.Batch
 
             _events.Add(action.Event);
 
-            if (!action.Event.Skipped)
-            {
-                if (_toBeHandledEventsCount == 0)
-                    StartTimer();
+            if (_events.Count == 1)
+                StartTimer();
 
+            if (!action.Event.Skipped)
                 ++_toBeHandledEventsCount;
-            }
 
             if (_toBeHandledEventsCount >= _maxBatchSize ||
                 _events.Count >= _maxBufferSize)

@@ -11,3 +11,6 @@ public sealed record BlueMessage(int Key, long Id, string Ticker, byte Index)
 
 public sealed record BlackMessage(int Key, Guid Value)
     : IKeyedMessage;
+
+public sealed record WrongBlackMessage(int Key, string Value)
+    : IKeyedMessage;

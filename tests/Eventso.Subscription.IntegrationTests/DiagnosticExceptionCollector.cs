@@ -6,6 +6,8 @@ internal class DiagnosticExceptionCollector : IDisposable
 {
     private readonly ActivityListener _activityListener;
     private readonly List<Exception> _handlerExceptions = new();
+    private readonly List<Exception> _consumingExceptions = new();
+
 
     public DiagnosticExceptionCollector()
     {
@@ -20,6 +22,9 @@ internal class DiagnosticExceptionCollector : IDisposable
                 {
                     if (a.OperationName == Diagnostic.PipelineHandle)
                         _handlerExceptions.Add(ex);
+
+                    if (a.OperationName == Diagnostic.HostConsuming)
+                        _consumingExceptions.Add(ex);
                 }
             }
         };
@@ -29,6 +34,9 @@ internal class DiagnosticExceptionCollector : IDisposable
 
     public IReadOnlyCollection<Exception> HandlerExceptions
         => _handlerExceptions;
+
+    public IReadOnlyCollection<Exception> ConsumingExceptions
+        => _consumingExceptions;
 
     public void Dispose()
     {
