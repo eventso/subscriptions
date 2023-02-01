@@ -18,6 +18,7 @@ namespace Eventso.Subscription.Kafka
         private readonly int _maxObserveInterval;
         private readonly ILogger<KafkaConsumer> _logger;
         private readonly IConsumer<Guid, ConsumedMessage> _consumer;
+        private readonly bool _autoCommitMode;
 
         public KafkaConsumer(
             string[] topics,
@@ -53,10 +54,24 @@ namespace Eventso.Subscription.Kafka
                     $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
 
+            _autoCommitMode = config.EnableAutoCommit == true;
+
             _consumer.Subscribe(topics);
         }
 
-        public void Close() => _consumer.Close();
+        public void Close()
+        {
+            if (_autoCommitMode)
+            {
+                try
+                {
+                    _consumer.Commit();
+                }
+                catch { }
+            }
+
+            _consumer.Close();
+        }
 
         public void Dispose() => _consumer.Dispose();
 
@@ -69,7 +84,7 @@ namespace Eventso.Subscription.Kafka
                 stoppingToken,
                 timeoutTokenSource.Token);
 
-            var consumer = new ConsumerAdapter(tokenSource, _consumer);
+            var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
             using var observers = new ObserverCollection(
                 _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());

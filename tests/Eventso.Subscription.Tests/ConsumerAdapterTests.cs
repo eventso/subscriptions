@@ -10,7 +10,7 @@ public sealed class ConsumerAdapterTests
     public ConsumerAdapterTests()
     {
         _fixture.Customize(
-            new AutoNSubstituteCustomization {ConfigureMembers = true});
+            new AutoNSubstituteCustomization { ConfigureMembers = true });
     }
 
     [Fact]
@@ -24,7 +24,8 @@ public sealed class ConsumerAdapterTests
 
         var adapter = new ConsumerAdapter(
             new CancellationTokenSource(),
-            consumer);
+            consumer,
+            autoCommitMode: false);
 
         const string topic = "SomeTopic";
 
@@ -64,7 +65,8 @@ public sealed class ConsumerAdapterTests
 
         var adapter = new ConsumerAdapter(
             new CancellationTokenSource(),
-            consumer);
+            consumer,
+            autoCommitMode: false);
 
         const string topic = "SomeTopic";
 
@@ -102,7 +104,8 @@ public sealed class ConsumerAdapterTests
 
         var adapter = new ConsumerAdapter(
             new CancellationTokenSource(),
-            consumer);
+            consumer,
+            autoCommitMode: false);
 
         const string topic = "SomeTopic";
 
