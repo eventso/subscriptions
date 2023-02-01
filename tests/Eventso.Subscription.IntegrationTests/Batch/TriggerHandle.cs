@@ -1,4 +1,5 @@
-﻿using Eventso.Subscription.Hosting;
+﻿using Confluent.Kafka;
+using Eventso.Subscription.Hosting;
 using Eventso.Subscription.SpanJson;
 
 namespace Eventso.Subscription.IntegrationTests.Batch;
@@ -22,13 +23,15 @@ public sealed class TriggerHandle : IAsyncLifetime
         _fixture = fixture;
     }
 
-    [Fact]
-    public async Task HandlingOnTimeout()
+    [Theory]
+    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
+    [InlineData(PartitionAssignmentStrategy.Range)]
+    public async Task HandlingOnTimeout(PartitionAssignmentStrategy strategy)
     {
         const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings(topic);
+        var consumerSettings = _config.ToSettings(topic, strategy);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -52,16 +55,20 @@ public sealed class TriggerHandle : IAsyncLifetime
 
         messageHandler.Black.Should().HaveCount(messageCount);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId).Should().OnlyContain(l => l.lag == 0);
     }
 
-    [Fact]
-    public async Task HandlingOnBatchSize()
+    [Theory]
+    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
+    [InlineData(PartitionAssignmentStrategy.Range)]
+    public async Task HandlingOnBatchSize(PartitionAssignmentStrategy strategy)
     {
         const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(10);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings(topic);
+        var consumerSettings = _config.ToSettings(topic, strategy);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -83,6 +90,8 @@ public sealed class TriggerHandle : IAsyncLifetime
         await host.WhenAll(messageHandler.BlackSet.WaitUntil(messageCount, batchTriggerTimeout / 2));
 
         messageHandler.Black.Should().HaveCount(messageCount);
+        
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
 
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId).Should().OnlyContain(l => l.lag == 0);
     }

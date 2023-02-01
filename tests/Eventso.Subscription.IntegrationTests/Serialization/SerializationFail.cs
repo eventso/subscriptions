@@ -31,7 +31,7 @@ public sealed class SerializationFail : IAsyncLifetime
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<WrongBlackMessage>(_fixture, messageCount);
         var consumerSettings = _config.ToSettings(topic);
-        
+
         await using var host = _hostStartup
             .CreateServiceCollection()
             .AddSubscriptions((s, _) =>
@@ -57,9 +57,10 @@ public sealed class SerializationFail : IAsyncLifetime
 
         messageHandler.BlackSet.Should().HaveCount(0);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource.GetCommittedOffsets(topic, consumerSettings.Config.GroupId).Should()
             .OnlyContain(o => o.Offset == Offset.Unset);
-
     }
 
     public Task InitializeAsync()

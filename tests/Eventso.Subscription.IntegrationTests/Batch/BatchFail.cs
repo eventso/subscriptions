@@ -54,6 +54,8 @@ public sealed class BatchFail : IAsyncLifetime
 
         messageHandler.BlackSet.Should().HaveCountLessThan(messageCount);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource.GetCommittedOffsets(topic, consumerSettings.Config.GroupId).Should()
             .OnlyContain(o => o.Offset == Offset.Unset);
     }

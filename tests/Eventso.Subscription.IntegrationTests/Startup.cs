@@ -1,6 +1,8 @@
 ﻿using Xunit.DependencyInjection;
 using Xunit.DependencyInjection.Logging;
 
+[assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly)]
+
 namespace Eventso.Subscription.IntegrationTests;
 
 public class Startup

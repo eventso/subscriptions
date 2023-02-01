@@ -64,6 +64,8 @@ public sealed class FailFlow : IAsyncLifetime
                 _topicSource.GetLag(t, consumerSettings.Config.GroupId))
             .Should().OnlyContain(x => x.lag == 0);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource
             .GetCommittedOffsets(topics.Red.Topic, consumerSettings.Config.GroupId)
             .Sum(o => o.Offset == Offset.Unset ? 0 : o.Offset.Value)
