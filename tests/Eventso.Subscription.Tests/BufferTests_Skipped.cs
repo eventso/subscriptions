@@ -1,16 +1,15 @@
-﻿using System.Threading.Tasks.Dataflow;
+﻿using System.Threading.Channels;
+using System.Threading.Tasks.Dataflow;
 
 namespace Eventso.Subscription.Tests;
 
 public sealed class BufferTests_Skipped
 {
     private readonly Fixture _fixture = new();
-    private readonly BufferBlock<Buffer<RedMessage>.Batch> _targetBlock;
 
-    public BufferTests_Skipped()
-    {
-        _targetBlock = new BufferBlock<Buffer<RedMessage>.Batch>();
-    }
+    private readonly Channel<Buffer<RedMessage>.Batch> _bufferChannel =
+        Channel.CreateUnbounded<Buffer<RedMessage>.Batch>();
+
 
     [Fact]
     public async Task AddingSkippedItem_CorrectBatching()
@@ -22,7 +21,7 @@ public sealed class BufferTests_Skipped
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBufferSize,
             CancellationToken.None);
 
@@ -33,10 +32,13 @@ public sealed class BufferTests_Skipped
 
         await buffer.Complete();
 
-        _targetBlock.Complete();
-        _targetBlock.TryReceiveAll(out var batches);
+        _bufferChannel.Writer.Complete();
 
-        batches.Should().HaveCount((int) Math.Ceiling(new decimal(eventsCount) / maxBufferSize));
+        var batches = new List<Buffer<RedMessage>.Batch>();
+        while (_bufferChannel.Reader.TryRead(out var batch))
+            batches.Add(batch);
+
+        batches.Should().HaveCount((int)Math.Ceiling(new decimal(eventsCount) / maxBufferSize));
         batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
             .Should()
             .BeEquivalentTo(events, c => c.WithStrictOrdering());
@@ -52,7 +54,7 @@ public sealed class BufferTests_Skipped
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBufferSize,
             CancellationToken.None);
 
@@ -66,8 +68,11 @@ public sealed class BufferTests_Skipped
 
         await buffer.Complete();
 
-        _targetBlock.Complete();
-        _targetBlock.TryReceiveAll(out var batches);
+        _bufferChannel.Writer.Complete();
+
+        var batches = new List<Buffer<RedMessage>.Batch>();
+        while (_bufferChannel.Reader.TryRead(out var batch))
+            batches.Add(batch);
 
         batches.Should().HaveCount(2);
         batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)

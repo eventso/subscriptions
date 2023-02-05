@@ -1,33 +1,16 @@
-﻿using System.Threading.Tasks.Dataflow;
+﻿using System.Threading.Channels;
 
 namespace Eventso.Subscription.Tests;
 
 public sealed class BufferTests_NotSkipped : IDisposable
 {
     private readonly Fixture _fixture = new();
-    private readonly BufferBlock<Buffer<RedMessage>.Batch> _targetBlock;
+
+    private readonly Channel<Buffer<RedMessage>.Batch> _bufferChannel =
+        Channel.CreateUnbounded<Buffer<RedMessage>.Batch>();
+
     private readonly SemaphoreSlim _semaphore = new(0);
     private readonly List<Buffer<RedMessage>.Batch> _processed = new();
-    private readonly ActionBlock<Buffer<RedMessage>.Batch> _semaphoreBlock;
-
-    public BufferTests_NotSkipped()
-    {
-        _targetBlock = new BufferBlock<Buffer<RedMessage>.Batch>();
-
-        _semaphoreBlock = new ActionBlock<Buffer<RedMessage>.Batch>(
-            e =>
-            {
-                _processed.Add(e);
-                return _processed.Count == 1
-                    ? _semaphore.WaitAsync()
-                    : Task.CompletedTask;
-            },
-            new ExecutionDataflowBlockOptions()
-            {
-                BoundedCapacity = 1,
-                MaxDegreeOfParallelism = 1
-            });
-    }
 
     public void Dispose()
     {
@@ -39,12 +22,13 @@ public sealed class BufferTests_NotSkipped : IDisposable
     [InlineData(2, 5)]
     [InlineData(10, 5)]
     public async Task AddingItem_CorrectBatching(
-        int maxBatchSize, int eventsCount)
+        int maxBatchSize,
+        int eventsCount)
     {
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -55,8 +39,11 @@ public sealed class BufferTests_NotSkipped : IDisposable
 
         await buffer.Complete();
 
-        _targetBlock.Complete();
-        _targetBlock.TryReceiveAll(out var batches);
+        _bufferChannel.Writer.Complete();
+        var batches = new List<Buffer<RedMessage>.Batch>();
+
+        while (_bufferChannel.Reader.TryRead(out var batch))
+            batches.Add(batch);
 
         batches.Should().HaveCount((int)Math.Ceiling(new decimal(eventsCount) / maxBatchSize));
         batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
@@ -71,7 +58,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -84,7 +71,9 @@ public sealed class BufferTests_NotSkipped : IDisposable
 
             await Task.Delay(100);
 
-            _targetBlock.TryReceiveAll(out var batches);
+            var batches = new List<Buffer<RedMessage>.Batch>();
+            while (_bufferChannel.Reader.TryRead(out var bufferBatch))
+                batches.Add(bufferBatch);
 
             using var batch = batches.Should().ContainSingle().Subject.Events;
             batch.Segment.Should().HaveCount(maxBatchSize);
@@ -106,7 +95,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             TimeSpan.FromMilliseconds(batchTimeoutMs),
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -119,7 +108,11 @@ public sealed class BufferTests_NotSkipped : IDisposable
         }
 
         await buffer.Complete();
-        _targetBlock.TryReceiveAll(out var batches);
+
+        var batches = new List<Buffer<RedMessage>.Batch>();
+        while (_bufferChannel.Reader.TryRead(out var bufferBatch))
+            batches.Add(bufferBatch);
+
 
         batches.Should().HaveCount(events.Length / (batchTimeoutMs / singleEventDelayMs));
         batches.SelectMany(x => x.Events.Segment).Select(x => x.Event)
@@ -138,7 +131,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             TimeSpan.FromMilliseconds(batchTimeoutMs),
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -152,7 +145,10 @@ public sealed class BufferTests_NotSkipped : IDisposable
 
         await buffer.Complete();
 
-        _targetBlock.TryReceiveAll(out var batches);
+        var batches = new List<Buffer<RedMessage>.Batch>();
+        while (_bufferChannel.Reader.TryRead(out var bufferBatch))
+            batches.Add(bufferBatch);
+
 
         batches.Should().HaveCount(events.Length / maxBatchSize);
         batches.Should().OnlyContain(list => list.Events.Count == maxBatchSize);
@@ -170,7 +166,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -181,7 +177,9 @@ public sealed class BufferTests_NotSkipped : IDisposable
 
         await buffer.Complete();
 
-        _targetBlock.TryReceiveAll(out var batches);
+        var batches = new List<Buffer<RedMessage>.Batch>();
+        while (_bufferChannel.Reader.TryRead(out var bufferBatch))
+            batches.Add(bufferBatch);
 
         var batch = batches.Should().ContainSingle().Subject;
         batch.Events.Segment.Select(x => x.Event)
@@ -198,7 +196,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _targetBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
 
@@ -209,7 +207,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
 
         await buffer.Complete();
 
-        Func<Task> act = () => buffer.Add(
+        var act = () => buffer.Add(
             _fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
@@ -224,9 +222,11 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _semaphoreBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
+
+        _ = RunSemaphoreRead();
 
         var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
@@ -243,8 +243,8 @@ public sealed class BufferTests_NotSkipped : IDisposable
         _semaphore.Release();
 
         await completeTask;
-        _semaphoreBlock.Complete();
-        await _semaphoreBlock.Completion;
+        _bufferChannel.Writer.Complete();
+        await _bufferChannel.Reader.Completion;
 
         _processed.Should().HaveCount(events.Length / maxBatchSize);
         _processed.SelectMany(x => x.Events.Segment).Select(x => x.Event)
@@ -261,15 +261,17 @@ public sealed class BufferTests_NotSkipped : IDisposable
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
             Timeout.InfiniteTimeSpan,
-            _semaphoreBlock,
+            _bufferChannel,
             maxBatchSize * 3,
             CancellationToken.None);
+
+        _ = RunSemaphoreRead();
 
         var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
         foreach (var @event in events)
             await buffer.Add(@event, skipped: false, CancellationToken.None);
-            
+
         var overBufferEvent = _fixture.Create<RedMessage>();
         var addingTask = buffer.Add(overBufferEvent, skipped: false, CancellationToken.None);
 
@@ -283,12 +285,23 @@ public sealed class BufferTests_NotSkipped : IDisposable
         await addingTask;
 
         await buffer.Complete();
-        _semaphoreBlock.Complete();
-        await _semaphoreBlock.Completion;
+        _bufferChannel.Writer.Complete();
+        await _bufferChannel.Reader.Completion;
 
         _processed.Should().HaveCount(events.Length / maxBatchSize + 1);
         _processed.SelectMany(x => x.Events.Segment).Select(x => x.Event)
             .Should()
             .BeEquivalentTo(events.Append(overBufferEvent), c => c.WithStrictOrdering());
+    }
+
+    private async Task RunSemaphoreRead()
+    {
+        await foreach (var e in _bufferChannel.Reader.ReadAllAsync())
+        {
+            _processed.Add(e);
+
+            if (_processed.Count == 1)
+                await _semaphore.WaitAsync();
+        }
     }
 }

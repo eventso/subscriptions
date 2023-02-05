@@ -83,7 +83,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         _completed = true;
         await _buffer.Complete();
 
-        _batchChannel.Writer.Complete();
+        _batchChannel.Writer.TryComplete();
         await _batchChannel.Reader.Completion;
     }
 
@@ -91,7 +91,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     {
         _disposed = true;
         _buffer.Dispose();
-        _batchChannel.Writer.Complete();
+        _batchChannel.Writer.TryComplete();
 
         if (!_cancellationTokenSource.IsCancellationRequested)
             _cancellationTokenSource.Cancel();
@@ -114,9 +114,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             _batchChannel.Writer.TryComplete(ex);
 
             //cleanup queue
-            while (_batchChannel.Reader.TryRead(out _))
-            {
-            }
+            while (_batchChannel.Reader.TryRead(out _)) ;
 
             throw;
         }

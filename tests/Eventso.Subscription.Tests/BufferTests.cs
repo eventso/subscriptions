@@ -1,11 +1,13 @@
-﻿using System.Threading.Tasks.Dataflow;
+﻿using System.Threading.Channels;
 
 namespace Eventso.Subscription.Tests;
 
 public sealed class BufferTests
 {
     private readonly Fixture _fixture = new();
-    private readonly BufferBlock<Buffer<RedMessage>.Batch> _bufferBlock = new();
+
+    private readonly Channel<Buffer<RedMessage>.Batch> _bufferChannel =
+        Channel.CreateUnbounded<Buffer<RedMessage>.Batch>();
 
     [Fact]
     public async Task AddingItemToEmptyCompletedBuffer_Throws()
@@ -13,13 +15,13 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             5,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             CancellationToken.None);
 
         await buffer.Complete();
 
-        Func<Task> act = () => buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
+        var act = () => buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("* completed*");
     }
@@ -30,9 +32,7 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            new ActionBlock<Buffer<RedMessage>.Batch>(
-                _ => Task.Delay(200),
-                new ExecutionDataflowBlockOptions() {BoundedCapacity = 1}),
+            Channel.CreateBounded<Buffer<RedMessage>.Batch>(1),
             15,
             CancellationToken.None);
 
@@ -41,7 +41,7 @@ public sealed class BufferTests
 
         await buffer.Complete();
 
-        Func<Task> act = () => buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
+        var act = () => buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("* completed*");
     }
@@ -49,23 +49,22 @@ public sealed class BufferTests
     [Fact]
     public async Task AddingItemToFaultedBuffer_Throws()
     {
-        var faultedBlock = new ActionBlock<Buffer<RedMessage>.Batch>(
-            _ => throw new TestException(),
-            new ExecutionDataflowBlockOptions() {BoundedCapacity = 1});
-
+        var faultedChannel = Channel.CreateBounded<Buffer<RedMessage>.Batch>(1);
+        faultedChannel.Writer.Complete(new TestException());
+        
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            faultedBlock,
+            faultedChannel,
             15,
             CancellationToken.None);
 
         foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
             await buffer.Add(redEvent, false, CancellationToken.None);
 
-        Task.WaitAny(faultedBlock.Completion);
+        Task.WaitAny(faultedChannel.Reader.Completion);
 
-        Func<Task> act = () =>
+        var act = () =>
             buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<TestException>();
@@ -79,7 +78,7 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             cts.Token);
 
@@ -90,7 +89,7 @@ public sealed class BufferTests
 
         await Task.Delay(50);
 
-        Func<Task> act = () =>
+        var act = () =>
             buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
@@ -104,7 +103,7 @@ public sealed class BufferTests
         var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             cts.Token);
 
@@ -125,7 +124,7 @@ public sealed class BufferTests
         var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             cts.Token);
 
@@ -135,7 +134,7 @@ public sealed class BufferTests
         cts.Cancel();
         await Task.Delay(50);
 
-        Func<Task> act = () => buffer.Complete();
+        var act = () => buffer.Complete();
 
         await act.Should().ThrowAsync<TaskCanceledException>();
     }
@@ -146,7 +145,7 @@ public sealed class BufferTests
         var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             CancellationToken.None);
 
@@ -163,19 +162,19 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             CancellationToken.None);
 
         foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
             await buffer.Add(redEvent, false, CancellationToken.None);
-            
-        _bufferBlock.Complete();
-        _bufferBlock.TryReceiveAll(out _);
 
-        await _bufferBlock.Completion;
+        _bufferChannel.Writer.Complete();
+        while (_bufferChannel.Reader.TryRead(out _)) ;
 
-        Func<Task> act = () =>
+        await _bufferChannel.Reader.Completion;
+
+        var act = () =>
             buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
@@ -187,7 +186,7 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             CancellationToken.None);
 
@@ -196,7 +195,7 @@ public sealed class BufferTests
 
         buffer.Dispose();
 
-        Func<Task> act = () =>
+        var act = () =>
             buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);
 
         await act.Should().ThrowAsync<ObjectDisposedException>();
@@ -208,7 +207,7 @@ public sealed class BufferTests
         using var buffer = new Buffer<RedMessage>(
             2,
             Timeout.InfiniteTimeSpan,
-            _bufferBlock,
+            _bufferChannel,
             15,
             CancellationToken.None);
 
@@ -217,7 +216,7 @@ public sealed class BufferTests
 
         buffer.Dispose();
 
-        Func<Task> act = () => buffer.Complete();
+        var act = () => buffer.Complete();
 
         await act.Should().ThrowAsync<ObjectDisposedException>();
     }
