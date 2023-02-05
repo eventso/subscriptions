@@ -14,9 +14,8 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        PartitionAssignmentStrategy assignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
         string groupInstanceId = null)
-        : base(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, assignmentStrategy, groupInstanceId)
+        : base(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
     {
     }
 

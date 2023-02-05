@@ -15,11 +15,14 @@ public sealed record KafkaConfig(
         return new ConsumerSettings(
             Brokers,
             GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
-            groupInstanceId: GroupInstanceId,
-            assignmentStrategy: strategy)
+            groupInstanceId: GroupInstanceId)
         {
             Topic = topic,
-            Config = { AutoCommitIntervalMs = 500 }
+            Config =
+            {
+                AutoCommitIntervalMs = 500,
+                PartitionAssignmentStrategy = strategy
+            }
         };
     }
 
@@ -29,10 +32,13 @@ public sealed record KafkaConfig(
         return new KafkaConsumerSettings(
             Brokers,
             GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
-            groupInstanceId: GroupInstanceId,
-            assignmentStrategy: strategy)
+            groupInstanceId: GroupInstanceId)
         {
-            Config = { AutoCommitIntervalMs = 500 }
+            Config =
+            {
+                AutoCommitIntervalMs = 500,
+                PartitionAssignmentStrategy = strategy
+            }
         };
     }
 };

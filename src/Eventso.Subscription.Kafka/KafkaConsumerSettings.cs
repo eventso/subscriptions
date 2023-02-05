@@ -20,19 +20,13 @@ public class KafkaConsumerSettings
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        PartitionAssignmentStrategy assignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
         string groupInstanceId = null)
         : this()
     {
         Config.BootstrapServers = brokers;
         Config.GroupId = groupId;
         Config.AutoOffsetReset = autoOffsetReset;
-        Config.PartitionAssignmentStrategy = assignmentStrategy;
-
-        // https://github.com/confluentinc/librdkafka/issues/4059
-        if (assignmentStrategy == PartitionAssignmentStrategy.CooperativeSticky)
-            Config.EnableAutoCommit = true;
-
+       
         if (groupInstanceId != null)
             Config.GroupInstanceId = groupInstanceId;
 
