@@ -13,6 +13,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly int _maxObserveInterval;
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
+    private readonly bool _autoCommitMode;
 
     public KafkaConsumer(
         string[] topics,
@@ -48,10 +49,26 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
+        _autoCommitMode = config.EnableAutoCommit == true;
+
         _consumer.Subscribe(topics);
     }
 
-    public void Close() => _consumer.Close();
+    public void Close()
+    {
+        if (_autoCommitMode)
+        {
+            try
+            {
+                _consumer.Commit();
+            }
+            catch
+            {
+            }
+        }
+
+        _consumer.Close();
+    }
 
     public void Dispose() => _consumer.Dispose();
 
@@ -64,7 +81,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             stoppingToken,
             timeoutTokenSource.Token);
 
-        var consumer = new ConsumerAdapter(tokenSource, _consumer);
+        var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
         using var observers = new ObserverCollection(
             _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
@@ -73,7 +90,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         while (!tokenSource.IsCancellationRequested)
         {
-            var result = await Consume(tokenSource.Token);
+            var result = Consume(tokenSource.Token);
 
             timeoutTokenSource.CancelAfter(_maxObserveInterval);
 
@@ -98,7 +115,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             timeoutTokenSource.CancelAfter(Timeout.Infinite);
         }
 
-        async Task<ConsumeResult<Guid, ConsumedMessage>> Consume(CancellationToken token)
+        ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
         {
             try
             {
@@ -114,10 +131,10 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             }
             catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
             {
-                await _poisonRecordInbox?.Add(
-                    ex.ConsumerRecord,
-                    $"Deserialization failed: {ex.Message}.",
-                    token);
+                //await _poisonRecordInbox?.Add(
+                //    ex.ConsumerRecord,
+                //    $"Deserialization failed: {ex.Message}.",
+                //    token);
 
                 _logger.LogError(ex,
                     "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);

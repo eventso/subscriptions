@@ -1,4 +1,5 @@
-﻿using Eventso.Subscription.Hosting;
+﻿using Confluent.Kafka;
+using Eventso.Subscription.Hosting;
 
 namespace Eventso.Subscription.IntegrationTests.MultiTopic;
 
@@ -21,12 +22,14 @@ public sealed class SuccessFlow : IAsyncLifetime
         _fixture = fixture;
     }
 
-    [Fact]
-    public async Task MixedTypes()
+    [Theory]
+    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
+    [InlineData(PartitionAssignmentStrategy.Range)]
+    public async Task MixedTypes(PartitionAssignmentStrategy strategy)
     {
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings();
+        var consumerSettings = _config.ToSettings(strategy);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -53,17 +56,21 @@ public sealed class SuccessFlow : IAsyncLifetime
         messageHandler.Blue.Should().HaveCount(messageCount * 2);
         messageHandler.Black.Should().HaveCount(messageCount);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         topics.GetAll().SelectMany(t =>
                 _topicSource.GetLag(t, consumerSettings.Config.GroupId))
             .Should().OnlyContain(x => x.lag == 0);
     }
 
-    [Fact]
-    public async Task SingleTopic_Batch()
+    [Theory]
+    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
+    [InlineData(PartitionAssignmentStrategy.Range)]
+    public async Task SingleTopic_Batch(PartitionAssignmentStrategy strategy)
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings();
+        var consumerSettings = _config.ToSettings(strategy);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -80,17 +87,21 @@ public sealed class SuccessFlow : IAsyncLifetime
 
         messageHandler.Black.Should().HaveCount(messageCount);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
             .Should().OnlyContain(x => x.lag == 0);
     }
 
 
-    [Fact]
-    public async Task SingleTopic_Single()
+    [Theory]
+    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
+    [InlineData(PartitionAssignmentStrategy.Range)]
+    public async Task SingleTopic_Single(PartitionAssignmentStrategy strategy)
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<RedMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings();
+        var consumerSettings = _config.ToSettings(strategy);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -106,6 +117,8 @@ public sealed class SuccessFlow : IAsyncLifetime
         await host.WhenAll(messageHandler.Red.WaitUntil(messageCount));
 
         messageHandler.Red.Should().HaveCount(messageCount);
+
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
 
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
             .Should().OnlyContain(x => x.lag == 0);

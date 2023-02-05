@@ -6,13 +6,16 @@ public sealed class ConsumerAdapter : IConsumer<Event>
 {
     private readonly CancellationTokenSource _cancellationTokenSource;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
+    private readonly bool _autoCommitMode;
 
     public ConsumerAdapter(
         CancellationTokenSource cancellationTokenSource,
-        IConsumer<Guid, ConsumedMessage> consumer)
+        IConsumer<Guid, ConsumedMessage> consumer,
+        bool autoCommitMode)
     {
         _cancellationTokenSource = cancellationTokenSource;
         _consumer = consumer;
+        _autoCommitMode = autoCommitMode;
         Subscription = string.Join(',', _consumer.Subscription);
     }
 
@@ -27,7 +30,10 @@ public sealed class ConsumerAdapter : IConsumer<Event>
             new(events.Topic, events.Partition, events.Offset + 1)
         };
 
-        _consumer.Commit(offset);
+        if (_autoCommitMode)
+            _consumer.StoreOffset(offset[0]);
+        else
+            _consumer.Commit(offset);
     }
 
     public void Acknowledge(IReadOnlyList<Event> events)
@@ -41,7 +47,17 @@ public sealed class ConsumerAdapter : IConsumer<Event>
             return;
         }
 
-        _consumer.Commit(GetLatestOffsets(events));
+        var offsets = GetLatestOffsets(events);
+
+        if (_autoCommitMode)
+        {
+            foreach (var offset in offsets)
+                _consumer.StoreOffset(offset);
+        }
+        else
+        {
+            _consumer.Commit(offsets);
+        }
 
         static IEnumerable<TopicPartitionOffset> GetLatestOffsets(IReadOnlyList<Event> events)
         {
@@ -59,7 +75,7 @@ public sealed class ConsumerAdapter : IConsumer<Event>
                 }
             }
 
-            return offsets.Select(o => 
+            return offsets.Select(o =>
                 new TopicPartitionOffset(o.Key.Item1, o.Key.Item2, o.Value + 1));
 
             static bool EqualPartition(Event left, Event right)

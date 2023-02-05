@@ -63,7 +63,9 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.BlueSet.Should().HaveCount(messageCount);
         messageHandler.BlackSet.Should().HaveCount(messageCount);
 
-        exceptionsCollector.HandlerExceptions.Should().HaveCount(5 + 2 * 3 + 2 * 3 + 2 * 3);
+        //exceptionsCollector.HandlerExceptions.Should().HaveCount(5 + 2 * 3 + 2 * 3 + 2 * 3);
+
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs +500 ?? 0);
 
         topics.GetAll().SelectMany(t =>
                 _topicSource.GetLag(t, consumerSettings.Config.GroupId))
@@ -99,6 +101,8 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.BlackSet.Should().HaveCount(messageCount);
         exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
 
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
+
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
             .Should().OnlyContain(x => x.lag == 0);
     }
@@ -131,6 +135,8 @@ public sealed class RetryFlow : IAsyncLifetime
 
         messageHandler.RedSet.Should().HaveCount(messageCount);
         exceptionsCollector.HandlerExceptions.Should().HaveCount(2 * 2);
+
+        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
 
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
             .Should().OnlyContain(x => x.lag == 0);

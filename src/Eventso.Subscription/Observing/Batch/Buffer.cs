@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
-using System.Threading.Tasks.Dataflow;
 
 namespace Eventso.Subscription.Observing.Batch;
 
@@ -122,24 +121,22 @@ internal sealed class Buffer<TEvent> : IDisposable
         }
     }
 
-    private Task Process(BufferAction action)
-    {
-        if (action.IsTimeout)
+        private Task Process(in BufferAction action)
         {
-            return action.Version == _version
-                ? TriggerSend()
-                : Task.CompletedTask;
-        }
+            if (action.IsTimeout)
+            {
+                return action.Version == _version
+                    ? TriggerSend()
+                    : Task.CompletedTask;
+            }
 
         _events.Add(action.Event);
 
-        if (!action.Event.Skipped)
-        {
-            if (_toBeHandledEventsCount == 0)
+            if (_events.Count == 1)
                 StartTimer();
 
-            ++_toBeHandledEventsCount;
-        }
+            if (!action.Event.Skipped)
+                ++_toBeHandledEventsCount;
 
         if (_toBeHandledEventsCount >= _maxBatchSize ||
             _events.Count >= _maxBufferSize)

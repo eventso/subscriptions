@@ -2,16 +2,16 @@
 using Eventso.Subscription.Hosting;
 using Eventso.Subscription.SpanJson;
 
-namespace Eventso.Subscription.IntegrationTests.Batch;
+namespace Eventso.Subscription.IntegrationTests.Serialization;
 
-public sealed class BatchFail : IAsyncLifetime
+public sealed class SerializationFail : IAsyncLifetime
 {
     private readonly KafkaConfig _config;
     private readonly TopicSource _topicSource;
     private readonly TestHostStartup _hostStartup;
     private readonly IFixture _fixture;
 
-    public BatchFail(
+    public SerializationFail(
         KafkaConfig config,
         TopicSource topicSource,
         TestHostStartup hostRunner,
@@ -28,7 +28,7 @@ public sealed class BatchFail : IAsyncLifetime
     {
         const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
-        var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
+        var (topic, messages) = await _topicSource.CreateTopicWithMessages<WrongBlackMessage>(_fixture, messageCount);
         var consumerSettings = _config.ToSettings(topic);
 
         await using var host = _hostStartup
@@ -46,13 +46,15 @@ public sealed class BatchFail : IAsyncLifetime
             .CreateHost();
 
         var messageHandler = host.GetHandler();
-        messageHandler.BlackSet.FailOn(messages.GetByIndex(79), count: 2000);
 
         await host.Start();
 
-        await host.WhenAll(Task.Delay(batchTriggerTimeout * 4));
+        var act = () => host.WhenAll(Task.Delay(batchTriggerTimeout * 4));
 
-        messageHandler.BlackSet.Should().HaveCountLessThan(messageCount);
+        await act.Should().ThrowAsync<ConsumeException>()
+            .WithInnerExceptionExactly<ConsumeException, InvalidEventException>();
+
+        messageHandler.BlackSet.Should().HaveCount(0);
 
         await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs ?? 0);
 
