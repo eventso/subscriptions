@@ -1,5 +1,4 @@
 ﻿using System.Threading.Channels;
-using System.Threading.Tasks.Dataflow;
 
 namespace Eventso.Subscription.Tests;
 

@@ -260,8 +260,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         const int maxBatchSize = 10;
         const int eventsCount = 31;
 
-        var bufferChannel =
-            Channel.CreateBounded<Buffer<RedMessage>.Batch>(1);
+        var bufferChannel = Channel.CreateBounded<Buffer<RedMessage>.Batch>(1);
 
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,
@@ -270,7 +269,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
             maxBatchSize * 3,
             CancellationToken.None);
 
-        _ = RunSemaphoreRead(bufferChannel);
+        var batchReadTask = RunSemaphoreRead(bufferChannel);
 
         var events = _fixture.CreateMany<RedMessage>(eventsCount).ToArray();
 
@@ -292,6 +291,7 @@ public sealed class BufferTests_NotSkipped : IDisposable
         await buffer.Complete();
         bufferChannel.Writer.Complete();
         await bufferChannel.Reader.Completion;
+        await batchReadTask;
 
         _processed.Should().HaveCount(events.Length / maxBatchSize + 1);
         _processed.SelectMany(x => x.Events.Segment).Select(x => x.Event)

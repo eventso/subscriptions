@@ -1,5 +1,4 @@
-﻿using Confluent.Kafka;
-using Eventso.Subscription.Kafka;
+﻿using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.IntegrationTests;
 
@@ -10,7 +9,7 @@ public sealed record KafkaConfig(
 {
     public ConsumerSettings ToSettings(
         string topic,
-        PartitionAssignmentStrategy strategy = PartitionAssignmentStrategy.CooperativeSticky)
+        bool enableAutoCommit = false)
     {
         return new ConsumerSettings(
             Brokers,
@@ -21,24 +20,12 @@ public sealed record KafkaConfig(
             Config =
             {
                 AutoCommitIntervalMs = 500,
-                PartitionAssignmentStrategy = strategy
+                EnableAutoCommit = enableAutoCommit
             }
         };
     }
 
     public KafkaConsumerSettings ToSettings(
-        PartitionAssignmentStrategy strategy = PartitionAssignmentStrategy.CooperativeSticky)
-    {
-        return new KafkaConsumerSettings(
-            Brokers,
-            GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
-            groupInstanceId: GroupInstanceId)
-        {
-            Config =
-            {
-                AutoCommitIntervalMs = 500,
-                PartitionAssignmentStrategy = strategy
-            }
-        };
-    }
+        bool enableAutoCommit = false)
+        => ToSettings(null, enableAutoCommit);
 };

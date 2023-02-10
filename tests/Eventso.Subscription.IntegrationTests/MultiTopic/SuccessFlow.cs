@@ -1,5 +1,4 @@
-﻿using Confluent.Kafka;
-using Eventso.Subscription.Hosting;
+﻿using Eventso.Subscription.Hosting;
 
 namespace Eventso.Subscription.IntegrationTests.MultiTopic;
 
@@ -23,13 +22,13 @@ public sealed class SuccessFlow : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
-    [InlineData(PartitionAssignmentStrategy.Range)]
-    public async Task MixedTypes(PartitionAssignmentStrategy strategy)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MixedTypes(bool enableAutoCommit)
     {
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings(strategy);
+        var consumerSettings = _config.ToSettings(enableAutoCommit);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -64,13 +63,13 @@ public sealed class SuccessFlow : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
-    [InlineData(PartitionAssignmentStrategy.Range)]
-    public async Task SingleTopic_Batch(PartitionAssignmentStrategy strategy)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SingleTopic_Batch(bool enableAutoCommit)
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings(strategy);
+        var consumerSettings = _config.ToSettings(enableAutoCommit);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()
@@ -95,13 +94,13 @@ public sealed class SuccessFlow : IAsyncLifetime
 
 
     [Theory]
-    [InlineData(PartitionAssignmentStrategy.CooperativeSticky)]
-    [InlineData(PartitionAssignmentStrategy.Range)]
-    public async Task SingleTopic_Single(PartitionAssignmentStrategy strategy)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SingleTopic_Single(bool enableAutoCommit)
     {
         const int messageCount = 100;
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<RedMessage>(_fixture, messageCount);
-        var consumerSettings = _config.ToSettings(strategy);
+        var consumerSettings = _config.ToSettings(enableAutoCommit);
 
         await using var host = await _hostStartup
             .CreateServiceCollection()

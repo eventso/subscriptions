@@ -8,7 +8,7 @@ internal sealed class Buffer<TEvent> : IDisposable
     private readonly int _maxBatchSize;
     private readonly int _maxBufferSize;
     private readonly TimeSpan _timeout;
-    private readonly ChannelWriter<Batch> _target;
+    private readonly Channel<Batch> _target;
     private readonly CancellationTokenSource _tokenSource;
     private readonly Channel<BufferAction> _channel;
     private readonly Task _readingTask;
@@ -25,7 +25,7 @@ internal sealed class Buffer<TEvent> : IDisposable
     public Buffer(
         int maxBatchSize,
         TimeSpan timeout,
-        ChannelWriter<Batch> target,
+        Channel<Batch> target,
         int maxBufferSize,
         CancellationToken token)
     {
@@ -60,10 +60,13 @@ internal sealed class Buffer<TEvent> : IDisposable
         if (_readingTask.IsCanceled || _tokenSource.IsCancellationRequested)
             throw new OperationCanceledException("Buffer is cancelled");
 
+        if (_target.Reader.Completion.IsFaulted)
+            await _target.Reader.Completion;
+
         if (_readingTask.IsFaulted)
             await _readingTask;
 
-        if (_readingTask.IsCompleted)
+        if (_readingTask.IsCompleted || _target.Reader.Completion.IsCompleted)
             throw new InvalidOperationException("Buffer already completed.");
 
         await _channel.Writer.WriteAsync(
@@ -121,22 +124,22 @@ internal sealed class Buffer<TEvent> : IDisposable
         }
     }
 
-        private Task Process(in BufferAction action)
+    private Task Process(in BufferAction action)
+    {
+        if (action.IsTimeout)
         {
-            if (action.IsTimeout)
-            {
-                return action.Version == _version
-                    ? TriggerSend()
-                    : Task.CompletedTask;
-            }
+            return action.Version == _version
+                ? TriggerSend()
+                : Task.CompletedTask;
+        }
 
         _events.Add(action.Event);
 
-            if (_events.Count == 1)
-                StartTimer();
+        if (_events.Count == 1)
+            StartTimer();
 
-            if (!action.Event.Skipped)
-                ++_toBeHandledEventsCount;
+        if (!action.Event.Skipped)
+            ++_toBeHandledEventsCount;
 
         if (_toBeHandledEventsCount >= _maxBatchSize ||
             _events.Count >= _maxBufferSize)
@@ -167,7 +170,7 @@ internal sealed class Buffer<TEvent> : IDisposable
         _events = new PooledList<BufferedEvent>(_maxBatchSize);
         _toBeHandledEventsCount = 0;
 
-        await _target.WriteAsync(batch, _tokenSource.Token);
+        await _target.Writer.WriteAsync(batch, _tokenSource.Token);
     }
 
     private void CheckDisposed()

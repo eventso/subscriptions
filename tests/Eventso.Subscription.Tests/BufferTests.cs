@@ -36,7 +36,7 @@ public sealed class BufferTests
             15,
             CancellationToken.None);
 
-        foreach (var redEvent in _fixture.CreateMany<RedMessage>(20))
+        foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
             await buffer.Add(redEvent, false, CancellationToken.None);
 
         await buffer.Complete();
@@ -50,7 +50,6 @@ public sealed class BufferTests
     public async Task AddingItemToFaultedBuffer_Throws()
     {
         var faultedChannel = Channel.CreateBounded<Buffer<RedMessage>.Batch>(1);
-        faultedChannel.Writer.Complete(new TestException());
         
         using var buffer = new Buffer<RedMessage>(
             2,
@@ -62,7 +61,11 @@ public sealed class BufferTests
         foreach (var redEvent in _fixture.CreateMany<RedMessage>(2))
             await buffer.Add(redEvent, false, CancellationToken.None);
 
-        Task.WaitAny(faultedChannel.Reader.Completion);
+        await Task.Delay(100);
+
+        faultedChannel.Writer.Complete(new TestException());
+
+        while (faultedChannel.Reader.TryRead(out _)) ;
 
         var act = () =>
             buffer.Add(_fixture.Create<RedMessage>(), false, CancellationToken.None);

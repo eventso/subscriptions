@@ -103,10 +103,15 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     {
         try
         {
-            await foreach (var batch in _batchChannel.Reader.ReadAllAsync(_cancellationTokenSource.Token))
+            while (await _batchChannel.Reader.WaitToReadAsync(_cancellationTokenSource.Token))
             {
-                using (batch.Events)
-                    await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
+                while (_batchChannel.Reader.TryPeek(out var batch))
+                {
+                    using (batch.Events)
+                        await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
+
+                    _batchChannel.Reader.TryRead(out _);
+                }
             }
         }
         catch (Exception ex)
