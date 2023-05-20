@@ -1,5 +1,4 @@
-﻿using Xunit.DependencyInjection;
-using Xunit.DependencyInjection.Logging;
+﻿using Xunit.DependencyInjection.Logging;
 
 [assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly)]
 
@@ -12,6 +11,8 @@ public class Startup
         services.AddSingleton<KafkaConfig>()
             .AddSingleton<KafkaJsonProducer>();
 
+        services.AddLogging(lb => lb.AddXunitOutput());
+
         services
             .AddTransient<IFixture>(_ =>
             {
@@ -22,7 +23,4 @@ public class Startup
             .AddTransient<TopicSource>()
             .AddTransient<TestHostStartup>();
     }
-
-    public void Configure(ILoggerFactory loggerFactory, ITestOutputHelperAccessor accessor)
-        => loggerFactory.AddProvider(new XunitTestOutputLoggerProvider(accessor));
 }

@@ -22,26 +22,46 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         IPoisonRecordInbox poisonRecordInbox,
         ConsumerConfig config,
         ILogger<KafkaConsumer> logger)
+        : this(
+            topics,
+            observerFactory,
+            deserializer,
+            poisonRecordInbox,
+            new ConsumerBuilder<Guid, ConsumedMessage>(config),
+            logger,
+            config.MaxPollIntervalMs,
+            config.EnableAutoCommit)
     {
-        if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
-
         if (string.IsNullOrWhiteSpace(config.BootstrapServers))
             throw new InvalidOperationException("Brokers are not specified.");
 
-        if (topics.Length == 0 || !Array.TrueForAll(topics, t => !string.IsNullOrEmpty(t)))
-            throw new InvalidOperationException("Topics are not specified or contains empty value.");
-
         if (string.IsNullOrEmpty(config.GroupId))
             throw new InvalidOperationException("Group Id is not specified.");
+    }
+
+    public KafkaConsumer(
+        string[] topics,
+        IObserverFactory observerFactory,
+        IDeserializer<ConsumedMessage> deserializer,
+        IPoisonRecordInbox poisonRecordInbox,
+        ConsumerBuilder<Guid, ConsumedMessage> consumerBuilder,
+        ILogger<KafkaConsumer> logger,
+        int? maxPollIntervalMs,
+        bool? enableAutoCommit)
+    {
+        if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
+
+        if (topics.Length == 0 || !Array.TrueForAll(topics, t => !string.IsNullOrEmpty(t)))
+            throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
         _topics = new TopicDictionary<string>(topics.Select(t => (t, t)));
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
-        _maxObserveInterval = (config.MaxPollIntervalMs ?? 300000) + 500;
+        _maxObserveInterval = (maxPollIntervalMs ?? 300000) + 500;
         _logger = logger;
 
-        _consumer = new ConsumerBuilder<Guid, ConsumedMessage>(config)
+        _consumer = consumerBuilder
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
@@ -49,7 +69,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
-        _autoCommitMode = config.EnableAutoCommit == true;
+        _autoCommitMode = enableAutoCommit == true;
 
         _consumer.Subscribe(topics);
     }

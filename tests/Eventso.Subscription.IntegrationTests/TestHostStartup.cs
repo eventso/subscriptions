@@ -17,10 +17,13 @@ public sealed class TestHostStartup
         var services = new ServiceCollection();
 
         services
+            .AddSingleton<ITestOutputHelperAccessor>(_outputHelperAccessor)
             .AddLogging(builder =>
-                builder.AddProvider(new XunitTestOutputLoggerProvider(_outputHelperAccessor)))
+                builder.AddXunitOutput())
             .AddSingleton(new CollectingHandler.Options(TimeSpan.FromMilliseconds(1)))
-            .Scan(x => x.AddTypes(typeof(CollectingHandler)).AsSelfWithInterfaces().WithSingletonLifetime());
+            .Scan(x => x.FromTypes(typeof(CollectingHandler))
+                .AsSelfWithInterfaces()
+                .WithSingletonLifetime());
 
         return services;
     }
