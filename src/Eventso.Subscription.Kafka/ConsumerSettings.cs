@@ -14,23 +14,22 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string groupInstanceId = null)
+        string? groupInstanceId = null)
         : base(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
     {
     }
 
     public ConsumerSettings(
         Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
-        string brokers,
         string groupId,
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string groupInstanceId = null)
-        : base(builderFactory, brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+        string? groupInstanceId = null)
+        : base(builderFactory, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
     {
     }
 
 
-    public string Topic { get; set; }
+    public string Topic { get; set; } = null!;
 }

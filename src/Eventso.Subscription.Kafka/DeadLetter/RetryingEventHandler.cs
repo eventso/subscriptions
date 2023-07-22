@@ -23,7 +23,7 @@ public sealed class RetryingEventHandler : IEventHandler<Event>
     {
         using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
 
-        string errorMessage = null;
+        string? errorMessage = null;
         try
         {
             await _inner.Handle(@event, cancellationToken);

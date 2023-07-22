@@ -4,7 +4,7 @@ public sealed class AsyncLocalDeadLetterWatcher : IDeadLetterQueueScopeFactory, 
 {
     public static readonly AsyncLocalDeadLetterWatcher Instance = new();
 
-    private readonly AsyncLocal<IDeadLetterQueue> _localContext = new();
+    private readonly AsyncLocal<IDeadLetterQueue?> _localContext = new();
 
     public IDeadLetterQueueScope<TEvent> Create<TEvent>(TEvent @event)
         where TEvent : IEvent

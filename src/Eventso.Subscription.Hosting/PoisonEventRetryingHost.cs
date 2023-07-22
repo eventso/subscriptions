@@ -67,7 +67,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
             poisonEventStore);
 
         if (config.BatchProcessingRequired)
-            eventHandler = config.BatchConfiguration.HandlingStrategy switch
+            eventHandler = config.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType => eventHandler,
                 BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<Event>(eventHandler),

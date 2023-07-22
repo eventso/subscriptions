@@ -5,7 +5,7 @@ public sealed class TopicSubscriptionConfiguration
     private TopicSubscriptionConfiguration(
         string topic,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
+        HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         bool enableDeadLetterQueue = false)
     {
@@ -22,8 +22,8 @@ public sealed class TopicSubscriptionConfiguration
     public TopicSubscriptionConfiguration(
         string topic,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
-        DeferredAckConfiguration deferredAckConfiguration = default,
+        HandlerConfiguration? handlerConfig = default,
+        DeferredAckConfiguration? deferredAckConfiguration = default,
         bool skipUnknownMessages = true,
         bool enableDeadLetterQueue = false,
         int bufferSize = 0)
@@ -44,7 +44,7 @@ public sealed class TopicSubscriptionConfiguration
         string topic,
         BatchConfiguration batchConfiguration,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
+        HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         bool enableDeadLetterQueue = false)
         : this(
@@ -70,9 +70,9 @@ public sealed class TopicSubscriptionConfiguration
 
     public HandlerConfiguration HandlerConfig { get; }
 
-    public BatchConfiguration BatchConfiguration { get; }
+    public BatchConfiguration? BatchConfiguration { get; }
 
-    public DeferredAckConfiguration DeferredAckConfiguration { get; }
+    public DeferredAckConfiguration? DeferredAckConfiguration { get; }
 
     public bool EnableDeadLetterQueue { get; }
 

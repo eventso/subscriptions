@@ -11,7 +11,7 @@ public sealed class LoggingAction : IMessagePipelineAction
         _logger = factory.CreateLogger<LoggingAction>();
     }
 
-    public Task Invoke<T>(T message, CancellationToken token)
+    public Task Invoke<T>(T message, CancellationToken token) where T: notnull
     {
         _logger.LogInformation($"Message received: {message.GetType().Name}.");
 

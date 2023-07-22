@@ -5,7 +5,7 @@ public class InvalidEventException : EventHandlingException
     public InvalidEventException(
         string eventSource,
         string message,
-        Exception innerException = null)
+        Exception? innerException = null)
         : base(eventSource, message, innerException)
     {
     }

@@ -44,7 +44,7 @@ public sealed class BufferedObserverTests
 
         var tcs = new TaskCompletionSource();
 
-        _testObserver.OnEventAppeared(default, default)
+        _testObserver.OnEventAppeared(default!, default)
             .ReturnsForAnyArgs(tcs.Task);
 
         var observer = new BufferedObserver<TestEvent>(
@@ -77,7 +77,7 @@ public sealed class BufferedObserverTests
         var tcs = new TaskCompletionSource();
         using var cts = new CancellationTokenSource();
 
-        _testObserver.OnEventAppeared(default, default)
+        _testObserver.OnEventAppeared(default!, default)
             .ReturnsForAnyArgs(tcs.Task);
 
         var observer = new BufferedObserver<TestEvent>(
@@ -107,7 +107,7 @@ public sealed class BufferedObserverTests
 
         var tcs = new TaskCompletionSource();
 
-        _testObserver.OnEventAppeared(default, default)
+        _testObserver.OnEventAppeared(default!, default)
             .ThrowsAsyncForAnyArgs(new CustomException());
 
         var observer = new BufferedObserver<TestEvent>(

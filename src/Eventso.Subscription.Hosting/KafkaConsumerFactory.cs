@@ -32,7 +32,7 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
                 _handlersRegistry),
             // TODO get some service from DI instead of default
             //config.EnableDeadLetterQueue ? default : null,
-            default,
+            default!,
             config.Settings.CreateBuilder(),
             _loggerFactory.CreateLogger<KafkaConsumer>(),
             config.Settings.Config.MaxPollIntervalMs,

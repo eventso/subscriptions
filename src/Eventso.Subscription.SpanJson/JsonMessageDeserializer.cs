@@ -14,6 +14,6 @@ public sealed class JsonMessageDeserializer<T> : IMessageDeserializer
     {
         return _skipEmpty && message.IsEmpty
             ? ConsumedMessage.Skipped
-            : new ConsumedMessage(JsonSerializer.Generic.Utf8.Deserialize<T>(message));
+            : new ConsumedMessage(JsonSerializer.Generic.Utf8.Deserialize<T>(message)!);
     }
 }

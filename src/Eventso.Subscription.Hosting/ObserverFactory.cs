@@ -42,8 +42,8 @@ public sealed class ObserverFactory : IObserverFactory
         where TEvent : IEvent
     {
         return new BatchEventObserver<TEvent>(
-            configuration.BatchConfiguration,
-            configuration.BatchConfiguration.HandlingStrategy switch
+            configuration.BatchConfiguration!,
+            configuration.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType => eventHandler,
                 BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<TEvent>(
@@ -69,7 +69,7 @@ public sealed class ObserverFactory : IObserverFactory
             consumer,
             _messageHandlersRegistry,
             configuration.SkipUnknownMessages,
-            configuration.DeferredAckConfiguration,
+            configuration.DeferredAckConfiguration!,
             _loggerFactory.CreateLogger<EventObserver<TEvent>>());
 
         if (configuration.BufferSize == 0)

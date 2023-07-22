@@ -15,7 +15,7 @@ public readonly struct DeadLetter : IEquatable<DeadLetter>
     public bool Equals(DeadLetter other)
         => MessageComparer.Equals(Message, other.Message) && Reason == other.Reason;
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is DeadLetter other && Equals(other);
 
     public override int GetHashCode()

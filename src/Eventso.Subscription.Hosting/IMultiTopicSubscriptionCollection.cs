@@ -5,8 +5,8 @@ public interface IMultiTopicSubscriptionCollection
     IMultiTopicSubscriptionCollection Add(
         string topic,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
-        DeferredAckConfiguration deferredAckConfig = default,
+        HandlerConfiguration? handlerConfig = default,
+        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int bufferSize = 10);
 
@@ -14,7 +14,7 @@ public interface IMultiTopicSubscriptionCollection
         string topic,
         BatchConfiguration batchConfig,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
+        HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true);
 
     IMultiTopicSubscriptionCollection Add(TopicSubscriptionConfiguration configuration);

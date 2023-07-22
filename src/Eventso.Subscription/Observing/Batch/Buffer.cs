@@ -154,7 +154,7 @@ internal sealed class Buffer<TEvent> : IDisposable
         _timer.Change(_timeout, Timeout.InfiniteTimeSpan);
     }
 
-    private void TriggerTimer(object state) =>
+    private void TriggerTimer(object? state) =>
         _ = _channel.Writer.WriteAsync(new BufferAction(_timerStartVersion), _tokenSource.Token);
 
     private async Task TriggerSend()

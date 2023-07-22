@@ -17,7 +17,7 @@ public sealed class EventHandlerTests
             });
 
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>), default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {

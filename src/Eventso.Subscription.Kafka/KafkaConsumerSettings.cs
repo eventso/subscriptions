@@ -4,8 +4,8 @@ namespace Eventso.Subscription.Kafka;
 
 public class KafkaConsumerSettings
 {
-    private readonly Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> _builderFactory
-        = c => new ConsumerBuilder<Guid, ConsumedMessage>(c);
+    private readonly Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> _builderFactory =
+        c => new ConsumerBuilder<Guid, ConsumedMessage>(c);
 
     public KafkaConsumerSettings()
     {
@@ -23,10 +23,32 @@ public class KafkaConsumerSettings
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string groupInstanceId = null)
-        : this()
+        string? groupInstanceId = null)
+        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
     {
         Config.BootstrapServers = brokers;
+    }
+
+    public KafkaConsumerSettings(
+        Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
+        string groupId,
+        TimeSpan? maxPollInterval = default,
+        TimeSpan? sessionTimeout = default,
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
+        string? groupInstanceId = null)
+        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+    {
+        _builderFactory = builderFactory;
+    }
+
+    private KafkaConsumerSettings(
+        string groupId,
+        TimeSpan? maxPollInterval = default,
+        TimeSpan? sessionTimeout = default,
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
+        string? groupInstanceId = null)
+        : this()
+    {
         Config.GroupId = groupId;
         Config.AutoOffsetReset = autoOffsetReset;
 
@@ -38,19 +60,6 @@ public class KafkaConsumerSettings
 
         if (sessionTimeout.HasValue)
             Config.SessionTimeoutMs = (int)sessionTimeout.Value.TotalMilliseconds;
-    }
-
-    public KafkaConsumerSettings(
-        Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
-        string brokers,
-        string groupId,
-        TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
-        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string groupInstanceId = null)
-        : this(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
-    {
-        _builderFactory = builderFactory;
     }
 
     public ConsumerConfig Config { get; }

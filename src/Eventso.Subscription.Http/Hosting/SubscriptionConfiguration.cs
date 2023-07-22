@@ -16,7 +16,7 @@ public sealed class SubscriptionConfiguration
     public SubscriptionConfiguration(
         string topic,
         IMessageDeserializer deserializer,
-        DeferredAckConfiguration deferredAckConfiguration)
+        DeferredAckConfiguration? deferredAckConfiguration)
         : this(topic, deserializer)
     {
         DeferredAckConfiguration = deferredAckConfiguration ?? new DeferredAckConfiguration();
@@ -38,9 +38,9 @@ public sealed class SubscriptionConfiguration
 
     public IMessageDeserializer Deserializer { get; }
 
-    public DeferredAckConfiguration DeferredAckConfiguration { get; }
+    public DeferredAckConfiguration? DeferredAckConfiguration { get; }
 
-    public BatchConfiguration BatchConfiguration { get; }
+    public BatchConfiguration? BatchConfiguration { get; }
 
     public bool BatchProcessingRequired { get; }
 

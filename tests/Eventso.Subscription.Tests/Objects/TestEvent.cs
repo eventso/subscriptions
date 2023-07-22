@@ -30,7 +30,7 @@ public readonly struct TestEvent : IEvent, IEquatable<TestEvent>
     public bool Equals(TestEvent other)
         => _key.Equals(other._key) && Equals(_message, other._message) && BatchNumber == other.BatchNumber;
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is TestEvent other && Equals(other);
 
     public override int GetHashCode()

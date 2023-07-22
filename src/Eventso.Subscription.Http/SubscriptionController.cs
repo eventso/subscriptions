@@ -101,7 +101,7 @@ public sealed class SubscriptionController : ControllerBase
 
             public (string name, byte[] value) GetHeader(int index) => default;
 
-            public byte[] GetHeaderValue(string name) => null;
+            public byte[] GetHeaderValue(string name) => Array.Empty<byte>();
 
             public bool IsHandlerRegisteredFor(Type messageType) =>
                 _registry.ContainsHandlersFor(messageType, out _);

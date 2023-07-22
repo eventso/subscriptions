@@ -10,8 +10,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
     public ISubscriptionCollection Add(
         ConsumerSettings settings,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
-        DeferredAckConfiguration deferredAckConfig = default,
+        HandlerConfiguration? handlerConfig = default,
+        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1)
     {
@@ -32,7 +32,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         ConsumerSettings settings,
         BatchConfiguration batchConfig,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
+        HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1)
     {
@@ -102,8 +102,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         public IMultiTopicSubscriptionCollection Add(
             string topic,
             IMessageDeserializer serializer,
-            HandlerConfiguration handlerConfig = default,
-            DeferredAckConfiguration deferredAckConfig = default,
+            HandlerConfiguration? handlerConfig = default,
+            DeferredAckConfiguration? deferredAckConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 10)
         {
@@ -120,7 +120,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             string topic,
             BatchConfiguration batchConfig,
             IMessageDeserializer serializer,
-            HandlerConfiguration handlerConfig = default,
+            HandlerConfiguration? handlerConfig = default,
             bool skipUnknownMessages = true)
         {
             return Add(new TopicSubscriptionConfiguration(

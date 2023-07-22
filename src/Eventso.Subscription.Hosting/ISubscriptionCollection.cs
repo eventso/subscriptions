@@ -7,8 +7,8 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
     ISubscriptionCollection Add(
         ConsumerSettings settings,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
-        DeferredAckConfiguration deferredAckConfig = default,
+        HandlerConfiguration? handlerConfig = default,
+        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1);
 
@@ -16,7 +16,7 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
         ConsumerSettings settings,
         BatchConfiguration batchConfig,
         IMessageDeserializer serializer,
-        HandlerConfiguration handlerConfig = default,
+        HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1);
 

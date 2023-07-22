@@ -16,7 +16,7 @@ public sealed class BatchEventObserverTests
         _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
 
@@ -32,7 +32,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingEvents_AllAcknowledged()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 
@@ -55,7 +55,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingSkippedWithoutHandlerEvents_AllAcknowledged()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(false);
 
         var events = _fixture.CreateMany<IEvent>(56).ToArray();
@@ -76,7 +76,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingSkippedByDeserializerEvents_AllAcknowledged()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
 
         _fixture.Inject(DeserializationStatus.Skipped);
@@ -99,7 +99,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingSkippedUnknownTypeEvents_AllAcknowledged()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
 
         _fixture.Inject(DeserializationStatus.UnknownType);
@@ -122,7 +122,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingMixedEvents_AllAcknowledged()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
 
         var skippedEvents = Enumerable.Repeat(0, 25)
@@ -181,14 +181,14 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingFaulted_Throws()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -240,14 +240,14 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task CompletingFaulted_Throws()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -275,14 +275,14 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task DisposingFaulted_Disposed()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>), default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -309,7 +309,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task DisposingTwice_Disposed()
     {
-        _handlersRegistry.ContainsHandlersFor(default, out _)
+        _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 

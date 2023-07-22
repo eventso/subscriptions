@@ -10,7 +10,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSubscriptions(
         this IServiceCollection services,
         Action<ISubscriptionCollection, IServiceProvider> subscriptions,
-        Func<ITypeSourceSelector, IImplementationTypeSelector> handlersSelector = null,
+        Func<ITypeSourceSelector, IImplementationTypeSelector>? handlersSelector = null,
         ServiceLifetime handlersLifetime = ServiceLifetime.Scoped)
     {
         TryAddSubscriptionServices(services);
@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
             services.Add(descriptor);
         }
 
-        private static Type GetImplementationType(ServiceDescriptor descriptor)
+        private static Type? GetImplementationType(ServiceDescriptor descriptor)
         {
             if (descriptor.ImplementationType != null)
                 return descriptor.ImplementationType;

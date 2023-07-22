@@ -2,7 +2,7 @@
 
 public readonly struct ConsumedMessage
 {
-    private readonly IReadOnlyCollection<KeyValuePair<string, object>> _metadata;
+    private readonly IReadOnlyCollection<KeyValuePair<string, object>>? _metadata;
 
     public static ConsumedMessage Skipped =>
         new ConsumedMessage(default, DeserializationStatus.Skipped, default);
@@ -10,12 +10,12 @@ public readonly struct ConsumedMessage
     public static ConsumedMessage Unknown =>
         new ConsumedMessage(default, DeserializationStatus.UnknownType, default);
 
-    public readonly object Message;
+    public readonly object? Message;
     public readonly DeserializationStatus Status;
 
-    public ConsumedMessage(object message,
+    public ConsumedMessage(object? message,
         DeserializationStatus status,
-        IReadOnlyCollection<KeyValuePair<string, object>> metadata)
+        IReadOnlyCollection<KeyValuePair<string, object>>? metadata)
     {
         if (status == DeserializationStatus.Success && message == null)
             throw new ArgumentNullException(nameof(message),

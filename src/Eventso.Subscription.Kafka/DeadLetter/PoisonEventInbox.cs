@@ -82,7 +82,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordIn
     public Task<bool> IsPartOfPoisonStream(Event @event, CancellationToken cancellationToken)
         => _eventStore.IsStreamStored(@event.Topic, @event.GetKey(), cancellationToken);
 
-    public async Task<IPoisonStreamCollection<Event>> GetPoisonStreams(
+    public async Task<IPoisonStreamCollection<Event>?> GetPoisonStreams(
         IReadOnlyCollection<Event> events,
         CancellationToken cancellationToken)
     {
@@ -90,7 +90,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordIn
         foreach (var @event in events)
             streamIds.Add(new StreamId(@event.Topic, @event.GetKey()));
             
-        HashSet<StreamId> poisonStreamIds = null;
+        HashSet<StreamId>? poisonStreamIds = null;
         await foreach (var streamId in _eventStore.GetStoredStreams(streamIds, cancellationToken))
         {
             poisonStreamIds ??= new HashSet<StreamId>();
@@ -180,8 +180,8 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordIn
     {
         private readonly PoisonEventInbox _inbox;
 
-        private string _singleTopic;
-        private List<string> _topics;
+        private string? _singleTopic;
+        private List<string>? _topics;
 
         public InboxThresholdChecker(PoisonEventInbox inbox)
         {

@@ -4,7 +4,7 @@ namespace Eventso.Subscription.Http.Hosting;
 
 internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
 {
-    private readonly Dictionary<Type, HandlerKind> _types;
+    private readonly Dictionary<Type, HandlerKind>? _types;
 
     public static MessageHandlersRegistry Create(IEnumerable<ServiceDescriptor> registrations)
     {

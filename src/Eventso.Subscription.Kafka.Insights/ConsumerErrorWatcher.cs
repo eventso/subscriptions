@@ -6,7 +6,7 @@ internal sealed class ConsumerErrorWatcher : IDisposable
 {
     private readonly CancellationTokenSource _tokenSource = new();
 
-    public Error Error { get; private set; }
+    public Error? Error { get; private set; }
 
     public CancellationToken OnErrorToken => _tokenSource.Token;
 
