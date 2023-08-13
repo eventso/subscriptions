@@ -14,6 +14,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
     private readonly bool _autoCommitMode;
+    private readonly TimeSpan _observeTimeout;
+    private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
 
     public KafkaConsumer(
         string[] topics,
@@ -30,6 +32,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             new ConsumerBuilder<Guid, ConsumedMessage>(config),
             logger,
             config.MaxPollIntervalMs,
+            config.SessionTimeoutMs,
             config.EnableAutoCommit)
     {
         if (string.IsNullOrWhiteSpace(config.BootstrapServers))
@@ -47,6 +50,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         ConsumerBuilder<Guid, ConsumedMessage> consumerBuilder,
         ILogger<KafkaConsumer> logger,
         int? maxPollIntervalMs,
+        int? sessionTimeoutMs,
         bool? enableAutoCommit)
     {
         if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
@@ -59,6 +63,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
         _maxObserveInterval = (maxPollIntervalMs ?? 300000) + 500;
+        _observeTimeout = TimeSpan.FromMilliseconds(sessionTimeoutMs ?? 45000);
         _logger = logger;
 
         _consumer = consumerBuilder
@@ -116,9 +121,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
             try
             {
-                var observer = observers.GetObserver(result.Topic);
-
-                await Observe(result, observer, tokenSource.Token);
+                await HandleResult(observers, result, tokenSource);
 
                 tokenSource.Token.ThrowIfCancellationRequested();
             }
@@ -164,6 +167,86 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 throw;
             }
         }
+    }
+
+    private async Task HandleResult(
+        ObserverCollection observers,
+        ConsumeResult<Guid, ConsumedMessage> result,
+        CancellationTokenSource tokenSource)
+    {
+        if (_pausedTopicsObservers.Count > 0 &&
+            _pausedTopicsObservers.TryGetValue(result.Topic, out var pausedTask))
+        {
+            await pausedTask;
+            _pausedTopicsObservers.Remove(result.Topic);
+        }
+
+        var observer = observers.GetObserver(result.Topic);
+
+        var observeTask = Observe(result, observer, tokenSource.Token);
+
+        if (!observeTask.IsCompleted)
+        {
+            await Task.WhenAny(observeTask, Task.Delay(_observeTimeout, tokenSource.Token));
+
+            if (!observeTask.IsCompleted)
+            {
+                PauseAssignments(result.Topic);
+
+                var resumeTask = ResumeOnComplete(observeTask, result.Topic);
+                _pausedTopicsObservers.Add(result.Topic, resumeTask);
+
+                return;
+            }
+        }
+
+        await observeTask;
+
+        async Task ResumeOnComplete(Task observeTask, string topic)
+        {
+            try
+            {
+                await observeTask;
+            }
+            finally
+            {
+                ResumeAssignments(topic);
+            }
+        }
+    }
+
+    public void Pause(string topic)
+    {
+        if (_consumer.Assignment.Any(a => a.Topic.Equals(topic)))
+            PauseAssignments(topic);
+    }
+
+    public void Resume(string topic)
+    {
+        if (_consumer.Assignment.Any(a => a.Topic.Equals(topic)))
+            ResumeAssignments(topic);
+    }
+
+    private void PauseAssignments(string topic)
+    {
+        var assignments = _consumer.Subscription.Count == 1
+            ? _consumer.Assignment
+            : _consumer.Assignment.Where(t => t.Topic.Equals(topic));
+
+        _consumer.Pause(assignments);
+
+        _logger.LogInformation($"Topic '{topic}' consuming paused");
+    }
+
+    private void ResumeAssignments(string topic)
+    {
+        var assignments = _consumer.Subscription.Count == 1
+            ? _consumer.Assignment
+            : _consumer.Assignment.Where(t => t.Topic.Equals(topic));
+
+        _consumer.Resume(assignments);
+
+        _logger.LogInformation($"Topic '{topic}' consuming resumed");
     }
 
     private async Task Observe(

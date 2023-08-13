@@ -34,7 +34,9 @@ public static class ServiceCollectionExtensions
 
     private static void TryAddSubscriptionServices(IServiceCollection services)
     {
-        services.AddHostedService<SubscriptionHost>();
+        services.TryAddSingleton<SubscriptionHost>();
+        services.AddHostedService<SubscriptionHost>(p => p.GetRequiredService<SubscriptionHost>());
+        services.TryAddSingleton<ISubscriptionHost>(p => p.GetRequiredService<SubscriptionHost>());
         services.TryAddSingleton<IMessageHandlerScopeFactory, MessageHandlerScopeFactory>();
         services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
         services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));

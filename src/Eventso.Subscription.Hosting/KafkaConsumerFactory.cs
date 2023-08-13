@@ -35,7 +35,8 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
             default!,
             config.Settings.CreateBuilder(),
             _loggerFactory.CreateLogger<KafkaConsumer>(),
-            config.Settings.Config.MaxPollIntervalMs,
-            config.Settings.Config.EnableAutoCommit);
+            maxPollIntervalMs: config.Settings.Config.MaxPollIntervalMs,
+            sessionTimeoutMs: config.Settings.Config.SessionTimeoutMs,
+            enableAutoCommit: config.Settings.Config.EnableAutoCommit);
     }
 }
