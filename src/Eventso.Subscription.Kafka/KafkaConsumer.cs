@@ -117,13 +117,21 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         {
             var result = Consume(tokenSource.Token);
 
-            timeoutTokenSource.CancelAfter(_maxObserveInterval);
-
             try
             {
-                await HandleResult(observers, result, tokenSource);
+                var handleTask = HandleResult(observers, result, tokenSource);
+
+                var handleCompletedSynchronously = handleTask.IsCompleted;
+
+                if (!handleCompletedSynchronously)
+                    timeoutTokenSource.CancelAfter(_maxObserveInterval);
+
+                await handleTask;
 
                 tokenSource.Token.ThrowIfCancellationRequested();
+
+                if (!handleCompletedSynchronously)
+                    timeoutTokenSource.CancelAfter(Timeout.Infinite);
             }
             catch (OperationCanceledException)
             {
@@ -132,10 +140,14 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                         $"Observing time is out. Timeout: {_maxObserveInterval}ms. " +
                         "Consider to increase MaxPollInterval.");
 
+                tokenSource.Cancel();
                 throw;
             }
-
-            timeoutTokenSource.CancelAfter(Timeout.Infinite);
+            catch
+            {
+                tokenSource.Cancel();
+                throw;
+            }
         }
 
         ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
