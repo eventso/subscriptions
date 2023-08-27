@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using OpenTelemetry.Trace;
 
 namespace Eventso.Subscription;
 
@@ -15,6 +16,8 @@ public static class Diagnostic
     {
         activity.SetStatus(ActivityStatusCode.Error, ex.Message)
             .SetCustomProperty("exception", ex);
+
+        activity.RecordException(ex);
 
         return activity;
     }
