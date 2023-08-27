@@ -113,7 +113,9 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         while (!tokenSource.IsCancellationRequested)
         {
-            var result = Consume(tokenSource.Token);
+            using var tracingScope = Diagnostic.StartRooted(KafkaDiagnostic.Consume);
+
+            var result = ConsumeOnce(tracingScope.Activity, tokenSource.Token);
 
             try
             {
@@ -141,17 +143,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 tokenSource.Cancel();
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
                 tokenSource.Cancel();
+                tracingScope.Activity?.SetException(exception);
                 throw;
             }
         }
 
-        ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
+        ConsumeResult<Guid, ConsumedMessage> ConsumeOnce(Activity? activity, CancellationToken token)
         {
-            using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Consume);
-
             try
             {
                 var result = _consumer.Consume(token);
