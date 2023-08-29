@@ -59,6 +59,15 @@ public sealed class TopicSource : IAsyncDisposable
         return (topic, messages);
     }
 
+    public async Task<(string topic, T[] messages)> PublishMessages<T>(string topic, IFixture fixture, int count)
+        where T : IKeyedMessage
+    {
+        var messages = fixture.CreateMany<T>(count).ToArray();
+        await _producer.Publish(topic, messages);
+
+        return (topic, messages);
+    }
+
     public IEnumerable<TopicPartitionOffset> GetCommittedOffsets(string topic, string groupId)
     {
         var config = _config with { GroupId = groupId };

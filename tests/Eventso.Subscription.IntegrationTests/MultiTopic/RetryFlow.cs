@@ -48,7 +48,7 @@ public sealed class RetryFlow : IAsyncLifetime
         messageHandler.BlueSet.FailOn(topics.Blue.Messages.GetByIndex(25, 67), count: 3);
         messageHandler.BlackSet.FailOn(topics.Black.Messages.GetByIndex(15, 16), count: 3);
 
-        using var exceptionsCollector = new DiagnosticExceptionCollector();
+        using var exceptionsCollector = new DiagnosticCollector();
 
         await host.Start();
 
@@ -92,7 +92,7 @@ public sealed class RetryFlow : IAsyncLifetime
         var messageHandler = host.GetHandler();
         messageHandler.BlackSet.FailOn(messages.GetByIndex(12, 79), count: 2);
 
-        using var exceptionsCollector = new DiagnosticExceptionCollector();
+        using var exceptionsCollector = new DiagnosticCollector();
 
         await host.Start();
 
@@ -127,7 +127,7 @@ public sealed class RetryFlow : IAsyncLifetime
         var messageHandler = host.GetHandler();
         messageHandler.RedSet.FailOn(messages.GetByIndex(12, 79), count: 2);
 
-        using var exceptionsCollector = new DiagnosticExceptionCollector();
+        using var exceptionsCollector = new DiagnosticCollector();
 
         await host.Start();
 

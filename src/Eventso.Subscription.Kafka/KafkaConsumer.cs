@@ -111,8 +111,6 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         using var observers = new ObserverCollection(
             _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
 
-        using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Consume);
-
         while (!tokenSource.IsCancellationRequested)
         {
             var result = Consume(tokenSource.Token);
@@ -137,7 +135,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 if (timeoutTokenSource.IsCancellationRequested)
                     throw new TimeoutException(
-                        $"Observing time is out. Timeout: {_maxObserveInterval}ms. " +
+                        $"Observing time is out. Topic: {result.Topic}, timeout: {_maxObserveInterval}ms. " +
                         "Consider to increase MaxPollInterval.");
 
                 tokenSource.Cancel();
@@ -152,6 +150,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         ConsumeResult<Guid, ConsumedMessage> Consume(CancellationToken token)
         {
+            using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Consume);
+
             try
             {
                 var result = _consumer.Consume(token);
@@ -160,7 +160,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 if (!string.IsNullOrEmpty(result.Topic))
                     result.Topic = _topics.Get(result.Topic); // topic name interning 
 
-                Activity.Current?.SetTags(result);
+                activity?.SetTags(result);
 
                 return result;
             }
@@ -174,7 +174,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 _logger.LogError(ex,
                     "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
 
-                Activity.Current?.SetException(ex);
+                activity?.SetException(ex);
 
                 throw;
             }
@@ -216,13 +216,18 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         async Task ResumeOnComplete(Task observeTask, string topic)
         {
+            using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Pause)?
+                .SetTags(result);
+
             try
             {
                 await observeTask;
             }
             finally
             {
-                ResumeAssignments(topic);
+                if (observeTask.IsCompletedSuccessfully)
+                    ResumeAssignments(topic);
+                activity?.Dispose();
             }
         }
     }

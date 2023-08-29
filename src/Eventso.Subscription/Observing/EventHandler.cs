@@ -14,22 +14,29 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         _pipelineAction = pipelineAction;
     }
 
-    public Task Handle(TEvent @event, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, CancellationToken cancellationToken)
     {
         using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.EventHandlerHandle)?
             .AddTag("type", @event.GetMessage().GetType())
             .AddTag("count", 1);
 
         dynamic message = @event.GetMessage();
-        return _pipelineAction.Invoke(
-            message,
-            cancellationToken);
+
+        try
+        {
+            await _pipelineAction.Invoke(message, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            activity?.SetException(exception);
+            throw;
+        }
     }
 
-    public Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
     {
         if (events.Count == 0)
-            return Task.CompletedTask;
+            return;
 
         var firstMessage = events[0].GetMessage();
 
@@ -37,14 +44,19 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
             .AddTag("type", firstMessage.GetType())
             .AddTag("count", events.Count);
 
-        return HandleTyped(
-            (dynamic)firstMessage,
-            events,
-            cancellationToken);
+        try
+        {
+            await HandleTyped((dynamic)firstMessage, events, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            activity?.SetException(exception);
+            throw;
+        }
     }
 
     private async Task HandleTyped<TMessage>(
-        TMessage sample,
+        TMessage _,
         IConvertibleCollection<TEvent> events,
         CancellationToken token)
         where TMessage : class

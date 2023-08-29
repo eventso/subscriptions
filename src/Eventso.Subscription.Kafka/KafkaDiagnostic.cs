@@ -6,6 +6,7 @@ namespace Eventso.Subscription.Kafka;
 public static class KafkaDiagnostic
 {
     public static readonly string Consume = "kafka.consume";
+    public static readonly string Pause = "kafka.pause";
 
     public static Activity SetTags<TK, TV>(this Activity activity, ConsumeResult<TK, TV> result)
     {
