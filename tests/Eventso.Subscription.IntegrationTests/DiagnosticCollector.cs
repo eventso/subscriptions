@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Eventso.Subscription.IntegrationTests;
 
@@ -7,8 +8,8 @@ internal class DiagnosticCollector : IDisposable
     private readonly ActivityListener _activityListener;
     private readonly List<Exception> _handlerExceptions = new();
     private readonly List<Exception> _consumingExceptions = new();
-    private readonly List<Activity> _started = new();
-    private readonly List<Activity> _stopped = new();
+    private readonly ConcurrentBag<Activity> _started = new();
+    private readonly ConcurrentBag<Activity> _stopped = new();
 
 
     public DiagnosticCollector()
