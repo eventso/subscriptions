@@ -16,6 +16,7 @@
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.1" />
     <PackageVersion Include="Npgsql" Version="7.0.4" />
     <PackageVersion Include="NSubstitute" Version="5.0.0" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.5.1" />
     <PackageVersion Include="Polly" Version="7.2.4" />
     <PackageVersion Include="Scrutor" Version="4.2.2" />
     <PackageVersion Include="SpanJson" Version="4.0.1" />
