@@ -89,6 +89,28 @@ public static class Extensions
             new(topicBlack.topic, topicBlack.messages));
     }
 
+    public static async Task<ColoredTopics> PublishNewMessages(
+        this TopicSource topicSource,
+        ColoredTopics topics,
+        IFixture fixture,
+        int messageCount = 100)
+    {
+        var topicRed = await topicSource.PublishMessages<RedMessage>(
+            topics.Red.Topic, fixture, messageCount);
+        var topicGreen = await topicSource.PublishMessages<GreenMessage>(
+            topics.Green.Topic, fixture, messageCount);
+        var topicBlue = await topicSource.PublishMessages<BlueMessage>(
+            topics.Blue.Topic, fixture, messageCount);
+        var topicBlack = await topicSource.PublishMessages<BlackMessage>(
+            topics.Black.Topic, fixture, messageCount);
+
+        return new(
+            new(topicRed.topic, topicRed.messages),
+            new(topicGreen.topic, topicGreen.messages),
+            new(topicBlue.topic, topicBlue.messages),
+            new(topicBlack.topic, topicBlack.messages));
+    }
+
     public static IEnumerable<T> GetByIndex<T>(this T[] items, params Index[] indexes)
         => indexes.Select(index => items[index]);
 }

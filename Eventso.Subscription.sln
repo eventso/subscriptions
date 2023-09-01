@@ -22,6 +22,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{25A31557-5D5D-4F43-AC5A-EF4A0D8C2013}"
 	ProjectSection(SolutionItems) = preProject
 		Directory.Build.props = Directory.Build.props
+		Directory.Packages.props = Directory.Packages.props
 		docker-compose.yml = docker-compose.yml
 		.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
 		.github\workflows\nuget-internal-publish.yml = .github\workflows\nuget-internal-publish.yml
@@ -36,7 +37,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Kafka.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.Http", "src\Eventso.Subscription.Http\Eventso.Subscription.Http.csproj", "{E03D6E51-75A7-46EC-805C-84A2EBD840AB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Eventso.Subscription.IntegrationTests", "tests\Eventso.Subscription.IntegrationTests\Eventso.Subscription.IntegrationTests.csproj", "{C5B16166-043B-4955-A731-2E32C901CD9F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Eventso.Subscription.IntegrationTests", "tests\Eventso.Subscription.IntegrationTests\Eventso.Subscription.IntegrationTests.csproj", "{C5B16166-043B-4955-A731-2E32C901CD9F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

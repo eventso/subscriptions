@@ -32,7 +32,7 @@ public sealed class ObserverFactory : IObserverFactory
         if (_configuration.BatchProcessingRequired)
         {
             return new BatchEventObserver<TEvent>(
-                _configuration.BatchConfiguration,
+                _configuration.BatchConfiguration!,
                 GetBatchHandler(),
                 consumer,
                 _messageHandlersRegistry,
@@ -44,12 +44,12 @@ public sealed class ObserverFactory : IObserverFactory
             consumer,
             _messageHandlersRegistry,
             skipUnknown: true,
-            _configuration.DeferredAckConfiguration,
+            _configuration.DeferredAckConfiguration!,
             NullLogger<EventObserver<TEvent>>.Instance);
 
         IEventHandler<TEvent> GetBatchHandler()
         {
-            return _configuration.BatchConfiguration.HandlingStrategy switch
+            return _configuration.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType
                     => eventHandler,

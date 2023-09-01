@@ -49,6 +49,8 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
             return;
         }
 
+        await Task.Yield();
+
         var metadata = @event.GetMetadata();
 
         using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;

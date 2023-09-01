@@ -4,11 +4,11 @@ namespace Eventso.Subscription.IntegrationTests;
 
 public sealed record KafkaConfig(
     string Brokers = "localhost:9092",
-    string GroupId = null,
+    string? GroupId = null,
     string GroupInstanceId = "test-group-id")
 {
     public ConsumerSettings ToSettings(
-        string topic,
+        string? topic,
         bool enableAutoCommit = false)
     {
         return new ConsumerSettings(
@@ -16,7 +16,7 @@ public sealed record KafkaConfig(
             GroupId ?? Guid.NewGuid().ToString(), //slow rebalance for static group id
             groupInstanceId: GroupInstanceId)
         {
-            Topic = topic,
+            Topic = topic!,
             Config =
             {
                 AutoCommitIntervalMs = 500,

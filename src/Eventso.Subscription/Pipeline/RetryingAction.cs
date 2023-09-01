@@ -15,7 +15,7 @@ public sealed class RetryingAction : IMessagePipelineAction
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task Invoke<T>(T message, CancellationToken token)
+    public async Task Invoke<T>(T message, CancellationToken token) where T : notnull
     {
         try
         {

@@ -6,7 +6,7 @@ public sealed class DeadLetterQueue : IDeadLetterQueue
         
     private readonly object _lockObject = new();
 
-    private Dictionary<object, string> _deadLetters;
+    private Dictionary<object, string>? _deadLetters;
 
     public void Enqueue(Subscription.DeadLetter deadLetter)
     {

@@ -8,7 +8,7 @@ public interface IPoisonEventInbox<TEvent>
 
     Task<bool> IsPartOfPoisonStream(TEvent @event, CancellationToken cancellationToken);
 
-    Task<IPoisonStreamCollection<TEvent>> GetPoisonStreams(
+    Task<IPoisonStreamCollection<TEvent>?> GetPoisonStreams(
         IReadOnlyCollection<TEvent> events,
         CancellationToken cancellationToken);
 }

@@ -19,7 +19,7 @@ public sealed class KafkaController : ControllerBase
     }
 
     [HttpGet("{topic}/{partition:int}/{offset:long}")]
-    public Message Get(string topic, int partition, long offset, CancellationToken token)
+    public Message? Get(string topic, int partition, long offset, CancellationToken token)
     {
         if (!TryGetSubscriptionConfiguration(topic, out var configuration))
             throw new ArgumentException($"Subscription to '{topic} not found.'");
@@ -43,7 +43,7 @@ public sealed class KafkaController : ControllerBase
     }
 
     [HttpGet("{topic}/{partition:int}/{offset:long}/raw")]
-    public Message GetRaw(string topic, int partition, long offset, CancellationToken token)
+    public Message? GetRaw(string topic, int partition, long offset, CancellationToken token)
     {
         if (!TryGetSubscriptionConfiguration(topic, out var configuration))
             throw new ArgumentException($"Subscription to '{topic} not found.'");
@@ -64,9 +64,11 @@ public sealed class KafkaController : ControllerBase
 
     private bool TryGetSubscriptionConfiguration(string topic, out SubscriptionConfiguration configuration)
     {
-        configuration = _subscriptionConfigurations.SingleOrDefault(i => i.Contains(topic));
+        var config = _subscriptionConfigurations.SingleOrDefault(i => i.Contains(topic));
 
-        return configuration != null;
+        configuration = config!;
+
+        return config != null;
     }
 
     public sealed record Message(
@@ -79,7 +81,7 @@ public sealed class KafkaController : ControllerBase
         DateTime timestamp)
     {
         public Message(ConsumeResult<string, ConsumedMessage> result)
-            : this(result.Message.Value.Message,
+            : this(result.Message.Value.Message!,
                 result.Message.Key,
                 result.Topic,
                 result.Partition,

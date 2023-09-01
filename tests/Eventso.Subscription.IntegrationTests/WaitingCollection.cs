@@ -14,16 +14,24 @@ public sealed class WaitingCollection<T> : ICollection<T>
         _inner = inner;
     }
 
-    public void FailOn(T message, int count = 1, Exception e = null)
+    public void FailOn(T message, int count = 1, Exception? e = null)
     {
         _fails.Add(new(message, count, e));
     }
 
-    public void FailOn(IEnumerable<T> messages, int count = 1, Exception e = null)
+    public void FailOnAny(int count = 1, Exception? e = null)
+    {
+        _fails.Add(new(default, count, e));
+    }
+
+    public void FailOn(IEnumerable<T> messages, int count = 1, Exception? e = null)
     {
         foreach (var message in messages)
             FailOn(message, count, e);
     }
+
+    public void ClearFails()
+        => _fails.Clear();
 
     public Task WaitUntil(int count, TimeSpan? timeout = default)
     {
@@ -96,11 +104,11 @@ public sealed class WaitingCollection<T> : ICollection<T>
 
     private class Fail
     {
-        private readonly T _failMessage;
+        private readonly T? _failMessage;
         private int _count;
-        private readonly Exception _ex;
+        private readonly Exception? _ex;
 
-        public Fail(T failMessage, int count, Exception ex)
+        public Fail(T? failMessage, int count, Exception? ex)
         {
             _failMessage = failMessage;
             _count = count;

@@ -13,7 +13,7 @@ internal sealed class KafkaConsumer<T> : IDisposable
         _errorWatcher = errorWatcher;
     }
 
-    public ConsumeResult<string, T> Consume(TopicPartitionOffset offset, CancellationToken token)
+    public ConsumeResult<string, T>? Consume(TopicPartitionOffset offset, CancellationToken token)
     {
         try
         {

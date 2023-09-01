@@ -16,7 +16,7 @@ public sealed class EventObserverTests
         _fixture.Customize(new AutoNSubstituteCustomization { ConfigureMembers = true });
 
         _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
-        _handlersRegistry.ContainsHandlersFor(default, out Arg.Any<HandlerKind>())
+        _handlersRegistry.ContainsHandlersFor(default!, out Arg.Any<HandlerKind>())
             .ReturnsForAnyArgs(ci =>
             {
                 ci[1] = HandlerKind.Single;
@@ -25,7 +25,7 @@ public sealed class EventObserverTests
 
         var pipelineAction = Substitute.For<IMessagePipelineAction>();
         pipelineAction
-            .Invoke<TestEvent>(default, default)
+            .Invoke<TestEvent>(default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _handledEvents.Add(c.Arg<TestEvent>()));
 

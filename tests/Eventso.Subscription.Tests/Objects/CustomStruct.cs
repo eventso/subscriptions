@@ -15,7 +15,7 @@ public readonly struct CustomStruct : IEquatable<CustomStruct>
     public bool Equals(CustomStruct other) =>
         X == other.X && Y == other.Y;
 
-    public override bool Equals(object obj) =>
+    public override bool Equals(object? obj) =>
         obj is CustomStruct other && Equals(other);
 
     public override int GetHashCode() =>

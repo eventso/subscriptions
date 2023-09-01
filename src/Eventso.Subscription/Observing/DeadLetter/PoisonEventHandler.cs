@@ -86,9 +86,9 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
 
     private static void FilterPoisonEvents(
         IConvertibleCollection<TEvent> events,
-        IPoisonStreamCollection<TEvent> poisonStreamCollection,
-        out PooledList<TEvent> withoutPoison,
-        out PooledList<PoisonEvent<TEvent>> poison)
+        IPoisonStreamCollection<TEvent>? poisonStreamCollection,
+        out PooledList<TEvent>? withoutPoison,
+        out PooledList<PoisonEvent<TEvent>>? poison)
     {
         poison = null;
         withoutPoison = null;

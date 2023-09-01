@@ -151,14 +151,14 @@ public sealed class PoisonEventHandlerTests
         poisonEventInbox.Add(default(PoisonEvent<TestEvent>), default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<PoisonEvent<TestEvent>>()));
-        poisonEventInbox.Add(default(IReadOnlyCollection<PoisonEvent<TestEvent>>), default)
+        poisonEventInbox.Add(default(IReadOnlyCollection<PoisonEvent<TestEvent>>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _inboxPoisonEvents.AddRange(c.Arg<IReadOnlyCollection<PoisonEvent<TestEvent>>>()));
         poisonEventInbox.IsPartOfPoisonStream(default, default)
             .ReturnsForAnyArgs(c => Task.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
-        poisonEventInbox.GetPoisonStreams(default, default)
+        poisonEventInbox.GetPoisonStreams(default!, default)
             .ReturnsForAnyArgs(c =>
-                Task.FromResult<IPoisonStreamCollection<TestEvent>>(new PoisonStreamCollection(_inboxPoisonEvents)));
+                Task.FromResult<IPoisonStreamCollection<TestEvent>?>(new PoisonStreamCollection(_inboxPoisonEvents)));
 
         return poisonEventInbox;
     }
@@ -168,7 +168,7 @@ public sealed class PoisonEventHandlerTests
         var deadLetterQueueScopeFactory = Substitute.For<IDeadLetterQueueScopeFactory>();
         deadLetterQueueScopeFactory.Create(default(TestEvent))
             .ReturnsForAnyArgs(_ => CreateScope());
-        deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<TestEvent>))
+        deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<TestEvent>)!)
             .ReturnsForAnyArgs(_ => CreateScope());
 
         return deadLetterQueueScopeFactory;
@@ -187,7 +187,7 @@ public sealed class PoisonEventHandlerTests
         innerHandler.Handle(default(TestEvent), default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()));
-        innerHandler.Handle(default(IConvertibleCollection<TestEvent>), default)
+        innerHandler.Handle(default(IConvertibleCollection<TestEvent>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.AddRange(c.Arg<IConvertibleCollection<TestEvent>>()));
 
@@ -197,10 +197,10 @@ public sealed class PoisonEventHandlerTests
     private TestEvent TestEvent(Guid key = default)
         => new(key != default ? key : _fixture.Create<Guid>(), _fixture.Create<RedMessage>());
 
-    private PoisonEvent<TestEvent> PoisonEvent(Guid key = default, string reason = null)
+    private PoisonEvent<TestEvent> PoisonEvent(Guid key = default, string? reason = null)
         => new(TestEvent(key), reason ?? _fixture.Create<string>());
 
-    private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string reason = null)
+    private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string? reason = null)
         => new(@event, reason ?? _fixture.Create<string>());
         
     private sealed class PoisonStreamCollection : IPoisonStreamCollection<TestEvent>

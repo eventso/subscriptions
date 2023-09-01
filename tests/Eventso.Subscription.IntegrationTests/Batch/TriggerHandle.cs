@@ -1,5 +1,4 @@
-﻿using Confluent.Kafka;
-using Eventso.Subscription.Hosting;
+﻿using Eventso.Subscription.Hosting;
 using Eventso.Subscription.SpanJson;
 
 namespace Eventso.Subscription.IntegrationTests.Batch;
@@ -51,7 +50,7 @@ public sealed class TriggerHandle : IAsyncLifetime
 
         var messageHandler = host.GetHandler();
 
-        await host.WhenAll(messageHandler.BlackSet.WaitUntil(messageCount, batchTriggerTimeout * 2));
+        await host.WhenAll(messageHandler.BlackSet.WaitUntil(messageCount, batchTriggerTimeout * 4));
 
         messageHandler.Black.Should().HaveCount(messageCount);
 

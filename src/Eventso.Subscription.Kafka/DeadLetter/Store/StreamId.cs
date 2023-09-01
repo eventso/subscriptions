@@ -18,7 +18,7 @@ public readonly struct StreamId : IEquatable<StreamId>
     public bool Equals(StreamId other)
         => Topic.Equals(other.Topic) && Key.Equals(other.Key);
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
         => obj is StreamId other && Equals(other);
 
     public override int GetHashCode()

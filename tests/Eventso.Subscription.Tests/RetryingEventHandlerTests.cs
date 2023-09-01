@@ -101,16 +101,16 @@ public sealed class RetryingEventHandlerTests
     private IPoisonEventStore CreatePoisonEventStore()
     {
         var poisonEventStore = Substitute.For<IPoisonEventStore>();
-        poisonEventStore.Remove(default(TopicPartitionOffset), default)
+        poisonEventStore.Remove(default(TopicPartitionOffset)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _removedOffsets.Add(c.Arg<TopicPartitionOffset>()));
-        poisonEventStore.Remove(default(IReadOnlyCollection<TopicPartitionOffset>), default)
+        poisonEventStore.Remove(default(IReadOnlyCollection<TopicPartitionOffset>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _removedOffsets.AddRange(c.Arg<IReadOnlyCollection<TopicPartitionOffset>>()));
         poisonEventStore.AddFailure(default, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _storedFailures.Add(c.Arg<OccuredFailure>()));
-        poisonEventStore.AddFailures(default, default, default)
+        poisonEventStore.AddFailures(default, default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _storedFailures.AddRange(c.Arg<IReadOnlyCollection<OccuredFailure>>()));
 
@@ -122,7 +122,7 @@ public sealed class RetryingEventHandlerTests
         var deadLetterQueueScopeFactory = Substitute.For<IDeadLetterQueueScopeFactory>();
         deadLetterQueueScopeFactory.Create(default(Event))
             .ReturnsForAnyArgs(_ => CreateScope());
-        deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<Event>))
+        deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<Event>)!)
             .ReturnsForAnyArgs(_ => CreateScope());
 
         return deadLetterQueueScopeFactory;
@@ -141,7 +141,7 @@ public sealed class RetryingEventHandlerTests
         innerHandler.Handle(default(Event), default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.Add(c.Arg<Event>()));
-        innerHandler.Handle(default(IConvertibleCollection<Event>), default)
+        innerHandler.Handle(default(IConvertibleCollection<Event>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.AddRange(c.Arg<IConvertibleCollection<Event>>()));
 

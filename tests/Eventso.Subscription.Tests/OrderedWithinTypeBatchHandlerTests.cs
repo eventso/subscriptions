@@ -18,7 +18,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
             });
             
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>), default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -26,7 +26,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<BlueMessage>), default)
+        action.Invoke(default(IReadOnlyCollection<BlueMessage>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -34,7 +34,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<GreenMessage>), default)
+        action.Invoke(default(IReadOnlyCollection<GreenMessage>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -102,5 +102,5 @@ public sealed class OrderedWithinTypeEventHandlerTests
     }
 
     private TestEvent Create<T>(Guid key, int batchNumber = 0) =>
-        new TestEvent(key, _fixture.Create<T>(), batchNumber);
+        new TestEvent(key, _fixture.Create<T>()!, batchNumber);
 }

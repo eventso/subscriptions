@@ -13,7 +13,7 @@ public sealed class Event : IEvent
     public object GetMessage() =>
         _consumedMessage.Message ?? throw new InvalidOperationException("Unknown message");
 
-    public string GetIdentity() => _consumedMessage.Message.GetHashCode().ToString();
+    public string GetIdentity() => _consumedMessage.Message?.GetHashCode().ToString() ?? string.Empty;
 
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         => Array.Empty<KeyValuePair<string, object>>();
