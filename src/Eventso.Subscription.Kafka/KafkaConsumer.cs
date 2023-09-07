@@ -9,7 +9,7 @@ namespace Eventso.Subscription.Kafka;
 public sealed class KafkaConsumer : ISubscriptionConsumer
 {
     private readonly string[] _topics;
-    private readonly IObserverFactory _observerFactory;
+    private readonly IObserverFactory<Event> _observerFactory;
     private readonly IPoisonRecordInbox _poisonRecordInbox;
     private readonly int _maxObserveInterval;
     private readonly ILogger<KafkaConsumer> _logger;
@@ -21,7 +21,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
     public KafkaConsumer(
         string[] topics,
-        IObserverFactory observerFactory,
+        IObserverFactory<Event> observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
         IPoisonRecordInbox poisonRecordInbox,
         KafkaConsumerSettings settings,

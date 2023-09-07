@@ -7,23 +7,18 @@
   <ItemGroup>
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="HashDepot" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" />
     <PackageReference Include="System.Collections.Immutable" Condition="'$(TargetFramework)' == 'net6.0'"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>
-
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Eventso.Subscription.Tests</_Parameter1>
-    </AssemblyAttribute>
+    <InternalsVisibleTo Include="Eventso.Subscription.Tests" />
   </ItemGroup>
-
-	<ItemGroup>
-		
-		<Using Include="Eventso.Subscription.Configurations" />
-		<Using Include="Eventso.Subscription.Observing" />
-		<Using Include="Eventso.Subscription.Observing.Batch" />
-
-	</ItemGroup>
+  <ItemGroup>
+    <Using Include="Eventso.Subscription.Configurations" />
+    <Using Include="Eventso.Subscription.Observing" />
+    <Using Include="Eventso.Subscription.Observing.Batch" />
+  </ItemGroup>
 </Project>

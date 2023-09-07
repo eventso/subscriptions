@@ -5,9 +5,9 @@ namespace Eventso.Subscription.Tests;
 public sealed class BatchEventObserverTests
 {
     private readonly Fixture _fixture;
-    private readonly BatchEventObserver<IEvent> _observer;
+    private readonly BatchEventObserver<MockEvent> _observer;
     private readonly TestConsumer _consumer;
-    private readonly List<IReadOnlyCollection<IEvent>> _handledBatches = new();
+    private readonly List<IReadOnlyCollection<MockEvent>> _handledBatches = new();
     private readonly IMessageHandlersRegistry _handlersRegistry;
 
     public BatchEventObserverTests()
@@ -17,19 +17,19 @@ public sealed class BatchEventObserverTests
 
         _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
-        var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        var batchHandler = Substitute.For<IEventHandler<MockEvent>>();
+        batchHandler.Handle(default(IConvertibleCollection<MockEvent>)!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
-            .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
+            .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<MockEvent>>().ToArray()));
 
         _consumer = new TestConsumer();
 
-        _observer = new BatchEventObserver<IEvent>(
+        _observer = new BatchEventObserver<MockEvent>(
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 10 },
             batchHandler,
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class BatchEventObserverTests
             .ReturnsForAnyArgs(true);
         _fixture.Inject(DeserializationStatus.Success);
 
-        var events = _fixture.CreateMany<IEvent>(56).ToArray();
+        var events = _fixture.CreateMany<MockEvent>(56).ToArray();
 
         foreach (var @event in events)
             await _observer.OnEventAppeared(@event, CancellationToken.None);
@@ -61,7 +61,7 @@ public sealed class BatchEventObserverTests
         _handlersRegistry.ContainsHandlersFor(default!, out _)
             .ReturnsForAnyArgs(false);
 
-        var events = _fixture.CreateMany<IEvent>(56).ToArray();
+        var events = _fixture.CreateMany<MockEvent>(56).ToArray();
 
         foreach (var @event in events)
             await _observer.OnEventAppeared(@event, CancellationToken.None);
@@ -84,7 +84,7 @@ public sealed class BatchEventObserverTests
 
         _fixture.Inject(DeserializationStatus.Skipped);
 
-        var events = _fixture.CreateMany<IEvent>(56).ToArray();
+        var events = _fixture.CreateMany<MockEvent>(56).ToArray();
 
         foreach (var @event in events)
             await _observer.OnEventAppeared(@event, CancellationToken.None);
@@ -107,7 +107,7 @@ public sealed class BatchEventObserverTests
 
         _fixture.Inject(DeserializationStatus.UnknownType);
 
-        var events = _fixture.CreateMany<IEvent>(56).ToArray();
+        var events = _fixture.CreateMany<MockEvent>(56).ToArray();
 
         foreach (var @event in events)
             await _observer.OnEventAppeared(@event, CancellationToken.None);
@@ -131,7 +131,7 @@ public sealed class BatchEventObserverTests
         var skippedEvents = Enumerable.Repeat(0, 25)
             .Select(_ =>
             {
-                var msg = Substitute.For<IEvent>();
+                var msg = Substitute.For<MockEvent>();
                 msg.DeserializationResult.Returns(DeserializationStatus.Skipped);
                 return msg;
             }).ToArray();
@@ -139,7 +139,7 @@ public sealed class BatchEventObserverTests
         var successEvents = Enumerable.Repeat(0, 25)
             .Select(_ =>
             {
-                var msg = Substitute.For<IEvent>();
+                var msg = Substitute.For<MockEvent>();
                 msg.DeserializationResult.Returns(DeserializationStatus.Success);
                 msg.GetMessage().Returns(new object());
 
@@ -169,7 +169,7 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingCompleted_Throws()
     {
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         await _observer.Complete(CancellationToken.None);
 
@@ -190,21 +190,21 @@ public sealed class BatchEventObserverTests
 
         using var semaphore = new SemaphoreSlim(0);
 
-        var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        var batchHandler = Substitute.For<IEventHandler<MockEvent>>();
+        batchHandler.Handle(default(IConvertibleCollection<MockEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
         const int batchCount = 2;
 
-        var observer = new BatchEventObserver<IEvent>(
+        var observer = new BatchEventObserver<MockEvent>(
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
 
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         for (var i = 0; i < batchCount; i++)
             await observer.OnEventAppeared(@event, CancellationToken.None);
@@ -221,15 +221,15 @@ public sealed class BatchEventObserverTests
     [Fact]
     public async Task ObservingDisposed_Throws()
     {
-        var observer = new BatchEventObserver<IEvent>(
-                
+        var observer = new BatchEventObserver<MockEvent>(
+
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 2 },
-            Substitute.For<IEventHandler<IEvent>>(),
+            Substitute.For<IEventHandler<MockEvent>>(),
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
 
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         observer.Dispose();
 
@@ -251,21 +251,21 @@ public sealed class BatchEventObserverTests
 
         using var semaphore = new SemaphoreSlim(0);
 
-        var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        var batchHandler = Substitute.For<IEventHandler<MockEvent>>();
+        batchHandler.Handle(default(IConvertibleCollection<MockEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
         const int batchCount = 2;
 
-        var observer = new BatchEventObserver<IEvent>(
+        var observer = new BatchEventObserver<MockEvent>(
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
 
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         for (var i = 0; i < batchCount; i++)
             await observer.OnEventAppeared(@event, CancellationToken.None);
@@ -287,21 +287,21 @@ public sealed class BatchEventObserverTests
 
         using var semaphore = new SemaphoreSlim(0);
 
-        var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        var batchHandler = Substitute.For<IEventHandler<MockEvent>>();
+        batchHandler.Handle(default(IConvertibleCollection<MockEvent>)!, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
         const int batchCount = 2;
 
-        var observer = new BatchEventObserver<IEvent>(
+        var observer = new BatchEventObserver<MockEvent>(
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
 
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         for (var i = 0; i < batchCount; i++)
             await observer.OnEventAppeared(@event, CancellationToken.None);
@@ -322,15 +322,15 @@ public sealed class BatchEventObserverTests
 
         const int batchCount = 2;
 
-        var observer = new BatchEventObserver<IEvent>(
-                
+        var observer = new BatchEventObserver<MockEvent>(
+
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
-            Substitute.For<IEventHandler<IEvent>>(),
+            Substitute.For<IEventHandler<MockEvent>>(),
             _consumer,
             _handlersRegistry,
-            NullLogger<BatchEventObserver<IEvent>>.Instance);
+            NullLogger<BatchEventObserver<MockEvent>>.Instance);
 
-        var @event = _fixture.Create<IEvent>();
+        var @event = _fixture.Create<MockEvent>();
 
         for (var i = 0; i < batchCount; i++)
             await observer.OnEventAppeared(@event, CancellationToken.None);
@@ -343,19 +343,19 @@ public sealed class BatchEventObserverTests
     {
     }
 
-    private sealed class TestConsumer : IConsumer<IEvent>
+    private sealed class TestConsumer : IConsumer<MockEvent>
     {
-        public readonly List<IEvent> Acks = new();
+        public readonly List<MockEvent> Acks = new();
         public readonly CancellationTokenSource CancellationTokenSource = new();
 
         public CancellationToken CancellationToken => CancellationTokenSource.Token;
 
         public string Subscription { get; } = "Some";
 
-        public void Acknowledge(in IEvent events) =>
+        public void Acknowledge(in MockEvent events) =>
             Acks.Add(events);
 
-        public void Acknowledge(IReadOnlyList<IEvent> events) =>
+        public void Acknowledge(IReadOnlyList<MockEvent> events) =>
             Acks.AddRange(events);
 
         public void Cancel() => CancellationTokenSource.Cancel();
