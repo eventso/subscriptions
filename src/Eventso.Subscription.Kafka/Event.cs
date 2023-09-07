@@ -2,7 +2,7 @@
 
 namespace Eventso.Subscription.Kafka;
 
-public readonly struct Event : IEvent
+public readonly partial struct Event : IEvent
 {
     private readonly ConsumeResult<Guid, ConsumedMessage> _consumeResult;
 

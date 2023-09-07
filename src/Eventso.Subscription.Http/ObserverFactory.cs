@@ -23,7 +23,7 @@ public sealed class ObserverFactory : IObserverFactory
     }
 
     public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
-        where TEvent : IEvent
+        where TEvent : IEvent, IGroupedMetadata<TEvent>
     {
         var eventHandler = new Observing.EventHandler<TEvent>(
             _messageHandlersRegistry,

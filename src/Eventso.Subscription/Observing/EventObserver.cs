@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Eventso.Subscription.Configurations;
 
 namespace Eventso.Subscription.Observing;
@@ -54,6 +55,8 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
         var metadata = @event.GetMetadata();
 
         using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
+        using var tracingScope = Diagnostic.StartRooted("event.handle");
+        tracingScope.Activity?.AddEvent(new ActivityEvent("event.metadata", tags: new ActivityTagsCollection(metadata!)));
 
         AckDeferredMessages();
 

@@ -1,6 +1,6 @@
 namespace Eventso.Subscription.Http;
 
-public sealed class Event : IEvent
+public sealed class Event : IEvent, IGroupedMetadata<Event>
 {
     private readonly ConsumedMessage _consumedMessage;
 
@@ -19,4 +19,7 @@ public sealed class Event : IEvent
 
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         => Array.Empty<KeyValuePair<string, object>>();
+
+    public static IEnumerable<KeyValuePair<string, object>[]> GroupedMetadata(IEnumerable<Event> items)
+        => Array.Empty<KeyValuePair<string, object>[]>();
 }

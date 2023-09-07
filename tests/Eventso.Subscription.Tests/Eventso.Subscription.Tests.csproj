@@ -41,6 +41,5 @@
 		<Using Include="NSubstitute" />
 		<Using Include="NSubstitute.ExceptionExtensions" />
 		<Using Include="Xunit" />
-		
 	</ItemGroup>
 </Project>
