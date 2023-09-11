@@ -101,6 +101,13 @@ public sealed class TopicSource : IAsyncDisposable
             .ToArray();
     }
 
+    public async Task DeleteRecords(string topic)
+    {
+       var result = await _adminClient.DeleteRecordsAsync(
+            Enumerable.Range(0, NumPartitions)
+                .Select(p => new TopicPartitionOffset(topic, p, Offset.End)));
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_topics.Count == 0)

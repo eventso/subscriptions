@@ -115,7 +115,10 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         {
             using var tracingScope = Diagnostic.StartRooted(KafkaDiagnostic.Consume);
 
-            var result = ConsumeOnce(tracingScope.Activity, tokenSource.Token);
+            var result = await ConsumeOnce(tracingScope.Activity, tokenSource.Token);
+
+            if (result == null)
+                continue;
 
             try
             {
@@ -151,7 +154,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             }
         }
 
-        ConsumeResult<Guid, ConsumedMessage> ConsumeOnce(Activity? activity, CancellationToken token)
+        async ValueTask<ConsumeResult<Guid, ConsumedMessage>?> ConsumeOnce(Activity? activity, CancellationToken token)
         {
             try
             {
@@ -171,11 +174,23 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 //    ex.ConsumerRecord,
                 //    $"Deserialization failed: {ex.Message}.",
                 //    token);
+                activity?.SetException(ex);
 
                 _logger.LogError(ex,
-                    "Serialization exception for message:" + ex.ConsumerRecord?.TopicPartitionOffset);
+                    $"Serialization exception for message {ex.ConsumerRecord?.TopicPartitionOffset}, consuming paused");
 
-                activity?.SetException(ex);
+                if (ex.ConsumerRecord != null)
+                {
+                    activity?.SetTags(ex.ConsumerRecord);
+                    var topic = ex.ConsumerRecord.Topic;
+
+                    if (_pausedTopicsObservers.Remove(topic, out var task))
+                        await task;
+
+                    PauseUntil(Task.Delay(_maxObserveInterval, token), topic);
+
+                    return null;
+                }
 
                 throw;
             }
@@ -188,10 +203,9 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         CancellationTokenSource tokenSource)
     {
         if (_pausedTopicsObservers.Count > 0 &&
-            _pausedTopicsObservers.TryGetValue(result.Topic, out var pausedTask))
+            _pausedTopicsObservers.Remove(result.Topic, out var pausedTask))
         {
             await pausedTask;
-            _pausedTopicsObservers.Remove(result.Topic);
         }
 
         var observer = observers.GetObserver(result.Topic);
@@ -204,32 +218,37 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
             if (!observeTask.IsCompleted)
             {
-                PauseAssignments(result.Topic);
-
-                var resumeTask = ResumeOnComplete(observeTask, result.Topic);
-                _pausedTopicsObservers.Add(result.Topic, resumeTask);
-
+                PauseUntil(observeTask, result.Topic);
                 return;
             }
         }
 
         await observeTask;
+    }
 
-        async Task ResumeOnComplete(Task observeTask, string topic)
+    private void PauseUntil(Task waitingTask, string topic)
+    {
+        PauseAssignments(topic);
+
+        var resumeTask = ResumeOnComplete(waitingTask, topic);
+        _pausedTopicsObservers.Add(topic, resumeTask);
+    }
+
+    private async Task ResumeOnComplete(Task waitingTask, string topic)
+    {
+        using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Pause)?
+            .AddTag("topic", topic);
+
+        try
         {
-            using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Pause)?
-                .SetTags(result);
+            await waitingTask;
+        }
+        finally
+        {
+            if (waitingTask.IsCompletedSuccessfully)
+                ResumeAssignments(topic);
 
-            try
-            {
-                await observeTask;
-            }
-            finally
-            {
-                if (observeTask.IsCompletedSuccessfully)
-                    ResumeAssignments(topic);
-                activity?.Dispose();
-            }
+            activity?.Dispose();
         }
     }
 
