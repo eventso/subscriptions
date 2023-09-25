@@ -245,8 +245,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         }
         finally
         {
-            if (waitingTask.IsCompletedSuccessfully)
-                ResumeAssignments(topic);
+            ResumeAssignments(topic);
 
             activity?.Dispose();
         }

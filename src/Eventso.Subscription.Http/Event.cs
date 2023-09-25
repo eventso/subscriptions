@@ -15,6 +15,8 @@ public sealed class Event : IEvent
 
     public string GetIdentity() => _consumedMessage.Message?.GetHashCode().ToString() ?? string.Empty;
 
+    public DateTime GetUtcTimestamp() => DateTime.UtcNow;
+
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         => Array.Empty<KeyValuePair<string, object>>();
 }

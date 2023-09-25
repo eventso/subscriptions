@@ -223,6 +223,7 @@ public sealed class EventObserverTests
         public Guid GetKey() => throw new NotImplementedException();
         public object GetMessage() => this;
         public string GetIdentity() => throw new NotImplementedException();
+        public DateTime GetUtcTimestamp() => DateTime.UtcNow;
 
         public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
             => Array.Empty<KeyValuePair<string, object>>();

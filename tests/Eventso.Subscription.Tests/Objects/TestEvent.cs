@@ -24,6 +24,9 @@ public readonly struct TestEvent : IEvent, IEquatable<TestEvent>
 
     public string GetIdentity() => Guid.NewGuid().ToString();
 
+    public DateTime GetUtcTimestamp()
+        => DateTime.UtcNow;
+
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         => Array.Empty<KeyValuePair<string, object>>();
 

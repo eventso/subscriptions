@@ -30,6 +30,9 @@ public readonly struct Event : IEvent
     public string GetIdentity()
         => $"{_consumeResult.Topic} [{_consumeResult.Partition}] @{_consumeResult.Offset}";
 
+    public DateTime GetUtcTimestamp()
+        => _consumeResult.Message.Timestamp.UtcDateTime;
+
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
     {
         var offset = new KeyValuePair<string, object>("eventso_offset", GetIdentity());

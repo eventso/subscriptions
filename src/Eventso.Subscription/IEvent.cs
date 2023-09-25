@@ -9,5 +9,7 @@ public interface IEvent
 
     string GetIdentity();
 
+    DateTime GetUtcTimestamp();
+
     IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata();
 }
