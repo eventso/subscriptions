@@ -12,6 +12,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
     private readonly CancellationTokenSource _cancellationTokenSource;
     private readonly IConsumer<TEvent> _consumer;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
+    private readonly ILogger<BatchEventObserver<TEvent>> _logger;
     private readonly bool _skipUnknown;
     private readonly Buffer<TEvent> _buffer;
 
@@ -24,11 +25,13 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         IEventHandler<TEvent> handler,
         IConsumer<TEvent> consumer,
         IMessageHandlersRegistry messageHandlersRegistry,
+        ILogger<BatchEventObserver<TEvent>> logger,
         bool skipUnknown = true)
     {
         _handler = handler;
         _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
         _messageHandlersRegistry = messageHandlersRegistry;
+        _logger = logger;
         _skipUnknown = skipUnknown;
 
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
@@ -68,7 +71,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
         _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
         var skipped = @event.CanSkip(_skipUnknown) ||
-                      !_messageHandlersRegistry.ContainsHandlersFor(@event.GetMessage().GetType(), out _);
+            !_messageHandlersRegistry.ContainsHandlersFor(@event.GetMessage().GetType(), out _);
 
         return _buffer.Add(@event, skipped, token);
     }
@@ -147,8 +150,10 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
 
             _consumer.Acknowledge(allEvents);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Handling batch failed.");
+
             _consumer.Cancel();
             throw;
         }

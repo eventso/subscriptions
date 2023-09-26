@@ -55,6 +55,7 @@ public sealed class ObserverFactory : IObserverFactory
             },
             consumer,
             _messageHandlersRegistry,
+            _loggerFactory.CreateLogger<BatchEventObserver<TEvent>>(),
             configuration.SkipUnknownMessages);
     }
 

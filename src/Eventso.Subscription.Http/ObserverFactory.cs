@@ -36,6 +36,7 @@ public sealed class ObserverFactory : IObserverFactory
                 GetBatchHandler(),
                 consumer,
                 _messageHandlersRegistry,
+                NullLogger<BatchEventObserver<TEvent>>.Instance,
                 skipUnknown: true);
         }
 

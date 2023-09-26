@@ -122,7 +122,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
             try
             {
-                var handleTask = HandleResult(observers, result, tokenSource);
+                var handleTask = HandleResult(observers, result, tokenSource.Token);
 
                 var handleCompletedSynchronously = handleTask.IsCompleted;
 
@@ -200,21 +200,22 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private async Task HandleResult(
         ObserverCollection observers,
         ConsumeResult<Guid, ConsumedMessage> result,
-        CancellationTokenSource tokenSource)
+        CancellationToken token)
     {
         if (_pausedTopicsObservers.Count > 0 &&
             _pausedTopicsObservers.Remove(result.Topic, out var pausedTask))
         {
+            _logger.LogInformation($"Waiting paused task for topic {result.Topic}");
             await pausedTask;
         }
 
         var observer = observers.GetObserver(result.Topic);
 
-        var observeTask = Observe(result, observer, tokenSource.Token);
+        var observeTask = Observe(result, observer, token);
 
         if (!observeTask.IsCompleted)
         {
-            await Task.WhenAny(observeTask, Task.Delay(_observeTimeout, tokenSource.Token));
+            await Task.WhenAny(observeTask, Task.Delay(_observeTimeout, token));
 
             if (!observeTask.IsCompleted)
             {
@@ -299,7 +300,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new EventHandlingException(
-                result.TopicPartitionOffset.ToString(),
+                result.TopicPartitionOffset.ToString()!,
                 "Event observing failed",
                 ex);
         }

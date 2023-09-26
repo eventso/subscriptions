@@ -1,4 +1,6 @@
-﻿namespace Eventso.Subscription.Tests;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Eventso.Subscription.Tests;
 
 public sealed class BatchEventObserverTests
 {
@@ -26,7 +28,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 10 },
             batchHandler,
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
     }
 
     [Fact]
@@ -198,7 +201,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
 
         var @event = _fixture.Create<IEvent>();
 
@@ -222,7 +226,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = 2 },
             Substitute.For<IEventHandler<IEvent>>(),
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
 
         var @event = _fixture.Create<IEvent>();
 
@@ -257,7 +262,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
 
         var @event = _fixture.Create<IEvent>();
 
@@ -292,7 +298,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             batchHandler,
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
 
         var @event = _fixture.Create<IEvent>();
 
@@ -320,7 +327,8 @@ public sealed class BatchEventObserverTests
             new BatchConfiguration { BatchTriggerTimeout = TimeSpan.FromDays(1), MaxBatchSize = batchCount },
             Substitute.For<IEventHandler<IEvent>>(),
             _consumer,
-            _handlersRegistry);
+            _handlersRegistry,
+            NullLogger<BatchEventObserver<IEvent>>.Instance);
 
         var @event = _fixture.Create<IEvent>();
 
