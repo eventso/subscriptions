@@ -12,7 +12,7 @@ public sealed class TestHostStartup
         _outputHelperAccessor = outputHelperAccessor;
     }
 
-    public IServiceCollection CreateServiceCollection()
+    public IServiceCollection CreateServiceCollection(TimeSpan? delay = default)
     {
         var services = new ServiceCollection();
 
@@ -20,7 +20,7 @@ public sealed class TestHostStartup
             .AddSingleton<ITestOutputHelperAccessor>(_outputHelperAccessor)
             .AddLogging(builder =>
                 builder.AddXunitOutput())
-            .AddSingleton(new CollectingHandler.Options(TimeSpan.FromMilliseconds(1)))
+            .AddSingleton(new CollectingHandler.Options(delay ?? TimeSpan.FromMilliseconds(1)))
             .Scan(x => x.FromTypes(typeof(CollectingHandler))
                 .AsSelfWithInterfaces()
                 .WithSingletonLifetime());

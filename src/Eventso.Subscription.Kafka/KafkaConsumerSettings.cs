@@ -43,10 +43,10 @@ public class KafkaConsumerSettings
 
     private KafkaConsumerSettings(
         string groupId,
-        TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
-        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string? groupInstanceId = null)
+        TimeSpan? maxPollInterval,
+        TimeSpan? sessionTimeout,
+        AutoOffsetReset autoOffsetReset,
+        string? groupInstanceId)
         : this()
     {
         Config.GroupId = groupId;
@@ -62,8 +62,30 @@ public class KafkaConsumerSettings
             Config.SessionTimeoutMs = (int)sessionTimeout.Value.TotalMilliseconds;
     }
 
+    private KafkaConsumerSettings(
+        ConsumerConfig config,
+        Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory)
+    {
+        Config = config;
+        _builderFactory = builderFactory;
+    }
+
     public ConsumerConfig Config { get; }
 
     public ConsumerBuilder<Guid, ConsumedMessage> CreateBuilder()
         => _builderFactory(Config);
+
+    public KafkaConsumerSettings GetForInstance(int consumerInstanceNumber)
+    {
+        if (Config.GroupInstanceId == null || consumerInstanceNumber == 0)
+            return this;
+
+        var config = new ConsumerConfig(new Dictionary<string, string>(Config));
+
+        config.GroupInstanceId += "#" + consumerInstanceNumber;
+
+        return new KafkaConsumerSettings(
+            config,
+            _builderFactory);
+    }
 }

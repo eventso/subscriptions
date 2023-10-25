@@ -1,5 +1,4 @@
-﻿using Confluent.Kafka;
-using Eventso.Subscription.Hosting;
+﻿using Eventso.Subscription.Hosting;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.SpanJson;
 
@@ -25,7 +24,7 @@ public sealed class BatchPause : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FailingBatch_Puased()
+    public async Task FailingBatch_Paused()
     {
         const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
@@ -76,6 +75,39 @@ public sealed class BatchPause : IAsyncLifetime
         _topicSource.GetLag(topic, consumerSettings.Config.GroupId)
             .Should().OnlyContain(x => x.lag == 0);
     }
+
+    //[Fact]
+    //public async Task VeryLongBatch_Paused()
+    //{
+    //    const int messageCount = 10_000;
+    //    var batchTriggerTimeout = TimeSpan.FromSeconds(5);
+
+    //    var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
+    //    var consumerSettings = _config.ToSettings(topic);
+    //    consumerSettings.Config.SessionTimeoutMs = 10000;
+
+    //    await using var host = _hostStartup
+    //        .CreateServiceCollection(delay: TimeSpan.FromSeconds(15))
+    //        .AddSubscriptions((s, _) =>
+    //            s.AddBatch(
+    //                consumerSettings,
+    //                new BatchConfiguration
+    //                {
+    //                    BatchTriggerTimeout = batchTriggerTimeout,
+    //                    MaxBatchSize = messageCount / 100,
+    //                    MaxBufferSize = messageCount
+    //                },
+    //                new JsonMessageDeserializer<BlackMessage>()))
+    //        .CreateHost();
+
+    //    using var diagnosticCollector = new DiagnosticCollector();
+
+    //    var messageHandler = host.GetHandler();
+        
+    //    await host.Start();
+
+    //    await host.WhenAll(messageHandler.BlackSet.WaitUntil(messageCount, TimeSpan.FromDays(1)));
+    //}
 
     public Task InitializeAsync()
         => Task.CompletedTask;

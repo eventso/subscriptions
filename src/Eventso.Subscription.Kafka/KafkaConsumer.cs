@@ -187,9 +187,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                     if (_pausedTopicsObservers.Remove(topic, out var task))
                         await task;
 
-                    PauseUntil(Task.Delay(_maxObserveInterval, token), topic);
+                    PauseUntil(DelayedThrow(), topic);
 
                     return null;
+
+                    async Task DelayedThrow()
+                    {
+                        await Task.Delay(_maxObserveInterval, token);
+
+                        throw new ConsumeException(ex.ConsumerRecord, ex.Error, ex.InnerException);
+                    }
                 }
 
                 throw;

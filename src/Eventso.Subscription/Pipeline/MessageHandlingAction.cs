@@ -53,7 +53,8 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
 
     private static async Task Handle<T>(IMessageHandler<T> handler, T message, CancellationToken token)
     {
-        using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.PipelineHandle)?
+        //temp root
+        using var activity = Diagnostic.StartRooted(Diagnostic.PipelineHandle).Activity?
             .AddTag("type", handler.GetType());
 
         try

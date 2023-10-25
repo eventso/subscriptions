@@ -8,10 +8,12 @@ public sealed class CollectingHandler : IMessageHandler<RedMessage>,
     IMessageHandler<IReadOnlyCollection<BlackMessage>>
 {
     private readonly Options _options;
+    private readonly Xunit.DependencyInjection.ITestOutputHelperAccessor _outputHelperAccessor;
 
-    public CollectingHandler(Options options)
+    public CollectingHandler(Options options, Xunit.DependencyInjection.ITestOutputHelperAccessor outputHelperAccessor)
     {
         _options = options;
+        _outputHelperAccessor = outputHelperAccessor;
     }
 
     public WaitingCollection<RedMessage> Red { get; } = new(new List<RedMessage>());
@@ -62,6 +64,8 @@ public sealed class CollectingHandler : IMessageHandler<RedMessage>,
 
     public async Task Handle(IReadOnlyCollection<BlackMessage> message, CancellationToken token)
     {
+        _outputHelperAccessor.Output!.WriteLine("received:" + message.Count);
+
         await Task.Delay(_options.Delay, token);
         Black.AddRange(message);
         BlackSet.AddRange(message);

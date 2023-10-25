@@ -52,4 +52,20 @@ public sealed class SubscriptionConfiguration
 
     public bool Contains(string topic)
         => TopicConfigurations.Any(c => c.Topic.Equals(topic));
+
+    internal IEnumerable<SubscriptionConfiguration> ClonePerConsumerInstance()
+    {
+        if (ConsumerInstances == 1)
+            yield return this;
+        else
+        {
+            foreach (var i in  Enumerable.Range(0, ConsumerInstances))
+            {
+                yield return new SubscriptionConfiguration(
+                    Settings.GetForInstance(i),
+                    ConsumerInstances,
+                    TopicConfigurations);
+            }
+        }
+    }
 }

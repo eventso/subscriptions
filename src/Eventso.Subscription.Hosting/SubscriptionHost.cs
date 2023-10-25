@@ -26,8 +26,7 @@ public sealed class SubscriptionHost : BackgroundService, ISubscriptionHost
     {
         var subscriptionTasks = _subscriptions
             .SelectMany(c =>
-                Enumerable.Range(0, c.ConsumerInstances)
-                    .Select(_ => RunConsuming(c, stoppingToken)))
+                c.ClonePerConsumerInstance().Select(_ => RunConsuming(c, stoppingToken)))
             .ToArray();
 
         return Task.WhenAll(subscriptionTasks);
