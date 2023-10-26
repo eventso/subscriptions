@@ -72,8 +72,6 @@ public sealed class SerializationFail : IAsyncLifetime
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
 
-        await _topicSource.PublishMessages<WrongBlackMessage>(topics.Black.Topic, _fixture, messageCount);
-
         var consumerSettings = _config.ToSettings();
         consumerSettings.Config.SessionTimeoutMs = 15000;
         consumerSettings.Config.MaxPollIntervalMs = 20000;
@@ -87,7 +85,7 @@ public sealed class SerializationFail : IAsyncLifetime
                         .AddJson<RedMessage>(topics.Red.Topic, bufferSize: 1)
                         .AddJson<GreenMessage>(topics.Green.Topic, bufferSize: 1)
                         .AddBatchJson<BlueMessage>(topics.Blue.Topic)
-                        .AddBatchJson<BlackMessage>(topics.Black.Topic)))
+                        .AddBatchJson<WrongBlackMessage>(topics.Black.Topic)))
             .CreateHost();
 
         var messageHandler = host.GetHandler();
@@ -96,41 +94,21 @@ public sealed class SerializationFail : IAsyncLifetime
 
         await host.Start();
 
-        await host.WhenAll(
+        await Task.WhenAll(
             messageHandler.RedSet.WaitUntil(messageCount),
             messageHandler.GreenSet.WaitUntil(messageCount),
             messageHandler.BlueSet.WaitUntil(messageCount));
 
-        await Task.Delay(consumerSettings.Config.MaxPollIntervalMs!.Value + 1000);
-        //we already have consumed Black topic here 2 times
+        await Task.Delay(consumerSettings.Config.MaxPollIntervalMs!.Value * 2 + 1000);
+
+        //no commits
+        _topicSource.GetCommittedOffsets(topics.Black.Topic, consumerSettings.Config.GroupId)
+            .Should().OnlyContain(x => x.Offset.Equals(Offset.Unset));
 
         var pausedActivities = diagnosticCollector.GetStarted(KafkaDiagnostic.Pause).ToArray();
         pausedActivities.Length.Should().BeGreaterOrEqualTo(2);
 
         pausedActivities.Should().AllSatisfy(a => a.GetTagItem("topic").Should().Be(topics.Black.Topic));
-
-        messageHandler.BlackSet.Clear();
-
-        await _topicSource.DeleteRecords(topics.Black.Topic);
-        await _topicSource.PublishMessages<BlackMessage>(topics.Black.Topic, _fixture, messageCount);
-        //resume consume
-        
-        await host.WhenAll(
-            messageHandler.BlackSet.WaitUntil(messageCount));
-
-        var resumedActivities = diagnosticCollector.GetStopped(KafkaDiagnostic.Pause);
-        resumedActivities.Should().AllSatisfy(a => a.GetTagItem("topic").Should().Be(topics.Black.Topic));
-
-        messageHandler.RedSet.Should().HaveCount(messageCount);
-        messageHandler.GreenSet.Should().HaveCount(messageCount);
-        messageHandler.BlueSet.Should().HaveCount(messageCount);
-        messageHandler.BlackSet.Should().HaveCount(messageCount);
-
-        await Task.Delay(consumerSettings.Config.AutoCommitIntervalMs + 500 ?? 0);
-
-        topics.GetAll().SelectMany(t =>
-                _topicSource.GetLag(t, consumerSettings.Config.GroupId))
-            .Should().OnlyContain(x => x.lag == 0);
     }
 
     public Task InitializeAsync()

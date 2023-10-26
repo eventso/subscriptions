@@ -17,14 +17,16 @@ public class KafkaConsumerSettings
         };
     }
 
+    /// <summary>
+    /// Note: Auto-generated group.instance.id
+    /// </summary>
     public KafkaConsumerSettings(
         string brokers,
         string groupId,
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
-        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string? groupInstanceId = null)
-        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
+        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, Guid.NewGuid().ToString())
     {
         Config.BootstrapServers = brokers;
     }
@@ -32,11 +34,38 @@ public class KafkaConsumerSettings
     public KafkaConsumerSettings(
         Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
         string groupId,
+        string? groupInstanceId,
         TimeSpan? maxPollInterval = default,
         TimeSpan? sessionTimeout = default,
-        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest,
-        string? groupInstanceId = null)
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
         : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+    {
+        _builderFactory = builderFactory;
+    }
+
+    public KafkaConsumerSettings(
+        string brokers,
+        string groupId,
+        string? groupInstanceId,
+        TimeSpan? maxPollInterval = default,
+        TimeSpan? sessionTimeout = default,
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
+        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+    {
+        Config.BootstrapServers = brokers;
+    }
+
+
+    /// <summary>
+    /// Note: Auto-generated group.instance.id
+    /// </summary>
+    public KafkaConsumerSettings(
+        Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
+        string groupId,
+        TimeSpan? maxPollInterval = default,
+        TimeSpan? sessionTimeout = default,
+        AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
+        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, Guid.NewGuid().ToString())
     {
         _builderFactory = builderFactory;
     }

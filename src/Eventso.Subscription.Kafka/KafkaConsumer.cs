@@ -193,7 +193,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
                     async Task DelayedThrow()
                     {
-                        await Task.Delay(_maxObserveInterval, token);
+                        await Task.Delay(_maxObserveInterval * 2, token);
 
                         throw new ConsumeException(ex.ConsumerRecord, ex.Error, ex.InnerException);
                     }
