@@ -14,7 +14,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
     private readonly bool _autoCommitMode;
-    private readonly TimeSpan _observeTimeout;
+    private readonly TimeSpan _observeMaxDelay;
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
 
     public KafkaConsumer(
@@ -22,36 +22,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         IObserverFactory observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
         IPoisonRecordInbox poisonRecordInbox,
-        ConsumerConfig config,
+        KafkaConsumerSettings settings,
         ILogger<KafkaConsumer> logger)
-        : this(
-            topics,
-            observerFactory,
-            deserializer,
-            poisonRecordInbox,
-            new ConsumerBuilder<Guid, ConsumedMessage>(config),
-            logger,
-            config.MaxPollIntervalMs,
-            config.SessionTimeoutMs,
-            config.EnableAutoCommit)
-    {
-        if (string.IsNullOrWhiteSpace(config.BootstrapServers))
-            throw new InvalidOperationException("Brokers are not specified.");
-
-        if (string.IsNullOrEmpty(config.GroupId))
-            throw new InvalidOperationException("Group Id is not specified.");
-    }
-
-    public KafkaConsumer(
-        string[] topics,
-        IObserverFactory observerFactory,
-        IDeserializer<ConsumedMessage> deserializer,
-        IPoisonRecordInbox poisonRecordInbox,
-        ConsumerBuilder<Guid, ConsumedMessage> consumerBuilder,
-        ILogger<KafkaConsumer> logger,
-        int? maxPollIntervalMs,
-        int? sessionTimeoutMs,
-        bool? enableAutoCommit)
     {
         if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
@@ -62,11 +34,14 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
-        _maxObserveInterval = (maxPollIntervalMs ?? 300000) + 500;
-        _observeTimeout = TimeSpan.FromMilliseconds(sessionTimeoutMs ?? 45000);
+
+        _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
+        _observeMaxDelay = settings.PauseAfterObserveDelay
+            ?? TimeSpan.FromMilliseconds(settings.Config.SessionTimeoutMs ?? 45000);
+
         _logger = logger;
 
-        _consumer = consumerBuilder
+        _consumer = settings.CreateBuilder()
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
@@ -74,7 +49,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
-        _autoCommitMode = enableAutoCommit == true;
+        _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
         _consumer.Subscribe(topics);
     }
@@ -99,8 +74,6 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
     public async Task Consume(CancellationToken stoppingToken)
     {
-        await Task.Yield();
-
         using var timeoutTokenSource = new CancellationTokenSource();
         using var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(
             stoppingToken,
@@ -222,7 +195,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         if (!observeTask.IsCompleted)
         {
-            await Task.WhenAny(observeTask, Task.Delay(_observeTimeout, token));
+            await Task.WhenAny(observeTask, Task.Delay(_observeMaxDelay, token));
 
             if (!observeTask.IsCompleted)
             {

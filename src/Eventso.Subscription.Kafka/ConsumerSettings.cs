@@ -13,9 +13,8 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         string groupId,
         string? groupInstanceId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : base(brokers, groupId, groupInstanceId, maxPollInterval, sessionTimeout, autoOffsetReset)
+        : base(brokers, groupId, groupInstanceId, maxPollInterval, autoOffsetReset)
     {
     }
 
@@ -26,9 +25,8 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         string brokers,
         string groupId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : base(brokers, groupId, maxPollInterval, sessionTimeout, autoOffsetReset)
+        : base(brokers, groupId, maxPollInterval, autoOffsetReset)
     {
     }
 
@@ -37,9 +35,8 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         string groupId,
         string? groupInstanceId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : base(builderFactory, groupId, groupInstanceId, maxPollInterval, sessionTimeout, autoOffsetReset)
+        : base(builderFactory, groupId, groupInstanceId, maxPollInterval, autoOffsetReset)
     {
     }
 
@@ -50,9 +47,8 @@ public sealed class ConsumerSettings : KafkaConsumerSettings
         Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
         string groupId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : base(builderFactory, groupId, maxPollInterval, sessionTimeout, autoOffsetReset)
+        : base(builderFactory, groupId, maxPollInterval, autoOffsetReset)
     {
     }
 

@@ -24,9 +24,8 @@ public class KafkaConsumerSettings
         string brokers,
         string groupId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, Guid.NewGuid().ToString())
+        : this(groupId, maxPollInterval, autoOffsetReset, Guid.NewGuid().ToString())
     {
         Config.BootstrapServers = brokers;
     }
@@ -36,9 +35,8 @@ public class KafkaConsumerSettings
         string groupId,
         string? groupInstanceId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+        : this(groupId, maxPollInterval, autoOffsetReset, groupInstanceId)
     {
         _builderFactory = builderFactory;
     }
@@ -48,9 +46,8 @@ public class KafkaConsumerSettings
         string groupId,
         string? groupInstanceId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, groupInstanceId)
+        : this(groupId, maxPollInterval, autoOffsetReset, groupInstanceId)
     {
         Config.BootstrapServers = brokers;
     }
@@ -63,9 +60,8 @@ public class KafkaConsumerSettings
         Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory,
         string groupId,
         TimeSpan? maxPollInterval = default,
-        TimeSpan? sessionTimeout = default,
         AutoOffsetReset autoOffsetReset = AutoOffsetReset.Earliest)
-        : this(groupId, maxPollInterval, sessionTimeout, autoOffsetReset, Guid.NewGuid().ToString())
+        : this(groupId, maxPollInterval, autoOffsetReset, Guid.NewGuid().ToString())
     {
         _builderFactory = builderFactory;
     }
@@ -73,7 +69,6 @@ public class KafkaConsumerSettings
     private KafkaConsumerSettings(
         string groupId,
         TimeSpan? maxPollInterval,
-        TimeSpan? sessionTimeout,
         AutoOffsetReset autoOffsetReset,
         string? groupInstanceId)
         : this()
@@ -86,9 +81,6 @@ public class KafkaConsumerSettings
 
         if (maxPollInterval.HasValue)
             Config.MaxPollIntervalMs = (int)maxPollInterval.Value.TotalMilliseconds;
-
-        if (sessionTimeout.HasValue)
-            Config.SessionTimeoutMs = (int)sessionTimeout.Value.TotalMilliseconds;
     }
 
     private KafkaConsumerSettings(
@@ -100,6 +92,11 @@ public class KafkaConsumerSettings
     }
 
     public ConsumerConfig Config { get; }
+
+    /// <summary>
+    /// Topic will be paused when observe takes longer then the value. Default: session.timeout.ms
+    /// </summary>
+    public TimeSpan? PauseAfterObserveDelay { get; init; }
 
     public ConsumerBuilder<Guid, ConsumedMessage> CreateBuilder()
         => _builderFactory(Config);

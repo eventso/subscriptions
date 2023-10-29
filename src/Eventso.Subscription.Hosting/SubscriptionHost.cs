@@ -36,6 +36,8 @@ public sealed class SubscriptionHost : BackgroundService, ISubscriptionHost
     {
         var topics = string.Join(',', config.GetTopics());
 
+        await Task.Yield();
+
         while (!cancellationToken.IsCancellationRequested)
         {
             using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.HostConsuming)?
