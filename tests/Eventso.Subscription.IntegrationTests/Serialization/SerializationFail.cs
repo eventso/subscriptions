@@ -74,6 +74,7 @@ public sealed class SerializationFail : IAsyncLifetime
 
         var consumerSettings = _config.ToSettings(pauseAfter: TimeSpan.FromSeconds(15));
         consumerSettings.Config.MaxPollIntervalMs = 20000;
+        consumerSettings.Config.SessionTimeoutMs = 15000;
 
         await using var host = _hostStartup
             .CreateServiceCollection()
