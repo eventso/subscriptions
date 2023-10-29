@@ -72,8 +72,7 @@ public sealed class SerializationFail : IAsyncLifetime
         const int messageCount = 100;
         var topics = await _topicSource.CreateTopics(_fixture, messageCount);
 
-        var consumerSettings = _config.ToSettings();
-        consumerSettings.Config.SessionTimeoutMs = 15000;
+        var consumerSettings = _config.ToSettings(pauseAfter: TimeSpan.FromSeconds(15));
         consumerSettings.Config.MaxPollIntervalMs = 20000;
 
         await using var host = _hostStartup

@@ -9,7 +9,8 @@ public sealed record KafkaConfig(
 {
     public ConsumerSettings ToSettings(
         string? topic,
-        bool enableAutoCommit = false)
+        bool enableAutoCommit = false,
+        TimeSpan? pauseAfter = default)
     {
         return new ConsumerSettings(
             Brokers,
@@ -21,11 +22,13 @@ public sealed record KafkaConfig(
             {
                 AutoCommitIntervalMs = 500,
                 EnableAutoCommit = enableAutoCommit
-            }
+            },
+            PauseAfterObserveDelay = pauseAfter
         };
     }
 
     public KafkaConsumerSettings ToSettings(
-        bool enableAutoCommit = false)
-        => ToSettings(null, enableAutoCommit);
+        bool enableAutoCommit = false,
+        TimeSpan? pauseAfter = default)
+        => ToSettings(null, enableAutoCommit, pauseAfter);
 };
