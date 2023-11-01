@@ -32,6 +32,9 @@ public sealed class ObserverFactory : IObserverFactory
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
             : CreateSingleEventObserver(consumer, eventHandler, topicConfig);
 
+        if (topicConfig.ObservingDelay is { Ticks: > 0 })
+            observer = new DelayedEventObserver<TEvent>(topicConfig.ObservingDelay.Value, observer);
+
         return observer;
     }
 

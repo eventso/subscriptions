@@ -66,6 +66,8 @@ public sealed class TopicSubscriptionConfiguration
 
     public string Topic { get; set; }
 
+    public TimeSpan? ObservingDelay { get; init; }
+
     public IMessageDeserializer Serializer { get; }
 
     public HandlerConfiguration HandlerConfig { get; }
