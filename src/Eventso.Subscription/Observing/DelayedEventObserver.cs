@@ -16,7 +16,7 @@ public sealed class DelayedEventObserver<TEvent> : IObserver<TEvent>
     {
         var eventDelay = DateTime.UtcNow - @event.GetUtcTimestamp();
 
-        if (eventDelay.Ticks > 0 && eventDelay < _delay)
+        if (eventDelay < _delay)
             await Task.Delay(_delay - eventDelay, token);
 
         await _inner.OnEventAppeared(@event, token);
