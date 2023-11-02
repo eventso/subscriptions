@@ -13,7 +13,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         HandlerConfiguration? handlerConfig = default,
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
-        int instances = 1)
+        int instances = 1,
+        TimeSpan? messageObservingDelay = default)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
@@ -23,7 +24,10 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 serializer,
                 handlerConfig,
                 deferredAckConfig,
-                skipUnknownMessages));
+                skipUnknownMessages)
+            {
+                ObservingDelay = messageObservingDelay
+            });
 
         return Add(subscription);
     }
@@ -34,7 +38,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
-        int instances = 1)
+        int instances = 1,
+        TimeSpan? messageObservingDelay = default)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
@@ -44,7 +49,10 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 batchConfig,
                 serializer,
                 handlerConfig,
-                skipUnknownMessages));
+                skipUnknownMessages)
+            {
+                ObservingDelay = messageObservingDelay
+            });
 
         return Add(subscription);
     }
@@ -105,7 +113,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             HandlerConfiguration? handlerConfig = default,
             DeferredAckConfiguration? deferredAckConfig = default,
             bool skipUnknownMessages = true,
-            int bufferSize = 10)
+            int bufferSize = 10,
+            TimeSpan? messageObservingDelay = default)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
@@ -113,7 +122,10 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 handlerConfig,
                 deferredAckConfig,
                 skipUnknownMessages,
-                bufferSize: bufferSize));
+                bufferSize: bufferSize)
+            {
+                ObservingDelay = messageObservingDelay
+            });
         }
 
         public IMultiTopicSubscriptionCollection AddBatch(
@@ -121,14 +133,18 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             BatchConfiguration batchConfig,
             IMessageDeserializer serializer,
             HandlerConfiguration? handlerConfig = default,
-            bool skipUnknownMessages = true)
+            bool skipUnknownMessages = true,
+            TimeSpan? messageObservingDelay = default)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
                 batchConfig,
                 serializer,
                 handlerConfig,
-                skipUnknownMessages));
+                skipUnknownMessages)
+            {
+                ObservingDelay = messageObservingDelay
+            });
         }
 
         public IMultiTopicSubscriptionCollection Add(TopicSubscriptionConfiguration configuration)

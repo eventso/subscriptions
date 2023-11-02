@@ -10,7 +10,8 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
         HandlerConfiguration? handlerConfig = default,
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
-        int instances = 1);
+        int instances = 1,
+        TimeSpan? messageObservingDelay = default);
 
     ISubscriptionCollection AddBatch(
         ConsumerSettings settings,
@@ -18,7 +19,8 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
-        int instances = 1);
+        int instances = 1,
+        TimeSpan? messageObservingDelay = default);
 
     ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,

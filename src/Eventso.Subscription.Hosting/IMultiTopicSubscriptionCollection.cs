@@ -8,14 +8,16 @@ public interface IMultiTopicSubscriptionCollection
         HandlerConfiguration? handlerConfig = default,
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
-        int bufferSize = 10);
+        int bufferSize = 10,
+        TimeSpan? messageObservingDelay = default);
 
     IMultiTopicSubscriptionCollection AddBatch(
         string topic,
         BatchConfiguration batchConfig,
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
-        bool skipUnknownMessages = true);
+        bool skipUnknownMessages = true,
+        TimeSpan? messageObservingDelay = default);
 
     IMultiTopicSubscriptionCollection Add(TopicSubscriptionConfiguration configuration);
 }
