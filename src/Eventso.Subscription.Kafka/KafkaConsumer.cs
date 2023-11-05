@@ -157,8 +157,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                     activity?.SetTags(ex.ConsumerRecord);
                     var topic = ex.ConsumerRecord.Topic;
 
-                    if (_pausedTopicsObservers.Remove(topic, out var task))
-                        await task;
+                    await WaitPendingPause(topic);
 
                     PauseUntil(DelayedThrow(), topic);
 
@@ -182,12 +181,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         ConsumeResult<Guid, ConsumedMessage> result,
         CancellationToken token)
     {
-        if (_pausedTopicsObservers.Count > 0 &&
-            _pausedTopicsObservers.Remove(result.Topic, out var pausedTask))
-        {
-            _logger.LogInformation($"Waiting paused task for topic {result.Topic}");
-            await pausedTask;
-        }
+        await WaitPendingPause(result.Topic);
 
         var observer = observers.GetObserver(result.Topic);
 
@@ -209,6 +203,18 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         var resumeTask = ResumeOnComplete(waitingTask, topic);
         _pausedTopicsObservers.Add(topic, resumeTask);
+    }
+
+    private ValueTask WaitPendingPause(string topic)
+    {
+        if (_pausedTopicsObservers.Count > 0 &&
+            _pausedTopicsObservers.Remove(topic, out var pausedTask))
+        {
+            _logger.LogInformation("Waiting paused task for topic {Topic}", topic);
+            return new(pausedTask);
+        }
+
+        return default;
     }
 
     private async Task ResumeOnComplete(Task waitingTask, string topic)
