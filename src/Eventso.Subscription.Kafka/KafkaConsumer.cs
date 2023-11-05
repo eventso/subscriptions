@@ -193,18 +193,14 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         var observeTask = Observe(result, observer, token);
 
-        if (!observeTask.IsCompleted)
+        try
         {
-            await Task.WhenAny(observeTask, Task.Delay(_observeMaxDelay, token));
-
-            if (!observeTask.IsCompleted)
-            {
-                PauseUntil(observeTask, result.Topic);
-                return;
-            }
+            await observeTask.WaitAsync(_observeMaxDelay, cancellationToken: default);
         }
-
-        await observeTask;
+        catch (TimeoutException)
+        {
+            PauseUntil(observeTask, result.Topic);
+        }
     }
 
     private void PauseUntil(Task waitingTask, string topic)
