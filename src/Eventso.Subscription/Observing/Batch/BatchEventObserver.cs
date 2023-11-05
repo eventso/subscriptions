@@ -100,6 +100,11 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             _cancellationTokenSource.Cancel();
 
         _cancellationTokenSource.Dispose();
+
+        // drain potentially unobserved task exception
+        // it's observed elsewhere via _batchChannel's Writer.TryComplete(ex) and Reader.Completion
+        if (_batchHandlingTask.IsFaulted)
+            _ = _batchHandlingTask.Exception;
     }
 
     private async Task BeginBatchHandling()
