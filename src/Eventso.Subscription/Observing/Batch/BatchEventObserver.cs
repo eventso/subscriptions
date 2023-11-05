@@ -92,13 +92,14 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
         _disposed = true;
         _buffer.Dispose();
         _batchChannel.Writer.TryComplete();
 
-        if (!_cancellationTokenSource.IsCancellationRequested)
-            _cancellationTokenSource.Cancel();
-
+        _cancellationTokenSource.Cancel();
         _cancellationTokenSource.Dispose();
 
         // drain potentially unobserved task exception

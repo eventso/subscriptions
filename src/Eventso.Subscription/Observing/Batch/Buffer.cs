@@ -90,10 +90,12 @@ internal sealed class Buffer<TEvent> : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
         _disposed = true;
 
-        if (!_tokenSource.IsCancellationRequested)
-            _tokenSource.Cancel();
+        _tokenSource.Cancel();
 
         _timer.Dispose();
         _channel.Writer.TryComplete();
