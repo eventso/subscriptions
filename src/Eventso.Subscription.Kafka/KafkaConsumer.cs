@@ -16,6 +16,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly bool _autoCommitMode;
     private readonly TimeSpan _observeMaxDelay;
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
+    private readonly List<TopicPartition> _pausedTopicPartitions = new();
 
     public KafkaConsumer(
         string[] topics,
@@ -250,22 +251,31 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     {
         var assignments = _consumer.Subscription.Count == 1
             ? _consumer.Assignment
-            : _consumer.Assignment.Where(t => t.Topic.Equals(topic));
+            : _consumer.Assignment.Where(t => t.Topic.Equals(topic)).ToList();
 
         _consumer.Pause(assignments);
 
-        _logger.LogInformation($"Topic '{topic}' consuming paused");
+        lock (_pausedTopicPartitions)
+            _pausedTopicPartitions.AddRange(assignments);
+
+        _logger.LogInformation($"Topic '{topic}' consuming paused. Partitions: " +
+            string.Join(',', assignments.Select(x => x.Partition.Value)));
     }
 
     private void ResumeAssignments(string topic)
     {
-        var assignments = _consumer.Subscription.Count == 1
-            ? _consumer.Assignment
-            : _consumer.Assignment.Where(t => t.Topic.Equals(topic));
+        List<TopicPartition> resumed;
 
-        _consumer.Resume(assignments);
+        lock (_pausedTopicPartitions)
+        {
+            resumed = _pausedTopicPartitions.FindAll(t => t.Topic.Equals(topic));
+            _pausedTopicPartitions.RemoveAll(t => t.Topic.Equals(topic));
+        }
 
-        _logger.LogInformation($"Topic '{topic}' consuming resumed");
+        _consumer.Resume(resumed);
+
+        _logger.LogInformation($"Topic '{topic}' consuming resumed. Partitions: " +
+            string.Join(',', resumed.Select(x => x.Partition.Value)));
     }
 
     private async Task Observe(
