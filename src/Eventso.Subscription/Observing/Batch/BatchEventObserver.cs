@@ -1,11 +1,12 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Eventso.Subscription.Configurations;
 
 namespace Eventso.Subscription.Observing.Batch;
 
 public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
-    where TEvent : IEvent
+    where TEvent : IEvent, IGroupedMetadata<TEvent>
 {
     private readonly IEventHandler<TEvent> _handler;
     private readonly Channel<Buffer<TEvent>.Batch> _batchChannel;
@@ -136,6 +137,8 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
 
     private async Task HandleBatch(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
     {
+        using var tracingScope = CreateBatchActivity(events);
+
         if (events.Count == 0)
             return;
 
@@ -161,8 +164,28 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             _logger.LogError(ex, "Handling batch failed.");
 
             _consumer.Cancel();
+            tracingScope.Activity?.SetException(ex);
+
             throw;
         }
+    }
+
+    private static Diagnostic.RootActivityScope CreateBatchActivity(PooledList<Buffer<TEvent>.BufferedEvent> events)
+    {
+        var scope = Diagnostic.StartRooted("batch.handle");
+        if (scope.Activity is { } activity)
+        {
+            var ts = DateTimeOffset.UtcNow;
+            foreach (var metadataGroup in TEvent.GroupedMetadata(events.Select(static e => e.Event)))
+            {
+                activity.AddEvent(new ActivityEvent(
+                    name: "batch.metadata",
+                    timestamp: ts,
+                    tags: new ActivityTagsCollection(metadataGroup!)));
+            }
+        }
+
+        return scope;
     }
 
     private static PooledList<TEvent> GetEventsToHandle(

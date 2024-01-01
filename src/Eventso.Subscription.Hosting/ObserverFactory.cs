@@ -20,7 +20,7 @@ public sealed class ObserverFactory : IObserverFactory
     }
 
     public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
-        where TEvent : IEvent
+        where TEvent : IEvent, IGroupedMetadata<TEvent>
     {
         var topicConfig = _configuration.GetByTopic(topic);
 
@@ -42,7 +42,7 @@ public sealed class ObserverFactory : IObserverFactory
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
         TopicSubscriptionConfiguration configuration)
-        where TEvent : IEvent
+        where TEvent : IEvent, IGroupedMetadata<TEvent>
     {
         return new BatchEventObserver<TEvent>(
             configuration.BatchConfiguration!,
