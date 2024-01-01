@@ -2,7 +2,7 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka;
 
-public class KafkaConsumerSettings
+public record KafkaConsumerSettings
 {
     private readonly Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> _builderFactory =
         c => new ConsumerBuilder<Guid, ConsumedMessage>(c);
@@ -83,15 +83,7 @@ public class KafkaConsumerSettings
             Config.MaxPollIntervalMs = (int)maxPollInterval.Value.TotalMilliseconds;
     }
 
-    private KafkaConsumerSettings(
-        ConsumerConfig config,
-        Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> builderFactory)
-    {
-        Config = config;
-        _builderFactory = builderFactory;
-    }
-
-    public ConsumerConfig Config { get; }
+    public ConsumerConfig Config { get; init; }
 
     /// <summary>
     /// Topic will be paused when observe takes longer then the value. Default: session.timeout.ms
@@ -110,8 +102,6 @@ public class KafkaConsumerSettings
 
         config.GroupInstanceId += "#" + consumerInstanceNumber;
 
-        return new KafkaConsumerSettings(
-            config,
-            _builderFactory);
+        return this with { Config =  config };
     }
 }

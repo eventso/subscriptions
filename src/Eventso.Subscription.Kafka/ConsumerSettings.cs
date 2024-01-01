@@ -2,7 +2,7 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka;
 
-public sealed class ConsumerSettings : KafkaConsumerSettings
+public sealed record ConsumerSettings : KafkaConsumerSettings
 {
     public ConsumerSettings()
     {

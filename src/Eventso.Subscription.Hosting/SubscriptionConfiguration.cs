@@ -2,7 +2,7 @@ using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.Hosting;
 
-public sealed class SubscriptionConfiguration
+public sealed record SubscriptionConfiguration
 {
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
@@ -34,7 +34,7 @@ public sealed class SubscriptionConfiguration
 
     public TopicSubscriptionConfiguration[] TopicConfigurations { get; }
 
-    public KafkaConsumerSettings Settings { get; }
+    public KafkaConsumerSettings Settings { get; private init; }
 
     public TopicSubscriptionConfiguration GetByTopic(string topic)
     {
@@ -61,10 +61,7 @@ public sealed class SubscriptionConfiguration
         {
             foreach (var i in  Enumerable.Range(0, ConsumerInstances))
             {
-                yield return new SubscriptionConfiguration(
-                    Settings.GetForInstance(i),
-                    ConsumerInstances,
-                    TopicConfigurations);
+                yield return this with { Settings = Settings.GetForInstance(i) };
             }
         }
     }
