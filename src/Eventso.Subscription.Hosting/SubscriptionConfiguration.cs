@@ -47,8 +47,8 @@ public sealed record SubscriptionConfiguration
         throw new InvalidOperationException($"Configuration for topic '{topic}' not found.");
     }
 
-    public string[] GetTopics()
-        => TopicConfigurations.Select(t => t.Topic).ToArray();
+    public IEnumerable<TopicSettings> GetTopics()
+        => TopicConfigurations.Select(t => new TopicSettings(t.Topic, default, PipelineInstance.PerTopic));
 
     public bool Contains(string topic)
         => TopicConfigurations.Any(c => c.Topic.Equals(topic));
@@ -59,7 +59,7 @@ public sealed record SubscriptionConfiguration
             yield return this;
         else
         {
-            foreach (var i in  Enumerable.Range(0, ConsumerInstances))
+            foreach (var i in Enumerable.Range(0, ConsumerInstances))
             {
                 yield return this with { Settings = Settings.GetForInstance(i) };
             }

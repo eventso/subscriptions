@@ -28,7 +28,7 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
                 _handlersRegistry,
                 _loggerFactory),
             new ValueDeserializer(
-                new CompositeDeserializer(config.TopicConfigurations.Select(c => (c.Topic, c.Serializer))),
+                new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),
                 _handlersRegistry),
             // TODO get some service from DI instead of default
             //config.EnableDeadLetterQueue ? default : null,

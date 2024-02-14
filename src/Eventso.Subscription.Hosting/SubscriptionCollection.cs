@@ -81,7 +81,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         foreach (var topic in configuration.GetTopics())
         {
             var hasDuplicates = _subscriptions.Any(s =>
-                s.Contains(topic) &&
+                s.Contains(topic.Topic) &&
                 !string.IsNullOrEmpty(s.Settings.Config.GroupId) &&
                 string.Equals(s.Settings.Config.GroupId, configuration.Settings.Config.GroupId));
 

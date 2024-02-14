@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
@@ -5,9 +6,28 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka;
 
+public enum PipelineInstance
+{
+    PerTopic,
+    PerPartition
+}
+
+public readonly record struct TopicSettings(string Topic, TimeSpan? PauseAfterObserveDelay, PipelineInstance PipelineStrategy)
+{
+    internal TopicKey CreateKey<TK, TV>(ConsumeResult<TK, TV> result)
+    {
+        return PipelineStrategy switch
+        {
+            PipelineInstance.PerTopic => new TopicKey(result.Topic),
+            PipelineInstance.PerPartition => new TopicKey(result.Topic, result.Partition),
+            _ => throw new NotImplementedException($"{PipelineStrategy} not implemented")
+        };
+    }
+}
+
 public sealed class KafkaConsumer : ISubscriptionConsumer
 {
-    private readonly TopicDictionary<string> _topics;
+    private readonly FrozenDictionary<string, TopicSettings> _topics;
     private readonly IObserverFactory _observerFactory;
     private readonly IPoisonRecordInbox _poisonRecordInbox;
     private readonly int _maxObserveInterval;
@@ -15,11 +35,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
     private readonly bool _autoCommitMode;
     private readonly TimeSpan _observeMaxDelay;
-    private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
+    private readonly Dictionary<TopicKey, Task> _pausedTopicsObservers = new(1);
     private readonly List<TopicPartition> _pausedTopicPartitions = new();
 
     public KafkaConsumer(
-        string[] topics,
+        IEnumerable<TopicSettings> topics,
         IObserverFactory observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
         IPoisonRecordInbox poisonRecordInbox,
@@ -28,10 +48,12 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     {
         if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
-        if (topics.Length == 0 || !Array.TrueForAll(topics, t => !string.IsNullOrEmpty(t)))
+        var topicsSettings = topics.ToFrozenDictionary(x => x.Topic);
+
+        if (topicsSettings.Count == 0 || topicsSettings.Keys.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
-        _topics = new TopicDictionary<string>(topics.Select(t => (t, t)));
+        _topics = topicsSettings;
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
@@ -46,13 +68,13 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Items)}, {e.Reason}, Fatal={e.IsFatal}," +
+                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
         _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
-        _consumer.Subscribe(topics);
+        _consumer.Subscribe(topicsSettings.Keys);
     }
 
     public void Close()
@@ -82,8 +104,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
-        using var observers = new ObserverCollection(
-            _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
+        using var observers = new ObserverCollection(_observerFactory, consumer);
 
         while (!tokenSource.IsCancellationRequested)
         {
@@ -134,9 +155,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 var result = _consumer.Consume(token);
 
-                //TODO:https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.HighPerformance/Buffers/StringPool.cs
                 if (!string.IsNullOrEmpty(result.Topic))
-                    result.Topic = _topics.Get(result.Topic); // topic name interning 
+                    result.Topic = _topics[result.Topic].Topic; // topic name interning 
 
                 activity?.SetTags(result);
 
@@ -156,11 +176,12 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 if (ex.ConsumerRecord != null)
                 {
                     activity?.SetTags(ex.ConsumerRecord);
-                    var topic = ex.ConsumerRecord.Topic;
 
-                    await WaitPendingPause(topic);
+                    var topicKey = _topics[ex.ConsumerRecord.Topic].CreateKey(ex.ConsumerRecord);
 
-                    PauseUntil(DelayedThrow(), topic);
+                    await WaitPendingPause(topicKey);
+
+                    PauseUntil(DelayedThrow(), topicKey);
 
                     return null;
 
@@ -182,9 +203,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         ConsumeResult<Guid, ConsumedMessage> result,
         CancellationToken token)
     {
-        await WaitPendingPause(result.Topic);
+        //todo: get read dictionary only once per message
+        var topicKey = _topics[result.Topic].CreateKey(result);
+        await WaitPendingPause(topicKey);
 
-        var observer = observers.GetObserver(result.Topic);
+        var observer = observers.Get(topicKey);
 
         var observeTask = Observe(result, observer, token);
 
@@ -194,34 +217,35 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         }
         catch (TimeoutException)
         {
-            PauseUntil(observeTask, result.Topic);
+            PauseUntil(observeTask, topicKey);
         }
     }
 
-    private void PauseUntil(Task waitingTask, string topic)
+    private void PauseUntil(Task waitingTask, TopicKey key)
     {
-        PauseAssignments(topic);
+        PauseAssignments(key);
 
-        var resumeTask = ResumeOnComplete(waitingTask, topic);
-        _pausedTopicsObservers.Add(topic, resumeTask);
+        var resumeTask = ResumeOnComplete(waitingTask, key);
+        _pausedTopicsObservers.Add(key, resumeTask);
     }
 
-    private ValueTask WaitPendingPause(string topic)
+    private ValueTask WaitPendingPause(TopicKey key)
     {
         if (_pausedTopicsObservers.Count > 0 &&
-            _pausedTopicsObservers.Remove(topic, out var pausedTask))
+            _pausedTopicsObservers.Remove(key, out var pausedTask))
         {
-            _logger.LogInformation("Waiting paused task for topic {Topic}", topic);
+            _logger.LogInformation("Waiting paused task for topic {Topic}", key);
             return new(pausedTask);
         }
 
         return default;
     }
 
-    private async Task ResumeOnComplete(Task waitingTask, string topic)
+    private async Task ResumeOnComplete(Task waitingTask, TopicKey key)
     {
         using var activity = Diagnostic.ActivitySource.StartActivity(KafkaDiagnostic.Pause)?
-            .AddTag("topic", topic);
+            .AddTag("topic", key.Topic)
+            .AddTag("partition", key.Partition);
 
         try
         {
@@ -229,52 +253,50 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         }
         finally
         {
-            ResumeAssignments(topic);
-
-            activity?.Dispose();
+            ResumeAssignments(key);
         }
     }
 
     public void Pause(string topic)
     {
         if (_consumer.Assignment.Any(a => a.Topic.Equals(topic)))
-            PauseAssignments(topic);
+            PauseAssignments(new TopicKey(topic));
     }
 
     public void Resume(string topic)
     {
         if (_consumer.Assignment.Any(a => a.Topic.Equals(topic)))
-            ResumeAssignments(topic);
+            ResumeAssignments(new TopicKey(topic));
     }
 
-    private void PauseAssignments(string topic)
+    private void PauseAssignments(TopicKey key)
     {
         var assignments = _consumer.Subscription.Count == 1
             ? _consumer.Assignment
-            : _consumer.Assignment.Where(t => t.Topic.Equals(topic)).ToList();
+            : _consumer.Assignment.Where(t => t.Topic.Equals(key.Topic)).ToList();
 
         _consumer.Pause(assignments);
 
         lock (_pausedTopicPartitions)
             _pausedTopicPartitions.AddRange(assignments);
 
-        _logger.LogInformation($"Topic '{topic}' consuming paused. Partitions: " +
+        _logger.LogInformation($"Topic '{key.Topic}' consuming paused. Partitions: " +
             string.Join(',', assignments.Select(x => x.Partition.Value)));
     }
 
-    private void ResumeAssignments(string topic)
+    private void ResumeAssignments(TopicKey key)
     {
         List<TopicPartition> resumed;
 
         lock (_pausedTopicPartitions)
         {
-            resumed = _pausedTopicPartitions.FindAll(t => t.Topic.Equals(topic));
-            _pausedTopicPartitions.RemoveAll(t => t.Topic.Equals(topic));
+            resumed = _pausedTopicPartitions.FindAll(t => t.Topic.Equals(key.Topic));
+            _pausedTopicPartitions.RemoveAll(t => t.Topic.Equals(key.Topic));
         }
 
         _consumer.Resume(resumed);
 
-        _logger.LogInformation($"Topic '{topic}' consuming resumed. Partitions: " +
+        _logger.LogInformation($"Topic '{key.Topic}' consuming resumed. Partitions: " +
             string.Join(',', resumed.Select(x => x.Partition.Value)));
     }
 
@@ -295,39 +317,6 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 result.TopicPartitionOffset.ToString()!,
                 "Event observing failed",
                 ex);
-        }
-    }
-
-    private sealed class ObserverCollection : IDisposable
-    {
-        private readonly (string topic, IObserver<Event> observer)[] _items;
-
-        public ObserverCollection((string, IObserver<Event>)[] items)
-        {
-            _items = items;
-        }
-
-        public IObserver<Event> GetObserver(string topic)
-        {
-            if (_items.Length == 1)
-                return _items[0].observer;
-
-            for (var index = 0; index < _items.Length; index++)
-            {
-                ref readonly var item = ref _items[index];
-
-                if (ReferenceEquals(item.topic, topic))
-                    return item.observer;
-            }
-
-            throw new InvalidOperationException($"Observer not found for topic {topic}");
-        }
-
-        public void Dispose()
-        {
-            foreach (var observer in _items.Select(x => x.observer))
-                if (observer is IDisposable disposable)
-                    disposable.Dispose();
         }
     }
 }

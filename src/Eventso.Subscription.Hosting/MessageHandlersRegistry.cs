@@ -1,8 +1,10 @@
-﻿namespace Eventso.Subscription.Hosting;
+﻿using System.Collections.Frozen;
+
+namespace Eventso.Subscription.Hosting;
 
 internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
 {
-    private readonly Dictionary<Type, HandlerKind>? _types;
+    private readonly FrozenDictionary<Type, HandlerKind>? _types;
 
     public static MessageHandlersRegistry Create(IEnumerable<ServiceDescriptor> registrations)
     {
@@ -33,8 +35,7 @@ internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
 
                     var type = parameter.GenericTypeArguments[0];
 
-                    messageTypes[type] =
-                        messageTypes.TryGetValue(type, out var existing)
+                    messageTypes[type] = messageTypes.TryGetValue(type, out var existing)
                             ? existing | HandlerKind.Batch
                             : HandlerKind.Batch;
 
@@ -42,16 +43,15 @@ internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
                 }
             }
 
-            messageTypes[parameter] =
-                messageTypes.TryGetValue(parameter, out var other)
+            messageTypes[parameter] = messageTypes.TryGetValue(parameter, out var other)
                     ? other | HandlerKind.Single
                     : HandlerKind.Single;
         }
 
-        return new MessageHandlersRegistry(messageTypes);
+        return new MessageHandlersRegistry(messageTypes.ToFrozenDictionary());
     }
 
-    public MessageHandlersRegistry(Dictionary<Type, HandlerKind> messageTypes)
+    public MessageHandlersRegistry(FrozenDictionary<Type, HandlerKind> messageTypes)
         => _types = messageTypes;
 
     public MessageHandlersRegistry()
