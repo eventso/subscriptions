@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
@@ -7,7 +8,7 @@ namespace Eventso.Subscription.Kafka;
 
 public sealed class KafkaConsumer : ISubscriptionConsumer
 {
-    private readonly TopicDictionary<string> _topics;
+    private readonly FrozenDictionary<string, string> _topics;
     private readonly IObserverFactory _observerFactory;
     private readonly IPoisonRecordInbox _poisonRecordInbox;
     private readonly int _maxObserveInterval;
@@ -28,10 +29,12 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     {
         if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
-        if (topics.Length == 0 || !Array.TrueForAll(topics, t => !string.IsNullOrEmpty(t)))
+        var topicsSettings = topics.ToFrozenDictionary(x => x);
+
+        if (topicsSettings.Count == 0 || topicsSettings.Keys.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
-        _topics = new TopicDictionary<string>(topics.Select(t => (t, t)));
+        _topics = topicsSettings;
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
@@ -46,7 +49,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Items)}, {e.Reason}, Fatal={e.IsFatal}," +
+                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
@@ -83,7 +86,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
         using var observers = new ObserverCollection(
-            _topics.Items.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
+            _topics.Keys.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
 
         while (!tokenSource.IsCancellationRequested)
         {
@@ -134,9 +137,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 var result = _consumer.Consume(token);
 
-                //TODO:https://github.com/CommunityToolkit/dotnet/blob/main/src/CommunityToolkit.HighPerformance/Buffers/StringPool.cs
                 if (!string.IsNullOrEmpty(result.Topic))
-                    result.Topic = _topics.Get(result.Topic); // topic name interning 
+                    result.Topic = _topics[result.Topic]; // topic name interning 
 
                 activity?.SetTags(result);
 
@@ -206,16 +208,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _pausedTopicsObservers.Add(topic, resumeTask);
     }
 
-    private ValueTask WaitPendingPause(string topic)
+    private Task WaitPendingPause(string topic)
     {
         if (_pausedTopicsObservers.Count > 0 &&
             _pausedTopicsObservers.Remove(topic, out var pausedTask))
         {
             _logger.LogInformation("Waiting paused task for topic {Topic}", topic);
-            return new(pausedTask);
+            return pausedTask;
         }
 
-        return default;
+        return Task.CompletedTask;
     }
 
     private async Task ResumeOnComplete(Task waitingTask, string topic)
@@ -230,8 +232,6 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         finally
         {
             ResumeAssignments(topic);
-
-            activity?.Dispose();
         }
     }
 
