@@ -11,7 +11,6 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
 
     private readonly bool _skipUnknown;
     private readonly DeferredAckConfiguration _deferredAckConfig;
-    private readonly ILogger<EventObserver<TEvent>> _logger;
     private readonly List<TEvent> _skipped = new();
     private readonly Timer _deferredAckTimer;
 
@@ -20,15 +19,13 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
         IConsumer<TEvent> consumer,
         IMessageHandlersRegistry messageHandlersRegistry,
         bool skipUnknown,
-        DeferredAckConfiguration deferredAckConfiguration,
-        ILogger<EventObserver<TEvent>> logger)
+        DeferredAckConfiguration deferredAckConfiguration)
     {
         _eventHandler = eventHandler;
         _consumer = consumer;
         _messageHandlersRegistry = messageHandlersRegistry;
         _skipUnknown = skipUnknown;
         _deferredAckConfig = deferredAckConfiguration;
-        _logger = logger;
         _deferredAckTimer = new Timer(_ => AckDeferredMessages(isTimeout: true));
     }
 
@@ -50,11 +47,7 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
         }
 
         await Task.Yield();
-
-        var metadata = @event.GetMetadata();
-
-        using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
-
+        
         AckDeferredMessages();
 
         if ((handlerKind & HandlerKind.Single) == 0)
