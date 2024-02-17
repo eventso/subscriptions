@@ -30,6 +30,7 @@ public sealed class ConsumerAdapter : IConsumer<Event>
             new(events.Topic, events.Partition, events.Offset + 1)
         };
 
+        using var tl = new TimeoutLogger("Commit", 5);
         if (_autoCommitMode)
             _consumer.StoreOffset(offset[0]);
         else
@@ -49,6 +50,7 @@ public sealed class ConsumerAdapter : IConsumer<Event>
 
         var offsets = GetLatestOffsets(events);
 
+        using var tl = new TimeoutLogger("Commit", 5);
         if (_autoCommitMode)
         {
             foreach (var offset in offsets)

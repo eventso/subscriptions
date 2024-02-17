@@ -116,6 +116,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
             {
                 while (_batchChannel.Reader.TryPeek(out var batch))
                 {
+                    using var tl = new TimeoutLogger("HandleBatch", 15);
                     using (batch.Events)
                         await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
 

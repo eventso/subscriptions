@@ -22,6 +22,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         dynamic message = @event.GetMessage();
 
+        using var tl = new TimeoutLogger("Handle Event", 15);
         try
         {
             await _pipelineAction.Invoke(message, cancellationToken);
@@ -44,6 +45,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
             .AddTag("type", firstMessage.GetType())
             .AddTag("count", events.Count);
 
+        using var tl = new TimeoutLogger("Handle Events", 15);
         try
         {
             await HandleTyped((dynamic)firstMessage, events, cancellationToken);

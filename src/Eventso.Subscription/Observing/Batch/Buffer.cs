@@ -61,14 +61,21 @@ internal sealed class Buffer<TEvent> : IDisposable
             throw new OperationCanceledException("Buffer is cancelled");
 
         if (_target.Reader.Completion.IsFaulted)
+        {
+            using var tl = new TimeoutLogger("Buffer Reader faulted", 15);
             await _target.Reader.Completion;
+        }
 
         if (_readingTask.IsFaulted)
+        {
+            using var tl = new TimeoutLogger("Buffer Reading task", 15);
             await _readingTask;
+        }
 
         if (_readingTask.IsCompleted || _target.Reader.Completion.IsCompleted)
             throw new InvalidOperationException("Buffer already completed.");
 
+        using var tl2 = new TimeoutLogger("Buffer write", 15);
         await _channel.Writer.WriteAsync(
             new BufferAction(new BufferedEvent(message, skipped)),
             token);

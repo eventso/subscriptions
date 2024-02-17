@@ -20,6 +20,8 @@ public sealed class SubscriptionHost : BackgroundService, ISubscriptionHost
         _consumerFactory = consumerFactory;
         _subscriptions = subscriptions.SelectMany(x => x).ToArray();
         _logger = logger;
+
+        TimeoutLogger.Init(logger);
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

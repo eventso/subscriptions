@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry.Trace;
 
 namespace Eventso.Subscription;
@@ -53,5 +54,36 @@ public static class Diagnostic
                 Activity.Current = previous;
             }
         }
+    }
+}
+
+public sealed class TimeoutLogger : IDisposable
+{
+    private readonly string _name;
+    private readonly int _minutes;
+    private static ILogger _logger = NullLogger.Instance;
+
+    public static void Init(ILogger logger)
+    {
+        _logger = logger;
+    }
+
+    private readonly Timer _timer;
+
+    public TimeoutLogger(string callName, int minutes)
+    {
+        _name = callName;
+        _minutes = minutes;
+        _timer = new Timer(Log, null, TimeSpan.FromMinutes(minutes), Timeout.InfiniteTimeSpan);
+    }
+
+    private void Log(object? _)
+    {
+        _logger.LogError($"{_name} call takes more than {_minutes} minutes.");
+    }
+
+    public void Dispose()
+    {
+        _timer.Dispose();
     }
 }
