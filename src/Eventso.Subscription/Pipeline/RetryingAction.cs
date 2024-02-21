@@ -29,6 +29,7 @@ public sealed class RetryingAction : IMessagePipelineAction
 
             await Task.Delay(delay, token);
 
+            using var tl = new TimeoutLogger("RetryingAction.Polly.Invoke", 15);
             await _policy.ExecuteAsync(ct => _next.Invoke(message, ct), token);
         }
     }

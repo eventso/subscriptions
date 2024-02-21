@@ -15,6 +15,7 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
 
+        using var tl = new TimeoutLogger("MessageHandlingAction.Invoke", 15);
         using var scope = _scopeFactory.BeginScope();
 
         var handlers = scope.Resolve<T>();
@@ -59,6 +60,7 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
 
         try
         {
+            using var tl = new TimeoutLogger("MessageHandlingAction.Handle", 15);
             await handler.Handle(message, token);
         }
         catch (Exception ex)

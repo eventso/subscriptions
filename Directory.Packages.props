@@ -17,7 +17,7 @@
     <PackageVersion Include="Npgsql" Version="7.0.6" />
     <PackageVersion Include="NSubstitute" Version="5.1.0" />
     <PackageVersion Include="OpenTelemetry.Api" Version="1.6.0" />
-    <PackageVersion Include="Polly" Version="7.2.4" />
+    <PackageVersion Include="Polly" Version="8.3.0" />
     <PackageVersion Include="Scrutor" Version="4.2.2" />
     <PackageVersion Include="SpanJson" Version="4.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
