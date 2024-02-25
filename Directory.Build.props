@@ -1,8 +1,8 @@
 <Project>
 	<PropertyGroup>
 		<TargetFrameworks>net6.0;net8.0</TargetFrameworks>
-		<VersionPrefix>0.7.5</VersionPrefix>
-		<Version>0.7.5</Version>
+		<VersionPrefix>0.8.0</VersionPrefix>
+		<Version>0.8.0</Version>
 		<LangVersion>latest</LangVersion>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<WarningsAsErrors />
@@ -14,7 +14,7 @@
 		<!-- Embed source files that are not tracked by the source control manager in the PDB -->
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 
-		<Copyright>Copyright 2023 © Eventso Team</Copyright>
+		<Copyright>Copyright 2024 © Eventso Team</Copyright>
 		<Company>Eventso</Company>
 		<Authors>Eventso</Authors>
 		<PackageTags>subscription;events;eventso;kafka;messages</PackageTags>

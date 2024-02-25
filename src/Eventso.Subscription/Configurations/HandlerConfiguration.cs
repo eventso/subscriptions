@@ -4,5 +4,5 @@ namespace Eventso.Subscription.Configurations;
 
 public sealed record HandlerConfiguration(
     bool LoggingEnabled = false,
-    IAsyncPolicy? RetryPolicy = default,
+    ResiliencePipeline? ResiliencePipeline = default,
     bool RunHandlersInParallel = false);
