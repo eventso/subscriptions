@@ -4,13 +4,13 @@ public sealed class LoggingScopeEventHandler<TEvent> : IEventHandler<TEvent> whe
 {
     private readonly IEventHandler<TEvent> _inner;
     private readonly ILogger _logger;
-    private readonly IEnumerable<KeyValuePair<string, string>> _metadata;
+    private readonly KeyValuePair<string, object>[] _metadata;
 
     public LoggingScopeEventHandler(IEventHandler<TEvent> inner, string topic, ILogger logger)
     {
         _inner = inner;
         _logger = logger;
-        _metadata = Enumerable.Repeat(KeyValuePair.Create("eventso_topic", topic), 1);
+        _metadata = [new KeyValuePair<string, object>("eventso_topic", topic)];
     }
 
     public async Task Handle(TEvent @event, CancellationToken cancellationToken)
