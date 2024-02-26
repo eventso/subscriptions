@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
-
 namespace Eventso.Subscription.Tests;
 
 public sealed class EventObserverTests
@@ -44,8 +42,7 @@ public sealed class EventObserverTests
             _consumer,
             _handlersRegistry,
             true,
-            DeferredAckConfiguration.Disabled,
-            NullLogger<EventObserver<TestEvent>>.Instance);
+            DeferredAckConfiguration.Disabled);
 
         var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
@@ -70,8 +67,7 @@ public sealed class EventObserverTests
             _consumer,
             _handlersRegistry,
             true,
-            DeferredAckConfiguration.Disabled,
-            NullLogger<EventObserver<TestEvent>>.Instance);
+            DeferredAckConfiguration.Disabled);
 
         var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
@@ -111,8 +107,7 @@ public sealed class EventObserverTests
             _consumer,
             _handlersRegistry,
             true,
-            DeferredAckConfiguration.Disabled,
-            NullLogger<EventObserver<TestEvent>>.Instance);
+            DeferredAckConfiguration.Disabled);
 
         var events = skippedEvents.Concat(successEvents)
             .OrderBy(_ => Guid.NewGuid())
@@ -149,8 +144,7 @@ public sealed class EventObserverTests
             {
                 Timeout = TimeSpan.FromMilliseconds(deferredAckTimeoutMs),
                 MaxBufferSize = eventsCount * 2
-            },
-            NullLogger<EventObserver<TestEvent>>.Instance);
+            });
 
         var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
 
@@ -183,8 +177,7 @@ public sealed class EventObserverTests
             {
                 Timeout = Timeout.InfiniteTimeSpan,
                 MaxBufferSize = eventsCount - 10
-            },
-            NullLogger<EventObserver<TestEvent>>.Instance);
+            });
 
         var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
 

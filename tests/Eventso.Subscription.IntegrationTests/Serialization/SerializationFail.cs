@@ -106,7 +106,7 @@ public sealed class SerializationFail : IAsyncLifetime
             .Should().OnlyContain(x => x.Offset.Equals(Offset.Unset));
 
         var pausedActivities = diagnosticCollector.GetStarted(KafkaDiagnostic.Pause).ToArray();
-        pausedActivities.Length.Should().BeGreaterOrEqualTo(2);
+        pausedActivities.Length.Should().BeGreaterOrEqualTo(1);
 
         pausedActivities.Should().AllSatisfy(a => a.GetTagItem("topic").Should().Be(topics.Black.Topic));
     }

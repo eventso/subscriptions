@@ -45,8 +45,7 @@ public sealed class ObserverFactory : IObserverFactory
             consumer,
             _messageHandlersRegistry,
             skipUnknown: true,
-            _configuration.DeferredAckConfiguration!,
-            NullLogger<EventObserver<TEvent>>.Instance);
+            _configuration.DeferredAckConfiguration!);
 
         IEventHandler<TEvent> GetBatchHandler()
         {

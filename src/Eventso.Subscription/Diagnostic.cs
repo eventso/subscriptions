@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using OpenTelemetry.Trace;
+using System.Runtime.CompilerServices;
 
 namespace Eventso.Subscription;
 
@@ -14,7 +14,8 @@ public static class Diagnostic
 
     public static Activity SetException(this Activity activity, Exception ex)
     {
-        activity.SetStatus(ActivityStatusCode.Error, ex.Message)
+        activity
+            .SetStatus(ActivityStatusCode.Error, ex.Message)
             .SetCustomProperty("exception", ex);
 
         activity.RecordException(ex);
@@ -53,5 +54,33 @@ public static class Diagnostic
                 Activity.Current = previous;
             }
         }
+    }
+
+    //from OpenTelemetry.Api
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void RecordException(this Activity activity, Exception ex)
+    {
+        const string AttributeExceptionEventName = "exception";
+        const string AttributeExceptionType = "exception.type";
+        const string AttributeExceptionMessage = "exception.message";
+        const string AttributeExceptionStacktrace = "exception.stacktrace";
+
+        if (ex == null || activity == null)
+        {
+            return;
+        }
+
+        var tagsCollection = new ActivityTagsCollection
+        {
+            { AttributeExceptionType, ex.GetType().FullName },
+            { AttributeExceptionStacktrace, ex.ToString() },
+        };
+
+        if (!string.IsNullOrWhiteSpace(ex.Message))
+        {
+            tagsCollection.Add(AttributeExceptionMessage, ex.Message);
+        }
+
+        activity.AddEvent(new ActivityEvent(AttributeExceptionEventName, default, tagsCollection));
     }
 }

@@ -1,4 +1,5 @@
 using Eventso.Subscription.Configurations;
+using Polly;
 
 namespace Eventso.Subscription.Pipeline;
 
@@ -6,11 +7,15 @@ public sealed class MessagePipelineFactory : IMessagePipelineFactory
 {
     private readonly IMessageHandlerScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly ResiliencePipeline _defaultPipeline;
 
     public MessagePipelineFactory(IMessageHandlerScopeFactory scopeFactory, ILoggerFactory loggerFactory)
     {
         _scopeFactory = scopeFactory;
         _loggerFactory = loggerFactory;
+
+        var logger = _loggerFactory.CreateLogger<RetryingAction>();
+        _defaultPipeline = DefaultRetryingStrategy.GetDefaultBuilder(logger).Build();
     }
 
     public IMessagePipelineAction Create(HandlerConfiguration config)
@@ -18,10 +23,8 @@ public sealed class MessagePipelineFactory : IMessagePipelineFactory
         IMessagePipelineAction action = new MessageHandlingAction(_scopeFactory,
             config.RunHandlersInParallel);
 
-        var logger = _loggerFactory.CreateLogger<RetryingAction>();
         action = new RetryingAction(
-            config.RetryPolicy ?? DefaultRetryPolicy.CreateDefaultPolicy(logger),
-            logger,
+            config.ResiliencePipeline ?? _defaultPipeline,
             action);
 
         if (config.LoggingEnabled)

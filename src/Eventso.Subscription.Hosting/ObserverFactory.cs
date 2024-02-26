@@ -28,6 +28,8 @@ public sealed class ObserverFactory : IObserverFactory
             _messageHandlersRegistry,
             _messagePipelineFactory.Create(topicConfig.HandlerConfig));
 
+        eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
+
         var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
             : CreateSingleEventObserver(consumer, eventHandler, topicConfig);
@@ -73,8 +75,7 @@ public sealed class ObserverFactory : IObserverFactory
             consumer,
             _messageHandlersRegistry,
             configuration.SkipUnknownMessages,
-            configuration.DeferredAckConfiguration!,
-            _loggerFactory.CreateLogger<EventObserver<TEvent>>());
+            configuration.DeferredAckConfiguration!);
 
         if (configuration.BufferSize == 0)
             return observer;
