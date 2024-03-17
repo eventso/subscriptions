@@ -134,6 +134,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             IMessageDeserializer serializer,
             HandlerConfiguration? handlerConfig = default,
             bool skipUnknownMessages = true,
+            int bufferSize = 0,
             TimeSpan? messageObservingDelay = default)
         {
             return Add(new TopicSubscriptionConfiguration(
@@ -141,7 +142,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 batchConfig,
                 serializer,
                 handlerConfig,
-                skipUnknownMessages)
+                skipUnknownMessages,
+                bufferSize: bufferSize)
             {
                 ObservingDelay = messageObservingDelay
             });

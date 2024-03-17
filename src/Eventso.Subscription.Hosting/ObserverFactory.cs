@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace Eventso.Subscription.Hosting;
 
 public sealed class ObserverFactory : IObserverFactory
@@ -37,6 +39,9 @@ public sealed class ObserverFactory : IObserverFactory
         if (topicConfig.ObservingDelay is { Ticks: > 0 })
             observer = new DelayedEventObserver<TEvent>(topicConfig.ObservingDelay.Value, observer);
 
+        if (topicConfig.BufferSize > 0)
+            observer = new BufferedObserver<TEvent>(topicConfig.BufferSize, observer, consumer.CancellationToken);
+
         return observer;
     }
 
@@ -70,16 +75,11 @@ public sealed class ObserverFactory : IObserverFactory
         TopicSubscriptionConfiguration configuration)
         where TEvent : IEvent
     {
-        var observer = new EventObserver<TEvent>(
+        return new EventObserver<TEvent>(
             eventHandler,
             consumer,
             _messageHandlersRegistry,
             configuration.SkipUnknownMessages,
             configuration.DeferredAckConfiguration!);
-
-        if (configuration.BufferSize == 0)
-            return observer;
-
-        return new BufferedObserver<TEvent>(configuration.BufferSize, observer, consumer.CancellationToken);
     }
 }

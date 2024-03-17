@@ -5,18 +5,22 @@ public sealed class TopicSubscriptionConfiguration
     private TopicSubscriptionConfiguration(
         string topic,
         IMessageDeserializer serializer,
-        HandlerConfiguration? handlerConfig = default,
-        bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false)
+        HandlerConfiguration? handlerConfig,
+        bool skipUnknownMessages,
+        bool enableDeadLetterQueue,
+        int bufferSize)
     {
         if (string.IsNullOrWhiteSpace(topic))
             throw new ArgumentException("Topic name is not specified.");
+
+        if (bufferSize < 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
 
         Topic = topic;
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         SkipUnknownMessages = skipUnknownMessages;
         HandlerConfig = handlerConfig ?? new HandlerConfiguration();
         EnableDeadLetterQueue = enableDeadLetterQueue;
+        BufferSize = bufferSize;
     }
 
     public TopicSubscriptionConfiguration(
@@ -32,11 +36,9 @@ public sealed class TopicSubscriptionConfiguration
             serializer,
             handlerConfig,
             skipUnknownMessages,
-            enableDeadLetterQueue)
+            enableDeadLetterQueue,
+            bufferSize)
     {
-        if (bufferSize < 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
-
-        BufferSize = bufferSize;
         DeferredAckConfiguration = deferredAckConfiguration ?? DeferredAckConfiguration.Disabled;
     }
 
@@ -46,13 +48,15 @@ public sealed class TopicSubscriptionConfiguration
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false)
+        bool enableDeadLetterQueue = false,
+        int bufferSize = 0)
         : this(
             topic,
             serializer,
             handlerConfig,
             skipUnknownMessages,
-            enableDeadLetterQueue)
+            enableDeadLetterQueue,
+            bufferSize)
     {
         batchConfiguration.Validate();
 

@@ -17,6 +17,7 @@ public interface IMultiTopicSubscriptionCollection
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
+        int bufferSize = 0,
         TimeSpan? messageObservingDelay = default);
 
     IMultiTopicSubscriptionCollection Add(TopicSubscriptionConfiguration configuration);
