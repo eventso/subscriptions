@@ -9,7 +9,8 @@ public interface IMultiTopicSubscriptionCollection
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int bufferSize = 10,
-        TimeSpan? messageObservingDelay = default);
+        TimeSpan? messageObservingDelay = default,
+        bool enableDeadLetterQueue = false);
 
     IMultiTopicSubscriptionCollection AddBatch(
         string topic,
@@ -18,7 +19,8 @@ public interface IMultiTopicSubscriptionCollection
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         int bufferSize = 0,
-        TimeSpan? messageObservingDelay = default);
+        TimeSpan? messageObservingDelay = default,
+        bool enableDeadLetterQueue = false);
 
     IMultiTopicSubscriptionCollection Add(TopicSubscriptionConfiguration configuration);
 }

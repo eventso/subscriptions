@@ -7,8 +7,8 @@ namespace Eventso.Subscription.Hosting;
 
 public sealed class PoisonEventRetryingHost : BackgroundService
 {
-    private const long RetryLockId = 1; 
         
+    private readonly TimeSpan _reprocessingInterval;
     private readonly ILogger _logger;
     private readonly IReadOnlyCollection<TopicRetryingService> _topicRetryingServices;
 
@@ -16,10 +16,12 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         IEnumerable<ISubscriptionCollection> subscriptions,
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
+        DeadLetterQueueOptions deadLetterQueueOptions,
         IPoisonEventStore poisonEventStore,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
+        _reprocessingInterval = deadLetterQueueOptions.ReprocessingJobInterval;
         _logger = loggerFactory.CreateLogger<SubscriptionHost>();
 
         _topicRetryingServices = (subscriptions ?? throw new ArgumentNullException(nameof(subscriptions)))
@@ -47,7 +49,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
                 _logger.LogError(ex, "Dead letter queue retrying failed.");
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); // TODO get from configuration
+            await Task.Delay(_reprocessingInterval, stoppingToken);
         }
     }
 

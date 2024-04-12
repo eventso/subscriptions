@@ -14,7 +14,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
-        TimeSpan? messageObservingDelay = default)
+        TimeSpan? messageObservingDelay = default,
+        bool enableDeadLetterQueue = false)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
@@ -24,7 +25,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 serializer,
                 handlerConfig,
                 deferredAckConfig,
-                skipUnknownMessages)
+                skipUnknownMessages,
+                enableDeadLetterQueue)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -39,7 +41,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
-        TimeSpan? messageObservingDelay = default)
+        TimeSpan? messageObservingDelay = default,
+        bool enableDeadLetterQueue = false)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
@@ -49,7 +52,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 batchConfig,
                 serializer,
                 handlerConfig,
-                skipUnknownMessages)
+                skipUnknownMessages,
+                enableDeadLetterQueue)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -114,7 +118,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             DeferredAckConfiguration? deferredAckConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 10,
-            TimeSpan? messageObservingDelay = default)
+            TimeSpan? messageObservingDelay = default,
+            bool enableDeadLetterQueue = false)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
@@ -122,7 +127,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 handlerConfig,
                 deferredAckConfig,
                 skipUnknownMessages,
-                bufferSize: bufferSize)
+                bufferSize: bufferSize,
+                enableDeadLetterQueue: enableDeadLetterQueue)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -135,7 +141,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             HandlerConfiguration? handlerConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 0,
-            TimeSpan? messageObservingDelay = default)
+            TimeSpan? messageObservingDelay = default,
+            bool enableDeadLetterQueue = false)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
@@ -143,7 +150,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 serializer,
                 handlerConfig,
                 skipUnknownMessages,
-                bufferSize: bufferSize)
+                bufferSize: bufferSize,
+                enableDeadLetterQueue: enableDeadLetterQueue)
             {
                 ObservingDelay = messageObservingDelay
             });

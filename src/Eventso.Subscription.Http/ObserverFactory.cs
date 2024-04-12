@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Eventso.Subscription.Http;
 
-public sealed class ObserverFactory : IObserverFactory
+public sealed class ObserverFactory : IObserverFactory<Event>
 {
     private readonly SubscriptionConfiguration _configuration;
     private readonly IMessagePipelineFactory _messagePipelineFactory;
@@ -22,43 +22,42 @@ public sealed class ObserverFactory : IObserverFactory
         _messageHandlersRegistry = messageHandlersRegistry;
     }
 
-    public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
-        where TEvent : IEvent
+    public IObserver<Event> Create(IConsumer<Event> consumer, string topic)
     {
-        var eventHandler = new Observing.EventHandler<TEvent>(
+        var eventHandler = new Observing.EventHandler<Event>(
             _messageHandlersRegistry,
             _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
 
         if (_configuration.BatchProcessingRequired)
         {
-            return new BatchEventObserver<TEvent>(
+            return new BatchEventObserver<Event>(
                 _configuration.BatchConfiguration!,
                 GetBatchHandler(),
                 consumer,
                 _messageHandlersRegistry,
-                NullLogger<BatchEventObserver<TEvent>>.Instance,
+                NullLogger<BatchEventObserver<Event>>.Instance,
                 skipUnknown: true);
         }
 
-        return new EventObserver<TEvent>(
+        return new EventObserver<Event>(
             eventHandler,
             consumer,
             _messageHandlersRegistry,
             skipUnknown: true,
             _configuration.DeferredAckConfiguration!);
 
-        IEventHandler<TEvent> GetBatchHandler()
+        IEventHandler<Event> GetBatchHandler()
         {
             return _configuration.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType
                     => eventHandler,
                 BatchHandlingStrategy.SingleTypeLastByKey
-                    => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
+                    => new SingleTypeLastByKeyEventHandler<Event>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinKey
-                    => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
+                    => new OrderedWithinKeyEventHandler<Event>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinType =>
-                    new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
+                    new OrderedWithinTypeEventHandler<Event>(eventHandler),
                 _ => throw new InvalidOperationException(
                     $"Unknown handling strategy: {_configuration.BatchConfiguration.HandlingStrategy}")
             };

@@ -10,7 +10,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj" />
         <ProjectReference Include="..\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+            <_Parameter1>Eventso.Subscription.Tests</_Parameter1>
+        </AssemblyAttribute>
     </ItemGroup>
 
 </Project>

@@ -5,7 +5,7 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-public sealed class PoisonEventStore : IPoisonEventStore
+internal  sealed class PoisonEventStore : IPoisonEventStore
 {
     private readonly IConnectionFactory _connectionFactory;
     private readonly int _maxAllowedFailureCount;
@@ -14,10 +14,9 @@ public sealed class PoisonEventStore : IPoisonEventStore
 
     public PoisonEventStore(
         IConnectionFactory connectionFactory,
-        // TODO receive from settings
-        int? maxAllowedFailureCount = default,
-        TimeSpan? minIntervalBetweenRetries = default,
-        TimeSpan? maxLockHandleInterval = default)
+        int? maxAllowedFailureCount,
+        TimeSpan? minIntervalBetweenRetries,
+        TimeSpan? maxLockHandleInterval)
     {
         _connectionFactory = connectionFactory;
         _maxAllowedFailureCount = maxAllowedFailureCount ?? 10;
@@ -27,11 +26,10 @@ public sealed class PoisonEventStore : IPoisonEventStore
 
     public static async Task<PoisonEventStore> Initialize(
         IConnectionFactory connectionFactory,
-        // TODO receive from settings
-        int? maxAllowedFailureCount = default,
-        TimeSpan? minIntervalBetweenRetries = default,
-        TimeSpan? maxLockHandleInterval = default,
-        CancellationToken token = default)
+        int? maxAllowedFailureCount,
+        TimeSpan? minIntervalBetweenRetries,
+        TimeSpan? maxLockHandleInterval,
+        CancellationToken token)
     {
         await using var connection = connectionFactory.ReadWrite();
             
