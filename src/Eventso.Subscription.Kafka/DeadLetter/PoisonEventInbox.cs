@@ -6,11 +6,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
-public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
+public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonEventInboxInitializer, IDisposable
 {
     private readonly IPoisonEventStore _eventStore;
     private readonly int _maxNumberOfPoisonedEventsInTopic;
     private readonly ThreadSafeConsumer _deadMessageConsumer;
+    private readonly Dictionary<string, HashSet<Guid>> _poisonKeysByTopic;
 
     public PoisonEventInbox(
         IPoisonEventStore eventStore,
@@ -22,6 +23,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
         _eventStore = eventStore;
         _maxNumberOfPoisonedEventsInTopic = maxNumberOfPoisonedEventsInTopic;
         _deadMessageConsumer = new ThreadSafeConsumer(settings, topics, logger);
+        _poisonKeysByTopic = topics.ToDictionary(t => t, _ => new HashSet<Guid>(maxNumberOfPoisonedEventsInTopic));
     }
 
     public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
@@ -31,6 +33,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
             DateTime.UtcNow,
             CreateOpeningPoisonEvent(@event, cancellationToken),
             cancellationToken);
+        _poisonKeysByTopic[@event.Event.Topic].Add(@event.Event.GetKey());
     }
 
     public async Task Add(IReadOnlyCollection<PoisonEvent<Event>> events, CancellationToken cancellationToken)
@@ -47,29 +50,29 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
         }
 
         await _eventStore.Add(DateTime.UtcNow, openingPoisonEvents, cancellationToken);
+        foreach (var @event in events)
+            _poisonKeysByTopic[@event.Event.Topic].Add(@event.Event.GetKey());
     }
 
     public Task<bool> IsPartOfPoisonStream(Event @event, CancellationToken cancellationToken)
-        => _eventStore.IsStreamStored(@event.Topic, @event.GetKey(), cancellationToken);
+        => Task.FromResult(_poisonKeysByTopic[@event.Topic].Contains(@event.GetKey()));
 
-    public async Task<IPoisonStreamCollection<Event>?> GetPoisonStreams(
-        IReadOnlyCollection<Event> events,
-        CancellationToken cancellationToken)
+    public Task<IPoisonStreamCollection<Event>?> GetPoisonStreams(IReadOnlyCollection<Event> events, CancellationToken cancellationToken)
     {
-        using var streamIds = new PooledList<StreamId>(events.Count);
-        foreach (var @event in events)
-            streamIds.Add(new StreamId(@event.Topic, @event.GetKey()));
-            
         HashSet<StreamId>? poisonStreamIds = null;
-        await foreach (var streamId in _eventStore.GetStoredStreams(streamIds, cancellationToken))
+        foreach (var @event in events)
         {
+            if (!_poisonKeysByTopic[@event.Topic].Contains(@event.GetKey()))
+                continue;
+
             poisonStreamIds ??= new HashSet<StreamId>();
-            poisonStreamIds.Add(streamId);
+            poisonStreamIds.Add(new StreamId(@event.Topic, @event.GetKey()));
         }
 
-        return poisonStreamIds != null
-            ? new PoisonStreamCollection(poisonStreamIds)
-            : null;
+        return Task.FromResult(
+            poisonStreamIds != null
+                ? new PoisonStreamCollection(poisonStreamIds)
+                : default(IPoisonStreamCollection<Event>));
     }
 
     public void Dispose()
@@ -151,87 +154,6 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
 
             _topics ??= new List<string>(1);
             _topics.Add(topic);
-        }
-    }
-
-    private sealed class PoisonStreamCollection : IPoisonStreamCollection<Event>
-    {
-        private readonly HashSet<StreamId> _poisonStreamIds;
-
-        public PoisonStreamCollection(HashSet<StreamId> poisonStreamIds)
-            => _poisonStreamIds = poisonStreamIds;
-
-        public bool IsPartOfPoisonStream(Event @event)
-            => _poisonStreamIds.Contains(new StreamId(@event.Topic, @event.GetKey()));
-    }
-    private sealed class ThreadSafeConsumer
-    {
-        private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
-        private readonly object _lockObject = new();
-
-        public ThreadSafeConsumer(
-            KafkaConsumerSettings settings,
-            string[] topics,
-            ILogger logger)
-        {
-            if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
-                throw new InvalidOperationException("Brokers are not specified.");
-
-            if (string.IsNullOrEmpty(settings.Config.GroupId))
-                throw new InvalidOperationException("Group Id is not specified.");
-
-            var config = new ConsumerConfig(settings.Config.ToDictionary(e => e.Key, e => e.Value))
-            {
-                EnableAutoCommit = false,
-                EnableAutoOffsetStore = false,
-                AutoOffsetReset = AutoOffsetReset.Error,
-                AllowAutoCreateTopics = false,
-                GroupId = settings.Config.GroupId + "_cemetery" // boo!
-            };
-
-            _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
-                .SetKeyDeserializer(Deserializers.ByteArray)
-                .SetValueDeserializer(Deserializers.ByteArray)
-                .SetErrorHandler((_, e) => logger.LogError(
-                    $"{nameof(PoisonEventInbox)} internal error: Topics: {string.Join(", ", topics)}, {e.Reason}," +
-                    $" Fatal={e.IsFatal}, IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
-                .Build();
-        }
-
-        public void Close()
-        {
-            lock (_lockObject)
-            {
-                _deadMessageConsumer.Close();
-                _deadMessageConsumer.Dispose();
-            }
-        }
-
-        public ConsumeResult<byte[], byte[]> Consume(
-            TopicPartitionOffset topicPartitionOffset,
-            CancellationToken cancellationToken)
-        {
-            lock (_lockObject)
-            {
-                try
-                {
-                    // one per observer (so no concurrency should exist) 
-                    _deadMessageConsumer.Assign(topicPartitionOffset);
-
-                    var rawEvent = _deadMessageConsumer.Consume(cancellationToken);
-                    if (!rawEvent.TopicPartitionOffset.Equals(topicPartitionOffset))
-                        throw new EventHandlingException(
-                            topicPartitionOffset.ToString(),
-                            "Consumed message offset doesn't match requested one.",
-                            null);
-
-                    return rawEvent;
-                }
-                finally
-                {
-                    _deadMessageConsumer.Unassign();
-                }
-            }
         }
     }
 }

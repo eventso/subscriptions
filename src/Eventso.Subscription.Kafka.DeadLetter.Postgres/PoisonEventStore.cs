@@ -5,7 +5,7 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-internal  sealed class PoisonEventStore : IPoisonEventStore
+internal  sealed class PoisonEventStore : IPoisonEventStore, IPoisonStreamCache
 {
     private readonly IConnectionFactory _connectionFactory;
     private readonly int _maxAllowedFailureCount;
@@ -109,6 +109,42 @@ internal  sealed class PoisonEventStore : IPoisonEventStore
 
     public async IAsyncEnumerable<StreamId> GetStoredStreams(
         IReadOnlyCollection<StreamId> streamIds,
+        [EnumeratorCancellation] CancellationToken token)
+    {
+        await using var connection = _connectionFactory.ReadOnly();
+
+        var topics = new string[streamIds.Count];
+        var keys = new Guid[streamIds.Count];
+        foreach (var (index, streamId) in streamIds.Select((x, i) => (i, x)))
+        {
+            topics[index] = streamId.Topic;
+            keys[index] = streamId.Key;
+        }
+
+        await using var command = new NpgsqlCommand(
+            @"
+SELECT DISTINCT pe.topic, pe.key
+FROM eventso_dlq.poison_events pe
+INNER JOIN UNNEST(@topics, @keys) AS input(topic, key) 
+ON pe.topic = input.topic AND pe.key = input.key;",
+            connection)
+        {
+            Parameters =
+            {
+                new NpgsqlParameter<string[]>("topics", topics),
+                new NpgsqlParameter<Guid[]>("keys", keys)
+            }
+        };
+
+        await connection.OpenAsync(token);
+
+        var reader = await command.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+            yield return new StreamId(reader.GetString(0), reader.GetGuid(1));
+    }
+
+    private async IAsyncEnumerable<StreamId> GetStoredStreams(
+        IReadOnlyCollection<string> topic,
         [EnumeratorCancellation] CancellationToken token)
     {
         await using var connection = _connectionFactory.ReadOnly();
@@ -506,5 +542,37 @@ RETURNING
                 return headers;
             }
         }
+    }
+
+    public ValueTask<bool> IsPoison(StreamId streamId, CancellationToken cancellationToken)
+    {
+        await InvalidateIfNeeded();
+    }
+
+    public async ValueTask Add(StreamId streamId)
+    {
+        await InvalidateIfNeeded();
+        
+    }
+
+    public ValueTask Remove(StreamId streamId)
+    {
+        throw new NotImplementedException();
+    }
+
+    private bool _needToInvalidate = true;
+
+    private async ValueTask InvalidateIfNeeded()
+    {
+        if (!_needToInvalidate)
+            return;
+
+        var 
+    }
+
+    public void InvalidateFor(TopicPartition[] topicPartitions)
+    {
+        _needToInvalidate = true;
+        
     }
 }

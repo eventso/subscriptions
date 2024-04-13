@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Diagnostics;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
+using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +20,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly TimeSpan _observeMaxDelay;
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
     private readonly List<TopicPartition> _pausedTopicPartitions = new();
+
+    private readonly IPoisonStreamCache _poisonStreamCache = null!;
 
     public KafkaConsumer(
         string[] topics,
@@ -49,6 +52,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _consumer = settings.CreateBuilder()
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
+            .SetPartitionsAssignedHandler(OnPartitionsAssigned)
+            .SetPartitionsRevokedHandler(OnPartitionsRevoked)
             .SetErrorHandler((_, e) => _logger.LogError(
                 $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
@@ -57,6 +62,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
         _consumer.Subscribe(topics);
+    }
+
+    private void OnPartitionsRevoked(IConsumer<Guid, ConsumedMessage> consumer, List<TopicPartitionOffset> revoked)
+    {
+        throw new NotImplementedException();
+    }
+
+    private void OnPartitionsAssigned(IConsumer<Guid, ConsumedMessage> consumer, List<TopicPartition> assigned)
+    {
+        _poisonStreamCache.Invalidate();
     }
 
     public void Close()
@@ -143,9 +158,21 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
                 activity?.SetTags(result);
 
-                return result != null
-                    ? new Event(result)
-                    : null;
+                if (result == null)
+                    return null;
+
+                var @event = new Event(result);
+                var streamId = new StreamId(result.Topic, result.Message.Key);
+                if (await _poisonStreamCache.IsPoison(streamId))
+                {
+                    await _poisonEventInbox.Add(new PoisonEvent<Event>(@event, "Event stream is poisoned."), token);
+                    await _poisonStreamCache.Add(streamId);
+
+                    return null;
+
+                }
+
+                return @event;
             }
             catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
             {
@@ -172,6 +199,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                     await _poisonEventInbox.Add(
                         new PoisonEvent<Event>(@event, $"Deserialization failed: {ex.Message}."),
                         token);
+                    await _poisonStreamCache.Add(new StreamId(ex.ConsumerRecord.Topic, ex.ConsumerRecord.));
 
                     return @event;
                 }
