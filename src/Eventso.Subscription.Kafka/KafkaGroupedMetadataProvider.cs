@@ -11,7 +11,7 @@ public sealed class KafkaGroupedMetadataProvider : IGroupedMetadataProvider<Even
     {
     }
 
-    public List<KeyValuePair<string, object>[]> GetFor(IEnumerable<Event> items)
+    public List<Dictionary<string, object>> GetFor(IEnumerable<Event> items)
     {
         var dict = new Dictionary<(string topic, Partition partition), PrettyOffsetRange>();
 
@@ -22,16 +22,18 @@ public sealed class KafkaGroupedMetadataProvider : IGroupedMetadataProvider<Even
             range.Add(@event.Offset);
         }
 
-        var result = new List<KeyValuePair<string, object>[]>(capacity: dict.Count);
+        var result = new List<Dictionary<string, object>>(capacity: dict.Count);
 
         foreach (var (key, range) in dict)
         {
             range.Compact();
-            result.Add([
-                new KeyValuePair<string, object>("kafka.topic", key.topic),
-                new KeyValuePair<string, object>("kafka.partition", key.partition.Value.ToString()),
-                new KeyValuePair<string, object>("kafka.offsets", range.ToString())
-            ]);
+
+            result.Add(new Dictionary<string, object>(capacity: 3)
+            {
+                ["kafka.topic"] = key.topic,
+                ["kafka.partition"] = key.partition.Value.ToString(),
+                ["kafka.offsets"] = range.ToString()
+            });
         }
 
         return result;

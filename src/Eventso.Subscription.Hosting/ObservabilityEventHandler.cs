@@ -71,14 +71,14 @@ internal class ObservabilityEventHandler<TEvent> : IEventHandler<TEvent>
         }
     }
 
-    private IDisposable? CreateBatchLoggingScope(List<KeyValuePair<string, object>[]> groupedMetadata)
+    private IDisposable? CreateBatchLoggingScope(List<Dictionary<string, object>> groupedMetadata)
     {
         KeyValuePair<string, object>[] loggingScopeState = [KeyValuePair.Create("@eventso_batch", (object)groupedMetadata)];
 
         return _logger.BeginScope(loggingScopeState);
     }
 
-    private static Diagnostic.RootActivityScope CreateBatchActivity(List<KeyValuePair<string, object>[]> groupedMetadata)
+    private static Diagnostic.RootActivityScope CreateBatchActivity(List<Dictionary<string, object>> groupedMetadata)
     {
         var scope = Diagnostic.StartRooted("batch.handle");
         if (scope.Activity is { } activity)
