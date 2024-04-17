@@ -1,6 +1,6 @@
+using System.Net;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
-using Eventso.Subscription;
 using Eventso.Subscription.Configurations;
 using Eventso.Subscription.Hosting;
 using Eventso.Subscription.Kafka;
@@ -23,7 +23,7 @@ public class Startup
     {
         // services.AddSubscriptions(
         //     (subs, _) =>
-        //         subs.Add(
+        //         subs.MarkPoisoned(
         //             new ConsumerSettings(
         //                 "kafka:9092",
         //                 "test-group-id",

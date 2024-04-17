@@ -1,13 +1,12 @@
+using System.Collections.Frozen;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 
 public sealed class PoisonEventRetryingHost : BackgroundService
 {
-        
     private readonly TimeSpan _reprocessingInterval;
     private readonly ILogger _logger;
     private readonly IReadOnlyCollection<TopicRetryingService> _topicRetryingServices;
@@ -17,7 +16,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         DeadLetterQueueOptions deadLetterQueueOptions,
-        IPoisonEventStore poisonEventStore,
+        PoisonEventManagerFactory poisonEventManagerFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
@@ -26,9 +25,9 @@ public sealed class PoisonEventRetryingHost : BackgroundService
 
         _topicRetryingServices = (subscriptions ?? throw new ArgumentNullException(nameof(subscriptions)))
             .SelectMany(x => x)
-            .SelectMany(x => x.TopicConfigurations)
             .Where(x => x.EnableDeadLetterQueue)
-            .Select(x => CreateTopicRetryingService(x, pipelineFactory, handlersRegistry, poisonEventStore, deadLetterQueueScopeFactory, loggerFactory))
+            .SelectMany(x => x.ClonePerConsumerInstance())
+            .Select(x => CreateTopicRetryingService(x, pipelineFactory, handlersRegistry, poisonEventManagerFactory, deadLetterQueueScopeFactory, loggerFactory))
             .ToArray();
     }
 
@@ -54,36 +53,32 @@ public sealed class PoisonEventRetryingHost : BackgroundService
     }
 
     private static TopicRetryingService CreateTopicRetryingService(
-        TopicSubscriptionConfiguration config,
+        SubscriptionConfiguration config,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
-        IPoisonEventStore poisonEventStore,
+        PoisonEventManagerFactory poisonEventManagerFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
-        IEventHandler<Event> eventHandler = new RetryingEventHandler(
-            new Observing.EventHandler<Event>(
-                handlersRegistry,
-                messagePipelineFactory.Create(config.HandlerConfig)),
-            deadLetterQueueScopeFactory,
-            poisonEventStore);
-
-        if (config.BatchProcessingRequired)
-            eventHandler = config.BatchConfiguration!.HandlingStrategy switch
-            {
-                BatchHandlingStrategy.SingleType => eventHandler,
-                BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<Event>(eventHandler),
-                BatchHandlingStrategy.OrderedWithinKey => new OrderedWithinKeyEventHandler<Event>(eventHandler),
-                BatchHandlingStrategy.OrderedWithinType => new OrderedWithinTypeEventHandler<Event>(eventHandler),
-                _ => throw new InvalidOperationException(
-                    $"Unknown handling strategy: {config.BatchConfiguration.HandlingStrategy}")
-            };
+        var valueDeserializer = new ValueDeserializer(
+            new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),
+            handlersRegistry);
+        var eventHandlers = config.TopicConfigurations
+            .ToFrozenDictionary(
+                c => c.Topic,
+                // this event handler is crucial to work with both batch and single processing
+                c => new Observing.EventHandler<Event>(
+                    handlersRegistry,
+                    messagePipelineFactory.Create(c.HandlerConfig)));
 
         return new TopicRetryingService(
-            config.Topic,
-            poisonEventStore,
-            new ValueDeserializer(config.Serializer, handlersRegistry),
-            eventHandler,
+            config.TopicConfigurations.Select(c => c.Topic).ToArray(),
+            valueDeserializer,
+            eventHandlers,
+            deadLetterQueueScopeFactory,
+            poisonEventManagerFactory.Create(
+                config.Settings.Config.GroupId,
+                config.SubscriptionConfigurationId)!,
             loggerFactory.CreateLogger<TopicRetryingService>());
     }
 }

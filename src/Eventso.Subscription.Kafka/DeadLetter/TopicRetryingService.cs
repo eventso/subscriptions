@@ -1,54 +1,74 @@
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
+using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class TopicRetryingService
 {
-    private readonly string _topic;
-    private readonly IPoisonEventStore _poisonEventStore;
+    private readonly string[] _topics;
     private readonly IDeserializer<ConsumedMessage> _deserializer;
-    private readonly IEventHandler<Event> _eventHandler;
+    private readonly IReadOnlyDictionary<string, Observing.EventHandler<Event>> _eventHandlers;
+    private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
+    private readonly IPoisonEventManager _poisonEventManager;
     private readonly ILogger<TopicRetryingService> _logger;
 
     public TopicRetryingService(
-        string topic,
-        IPoisonEventStore poisonEventStore,
+        string[] topics,
         IDeserializer<ConsumedMessage> deserializer,
-        IEventHandler<Event> eventHandler,
+        IReadOnlyDictionary<string, Observing.EventHandler<Event>> eventHandlers,
+        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
+        IPoisonEventManager poisonEventManager,
         ILogger<TopicRetryingService> logger)
     {
-        _topic = topic;
-        _poisonEventStore = poisonEventStore;
+        _topics = topics;
         _deserializer = deserializer;
-        _eventHandler = eventHandler;
+        _eventHandlers = eventHandlers;
+        _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
+        _poisonEventManager = poisonEventManager;
         _logger = logger;
     }
 
     public async Task Retry(CancellationToken cancellationToken)
     {
         using var retryScope = _logger.BeginScope(
-            new[] { new KeyValuePair<string, string>("eventso_retry_topic", _topic) });
+            new[] { new KeyValuePair<string, string>("eventso_retry_topic", string.Join(",", _topics)) });
 
         _logger.LogInformation("Started event retrying.");
 
-        using var events = new PooledList<Event>(4);
-
-        await foreach (var storedEvent in _poisonEventStore.AcquireEventsForRetrying(_topic, cancellationToken))
+        await foreach (var storedEvent in _poisonEventManager.GetEventsForRetrying(cancellationToken))
         {
-            var @event = Deserialize(storedEvent);
-            events.Add(@event);
-
-            _logger.LogInformation($"Queued event {@event.GetTopicPartitionOffset()} for retrying.");
+            await Retry(storedEvent, cancellationToken);
+            _logger.LogInformation("Retried event {TopicPartitionOffset}.", storedEvent.TopicPartitionOffset);
         }
-
-        await _eventHandler.Handle(events, cancellationToken);
 
         _logger.LogInformation("Finished event retrying.");
     }
 
-    private Event Deserialize(StoredPoisonEvent storedEvent)
+    private async Task Retry(PoisonEvent poisonEvent, CancellationToken cancellationToken)
+    {
+        var @event = Deserialize(poisonEvent);
+
+        try
+        {
+            await Handle(@event, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            await _poisonEventManager.Blame(
+                // looks bad, think how deal with failure count in a better way
+                poisonEvent with { FailureCount = poisonEvent.FailureCount + 1 },
+                DateTime.UtcNow,
+                exception.ToString(),
+                cancellationToken);
+            return;
+        }
+
+        await _poisonEventManager.Rehabilitate(poisonEvent, cancellationToken);
+    }
+
+    private Event Deserialize(PoisonEvent storedEvent)
     {
         var headers = new Headers();
         foreach (var header in storedEvent.Headers)
@@ -59,15 +79,26 @@ public sealed class TopicRetryingService
             // shaky and depends on Confluent.Kafka contract
             Message = new Message<Guid, ConsumedMessage>
             {
-                Key = storedEvent.Key,
+                Key = KeyGuidDeserializer.Instance.Deserialize(storedEvent.Key.Span, storedEvent.Key.IsEmpty, SerializationContext.Empty),
                 Value = _deserializer.Deserialize(storedEvent.Value.Span, storedEvent.Value.IsEmpty, SerializationContext.Empty),
                 Timestamp = new Timestamp(storedEvent.CreationTimestamp, TimestampType.NotAvailable),
                 Headers = headers
             },
             IsPartitionEOF = false,
-            TopicPartitionOffset = new TopicPartitionOffset(_topic, storedEvent.Partition, storedEvent.Offset)
+            TopicPartitionOffset = storedEvent.TopicPartitionOffset,
         };
 
         return new Event(consumeResult);
+    }
+
+    private async Task Handle(Event @event, CancellationToken cancellationToken)
+    {
+        using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
+
+        await _eventHandlers[@event.Topic].Handle(@event, cancellationToken);
+
+        var poisonEvents = dlqScope.GetPoisonEvents();
+        if (poisonEvents.Count > 0)
+            throw new Exception(poisonEvents.Single().Reason);
     }
 }

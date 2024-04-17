@@ -1,6 +1,5 @@
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
@@ -9,33 +8,32 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
 {
     private readonly IMessagePipelineFactory _messagePipelineFactory;
     private readonly IMessageHandlersRegistry _handlersRegistry;
-    private readonly DeadLetterQueueOptions _deadLetterQueueOptions;
-    private readonly IPoisonEventStore _poisonEventStore;
+    private readonly PoisonEventManagerFactory _poisonEventManagerFactory;
     private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
     private readonly ILoggerFactory _loggerFactory;
 
     public KafkaConsumerFactory(
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
-        DeadLetterQueueOptions deadLetterQueueOptions,
-        IPoisonEventStore poisonEventStore,
+        PoisonEventManagerFactory poisonEventManagerFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
         _messagePipelineFactory = messagePipelineFactory;
         _handlersRegistry = handlersRegistry;
-        _deadLetterQueueOptions = deadLetterQueueOptions;
-        _poisonEventStore = poisonEventStore;
+        _poisonEventManagerFactory = poisonEventManagerFactory;
         _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
         _loggerFactory = loggerFactory;
     }
 
     public ISubscriptionConsumer CreateConsumer(SubscriptionConfiguration config)
     {
-        var poisonEventInbox = config.TopicConfigurations.Any(c => c.EnableDeadLetterQueue)
+        var poisonEventManager = _poisonEventManagerFactory.Create(
+            config.Settings.Config.GroupId,
+            config.SubscriptionConfigurationId);
+        var poisonEventInbox = poisonEventManager != null
             ? new PoisonEventInbox(
-                _poisonEventStore,
-                _deadLetterQueueOptions.MaxTopicQueueSize,
+                poisonEventManager,
                 config.Settings,
                 config.GetTopics(),
                 _loggerFactory.CreateLogger<PoisonEventInbox>())
@@ -52,7 +50,7 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
             new ValueDeserializer(
                 new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),
                 _handlersRegistry),
-            poisonEventInbox,
+            poisonEventManager,
             config.Settings,
             _loggerFactory.CreateLogger<KafkaConsumer>());
     }

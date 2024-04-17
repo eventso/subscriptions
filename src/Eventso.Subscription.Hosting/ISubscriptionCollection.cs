@@ -27,7 +27,8 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
     ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,
         Action<IMultiTopicSubscriptionCollection> subscriptions,
-        int instances = 1);
+        int instances = 1,
+        bool enableDeadLetterQueue = false);
 
     ISubscriptionCollection Add(SubscriptionConfiguration configuration);
 }

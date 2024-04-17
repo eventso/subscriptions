@@ -32,35 +32,25 @@ public static class ServiceCollectionExtensions
                 .AsImplementedInterfaces()
                 .WithLifetime(handlersLifetime));
 
-        AddDeadLetterQueueServices(services, configureDeadLetterQueue);
+        if (configureDeadLetterQueue != null)
+            AddDeadLetterQueueServices(services, configureDeadLetterQueue);
 
         return services;
     }
 
     private static void AddDeadLetterQueueServices(
         IServiceCollection services,
-        Action<IServiceCollection,DeadLetterQueueOptions>? configureDeadLetterQueue)
+        Action<IServiceCollection,DeadLetterQueueOptions> configureDeadLetterQueue)
     {
-        if (configureDeadLetterQueue == null)
-        {
-            services.AddSingleton<IPoisonEventStore>(NoDeadLetterQueue.Instance);
-            services.AddSingleton<IDeadLetterQueue>(NoDeadLetterQueue.Instance);
-            services.AddSingleton<IDeadLetterQueueScopeFactory>(NoDeadLetterQueue.Instance);
-
-            // just for DI, no real influence without other services
-            services.AddSingleton(new DeadLetterQueueOptions());
-
-            return;
-        }
-
-        services.AddHostedService<PoisonEventRetryingHost>();
-        services.AddSingleton<IDeadLetterQueueScopeFactory>(AsyncLocalDeadLetterWatcher.Instance);
-        services.AddSingleton<IDeadLetterQueue>(AsyncLocalDeadLetterWatcher.Instance);
-
         var dlqOptions = new DeadLetterQueueOptions();
 
         configureDeadLetterQueue(services, dlqOptions);
-        services.AddSingleton(dlqOptions);
+
+        services.TryAddSingleton<PoisonEventManagerFactory>();
+        services.AddHostedService<PoisonEventRetryingHost>();
+        services.TryAddSingleton<IDeadLetterQueueScopeFactory>(AsyncLocalDeadLetterWatcher.Instance);
+        services.TryAddSingleton<IDeadLetterQueue>(AsyncLocalDeadLetterWatcher.Instance);
+        services.TryAddSingleton(dlqOptions);
     }
 
     private static void TryAddSubscriptionServices(IServiceCollection services)

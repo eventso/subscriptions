@@ -23,9 +23,7 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
     {
         if (await _poisonEventInbox.IsPartOfPoisonStream(@event, cancellationToken))
         {
-            await _poisonEventInbox.Add(
-                new PoisonEvent<TEvent>(@event, StreamIsPoisonReason),
-                cancellationToken);
+            await _poisonEventInbox.Add(@event, StreamIsPoisonReason, cancellationToken);
             return;
         }
 
@@ -41,18 +39,25 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
             poisonEvent = new PoisonEvent<TEvent>(@event, exception.ToString());
         }
 
-        var poisonEvents = poisonEvent != null
-            ? new[] { poisonEvent.Value }
-            : dlqScope.GetPoisonEvents();
-        if (poisonEvents.Count == 0)
+        poisonEvent = Coalesce(poisonEvent, dlqScope);
+        if (poisonEvent == null)
             return;
 
-        await _poisonEventInbox.Add(poisonEvents, cancellationToken);
+        await _poisonEventInbox.Add(poisonEvent.Value.Event, poisonEvent.Value.Reason, cancellationToken);
+
+        static PoisonEvent<TEvent>? Coalesce(PoisonEvent<TEvent>? @event, IDeadLetterQueueScope<TEvent> dlqScope)
+        {
+            if (@event != null)
+                return @event;
+
+            var dlqPoisonEvents = dlqScope.GetPoisonEvents();
+            return dlqPoisonEvents.Count != 0 ? dlqPoisonEvents.Single() : null;
+        }
     }
 
     public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
     {
-        var poisonStreamCollection = await _poisonEventInbox.GetPoisonStreams(events, token);
+        var poisonStreamCollection = await GetPoisonStreams(events, token);
 
         FilterPoisonEvents(events, poisonStreamCollection, out var withoutPoison, out var poison);
 
@@ -78,15 +83,33 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         }
 
         if (poison?.Count > 0)
-            await _poisonEventInbox.Add(poison, token);
+            foreach (var @event in poison)
+                await _poisonEventInbox.Add(@event.Event, @event.Reason, token);
 
         withoutPoison?.Dispose();
         poison?.Dispose();
     }
 
+    private async ValueTask<HashSet<TEvent>?> GetPoisonStreams(
+        IConvertibleCollection<TEvent> events,
+        CancellationToken token)
+    {
+        HashSet<TEvent>? poisonEvents = null;
+        foreach (var @event in events)
+        {
+            if (!await _poisonEventInbox.IsPartOfPoisonStream(@event, token))
+                continue;
+
+            poisonEvents ??= new HashSet<TEvent>();
+            poisonEvents.Add(@event);
+        }
+
+        return poisonEvents;
+    }
+
     private static void FilterPoisonEvents(
         IConvertibleCollection<TEvent> events,
-        IPoisonStreamCollection<TEvent>? poisonStreamCollection,
+        HashSet<TEvent>? poisonStreamCollection,
         out PooledList<TEvent>? withoutPoison,
         out PooledList<PoisonEvent<TEvent>>? poison)
     {
@@ -100,7 +123,7 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         poison = new PooledList<PoisonEvent<TEvent>>(1);
         foreach (var @event in events)
         {
-            if (!poisonStreamCollection.IsPartOfPoisonStream(@event))
+            if (!poisonStreamCollection.Contains(@event))
             {
                 withoutPoison.Add(@event);
                 continue;

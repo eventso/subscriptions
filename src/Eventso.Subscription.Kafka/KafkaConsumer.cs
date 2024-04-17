@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Diagnostics;
 using Confluent.Kafka;
+using Confluent.Kafka.SyncOverAsync;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
@@ -12,7 +13,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 {
     private readonly FrozenDictionary<string, string> _topics;
     private readonly IObserverFactory<Event> _observerFactory;
-    private readonly IPoisonEventInbox<Event>? _poisonEventInbox;
+    private readonly IPoisonEventManager? _poisonEventManager;
     private readonly int _maxObserveInterval;
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
@@ -21,13 +22,12 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
     private readonly List<TopicPartition> _pausedTopicPartitions = new();
 
-    private readonly IPoisonStreamCache _poisonStreamCache = null!;
 
     public KafkaConsumer(
         string[] topics,
         IObserverFactory<Event> observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
-        IPoisonEventInbox<Event>? poisonEventInbox,
+        IPoisonEventManager? poisonEventManager,
         KafkaConsumerSettings settings,
         ILogger<KafkaConsumer> logger)
     {
@@ -41,7 +41,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _topics = topicsSettings;
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
-        _poisonEventInbox = poisonEventInbox; // can be null in case of disabled DLQ
+        _poisonEventManager = poisonEventManager; // can be null in case of disabled DLQ
 
         _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
         _observeMaxDelay = settings.PauseAfterObserveDelay
@@ -49,29 +49,39 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         _logger = logger;
 
-        _consumer = settings.CreateBuilder()
-            .SetKeyDeserializer(KeyGuidDeserializer.Instance)
-            .SetValueDeserializer(deserializer)
-            .SetPartitionsAssignedHandler(OnPartitionsAssigned)
-            .SetPartitionsRevokedHandler(OnPartitionsRevoked)
-            .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
-                $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
-            .Build();
+        _poisonEventManager = poisonEventManager;
+        _consumer = BuildConsumer(settings, deserializer);
 
         _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
         _consumer.Subscribe(topics);
     }
 
-    private void OnPartitionsRevoked(IConsumer<Guid, ConsumedMessage> consumer, List<TopicPartitionOffset> revoked)
+    private IConsumer<Guid, ConsumedMessage> BuildConsumer(KafkaConsumerSettings settings, IDeserializer<ConsumedMessage> deserializer)
     {
-        throw new NotImplementedException();
-    }
+        var consumerBuilder = settings.CreateBuilder()
+            .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+            .SetValueDeserializer(deserializer)
+            .SetErrorHandler((_, e) => _logger.LogError(
+                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
+                $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"));
 
-    private void OnPartitionsAssigned(IConsumer<Guid, ConsumedMessage> consumer, List<TopicPartition> assigned)
-    {
-        _poisonStreamCache.Invalidate();
+        if (_poisonEventManager != null)
+        {
+            consumerBuilder = consumerBuilder
+                .SetPartitionsAssignedHandler((_, assigned) =>
+                {
+                    foreach (var topicPartition in assigned)
+                        _poisonEventManager.Enable(topicPartition);
+                })
+                .SetPartitionsRevokedHandler((_, revoked) =>
+                {
+                    foreach (var topicPartitionOffset in revoked)
+                        _poisonEventManager.Disable(topicPartitionOffset.TopicPartition);
+                });
+        }
+
+        return consumerBuilder.Build();
     }
 
     public void Close()
@@ -158,50 +168,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
                 activity?.SetTags(result);
 
-                if (result == null)
-                    return null;
-
-                var @event = new Event(result);
-                var streamId = new StreamId(result.Topic, result.Message.Key);
-                if (await _poisonStreamCache.IsPoison(streamId))
-                {
-                    await _poisonEventInbox.Add(new PoisonEvent<Event>(@event, "Event stream is poisoned."), token);
-                    await _poisonStreamCache.Add(streamId);
-
-                    return null;
-
-                }
-
-                return @event;
+                return new Event(result);
             }
             catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
             {
-                if (_poisonEventInbox != null)
+                if (_poisonEventManager != null)
                 {
-                    var @event = new Event(
-                        new ConsumeResult<Guid, ConsumedMessage>
-                        {
-                            TopicPartitionOffset = ex.ConsumerRecord.TopicPartitionOffset,
-                            Message = new Message<Guid, ConsumedMessage>
-                            {
-                                Key = KeyGuidDeserializer.Instance.Deserialize(ex.ConsumerRecord.Message.Key,
-                                    ex.ConsumerRecord.Message.Key.Length == 0, SerializationContext.Empty),
-                                Value = ConsumedMessage.Skipped,
-                                Timestamp = ex.ConsumerRecord.Message.Timestamp,
-                                Headers = ex.ConsumerRecord.Message.Headers
+                    var poisonEvent = PoisonEvent.From(ex.ConsumerRecord);
+                    await _poisonEventManager.Blame(poisonEvent, DateTime.UtcNow, ex.Message, token);
 
-                            },
-                            Topic = ex.ConsumerRecord.Topic,
-                            IsPartitionEOF = ex.ConsumerRecord.IsPartitionEOF
-                        });
-
-                    // this approach will force inbox to reconsume this message, but it is a really rare case
-                    await _poisonEventInbox.Add(
-                        new PoisonEvent<Event>(@event, $"Deserialization failed: {ex.Message}."),
-                        token);
-                    await _poisonStreamCache.Add(new StreamId(ex.ConsumerRecord.Topic, ex.ConsumerRecord.));
-
-                    return @event;
+                    return null;
                 }
 
                 activity?.SetException(ex);

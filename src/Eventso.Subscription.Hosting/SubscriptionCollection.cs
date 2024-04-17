@@ -20,13 +20,13 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
+            enableDeadLetterQueue,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 serializer,
                 handlerConfig,
                 deferredAckConfig,
-                skipUnknownMessages,
-                enableDeadLetterQueue)
+                skipUnknownMessages)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -47,13 +47,13 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
+            enableDeadLetterQueue,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 batchConfig,
                 serializer,
                 handlerConfig,
-                skipUnknownMessages,
-                enableDeadLetterQueue)
+                skipUnknownMessages)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -64,7 +64,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
     public ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,
         Action<IMultiTopicSubscriptionCollection> addSubscriptions,
-        int instances = 1)
+        int instances = 1,
+        bool enableDeadLetterQueue = false)
     {
         var collection = new MultiTopicSubscriptionCollection();
         addSubscriptions(collection);
@@ -75,6 +76,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
+            enableDeadLetterQueue,
             collection.TopicConfigurations.ToArray());
 
         return Add(subscription);
@@ -118,8 +120,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             DeferredAckConfiguration? deferredAckConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 10,
-            TimeSpan? messageObservingDelay = default,
-            bool enableDeadLetterQueue = false)
+            TimeSpan? messageObservingDelay = default)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
@@ -127,8 +128,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 handlerConfig,
                 deferredAckConfig,
                 skipUnknownMessages,
-                bufferSize: bufferSize,
-                enableDeadLetterQueue: enableDeadLetterQueue)
+                bufferSize: bufferSize)
             {
                 ObservingDelay = messageObservingDelay
             });
@@ -141,8 +141,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             HandlerConfiguration? handlerConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 0,
-            TimeSpan? messageObservingDelay = default,
-            bool enableDeadLetterQueue = false)
+            TimeSpan? messageObservingDelay = default)
         {
             return Add(new TopicSubscriptionConfiguration(
                 topic,
@@ -150,8 +149,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 serializer,
                 handlerConfig,
                 skipUnknownMessages,
-                bufferSize: bufferSize,
-                enableDeadLetterQueue: enableDeadLetterQueue)
+                bufferSize: bufferSize)
             {
                 ObservingDelay = messageObservingDelay
             });

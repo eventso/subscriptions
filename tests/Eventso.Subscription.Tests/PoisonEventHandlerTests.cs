@@ -148,17 +148,11 @@ public sealed class PoisonEventHandlerTests
     private IPoisonEventInbox<TestEvent> CreatePoisonEventInbox()
     {
         var poisonEventInbox = Substitute.For<IPoisonEventInbox<TestEvent>>();
-        poisonEventInbox.Add(default(PoisonEvent<TestEvent>), default)
+        poisonEventInbox.Add(default(TestEvent), default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
-            .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<PoisonEvent<TestEvent>>()));
-        poisonEventInbox.Add(default(IReadOnlyCollection<PoisonEvent<TestEvent>>)!, default)
-            .ReturnsForAnyArgs(Task.CompletedTask)
-            .AndDoes(c => _inboxPoisonEvents.AddRange(c.Arg<IReadOnlyCollection<PoisonEvent<TestEvent>>>()));
+            .AndDoes(c => _inboxPoisonEvents.Add(new PoisonEvent<TestEvent>(c.Arg<TestEvent>(), c.Arg<string>())));
         poisonEventInbox.IsPartOfPoisonStream(default, default)
-            .ReturnsForAnyArgs(c => Task.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
-        poisonEventInbox.GetPoisonStreams(default!, default)
-            .ReturnsForAnyArgs(c =>
-                Task.FromResult<IPoisonStreamCollection<TestEvent>?>(new PoisonStreamCollection(_inboxPoisonEvents)));
+            .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
 
         return poisonEventInbox;
     }
@@ -203,14 +197,14 @@ public sealed class PoisonEventHandlerTests
     private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string? reason = null)
         => new(@event, reason ?? _fixture.Create<string>());
         
-    private sealed class PoisonStreamCollection : IPoisonStreamCollection<TestEvent>
-    {
-        private readonly List<PoisonEvent<TestEvent>> _poisonEvents;
-
-        public PoisonStreamCollection(List<PoisonEvent<TestEvent>> poisonEvents)
-            => _poisonEvents = poisonEvents;
-
-        public bool IsPartOfPoisonStream(TestEvent @event)
-            => _poisonEvents.Any(ee => @event.Key == ee.Event.Key);
-    }
+    // private sealed class PoisonStreamCollection : IPoisonStreamCollection<TestEvent>
+    // {
+    //     private readonly List<PoisonEvent<TestEvent>> _poisonEvents;
+    //
+    //     public PoisonStreamCollection(List<PoisonEvent<TestEvent>> poisonEvents)
+    //         => _poisonEvents = poisonEvents;
+    //
+    //     public bool IsPartOfPoisonStream(TestEvent @event)
+    //         => _poisonEvents.Any(ee => @event.Key == ee.Event.Key);
+    // }
 }

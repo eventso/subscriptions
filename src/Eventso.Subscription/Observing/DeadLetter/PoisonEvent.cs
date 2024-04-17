@@ -6,7 +6,7 @@ namespace Eventso.Subscription.Observing.DeadLetter;
 public readonly struct PoisonEvent<TEvent>
     where TEvent : IEvent
 {
-    public PoisonEvent(TEvent @event, string reason)
+    internal PoisonEvent(TEvent @event, string reason)
     {
         Event = @event;
         Reason = reason;

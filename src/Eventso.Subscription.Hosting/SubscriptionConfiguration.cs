@@ -4,9 +4,12 @@ namespace Eventso.Subscription.Hosting;
 
 public sealed record SubscriptionConfiguration
 {
+    private readonly Guid _subscriptionConfigurationId;
+    
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
         int consumerInstances,
+        bool enableDeadLetterQueue = false,
         params TopicSubscriptionConfiguration[] topicConfigurations)
     {
         if (consumerInstances < 1)
@@ -18,19 +21,28 @@ public sealed record SubscriptionConfiguration
         if (topicConfigurations is null || topicConfigurations.Length == 0)
             throw new ArgumentException("Value cannot be null or empty collection.", nameof(topicConfigurations));
 
+        _subscriptionConfigurationId = Guid.NewGuid();
+        SubscriptionConfigurationId = $"{_subscriptionConfigurationId}-0";
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ConsumerInstances = consumerInstances;
+        EnableDeadLetterQueue = enableDeadLetterQueue;
         TopicConfigurations = topicConfigurations;
+
     }
 
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
+        bool enableDeadLetterQueue = false,
         params TopicSubscriptionConfiguration[] topics)
-        : this(settings, consumerInstances: 1, topics)
+        : this(settings, consumerInstances: 1, enableDeadLetterQueue, topics)
     {
     }
+    
+    public string SubscriptionConfigurationId { get; private init; }
 
     public int ConsumerInstances { get; }
+
+    public bool EnableDeadLetterQueue { get; }
 
     public TopicSubscriptionConfiguration[] TopicConfigurations { get; }
 
@@ -61,7 +73,11 @@ public sealed record SubscriptionConfiguration
         {
             foreach (var i in  Enumerable.Range(0, ConsumerInstances))
             {
-                yield return this with { Settings = Settings.GetForInstance(i) };
+                yield return this with
+                {
+                    SubscriptionConfigurationId = $"{_subscriptionConfigurationId}-{i}",
+                    Settings = Settings.GetForInstance(i)
+                };
             }
         }
     }
