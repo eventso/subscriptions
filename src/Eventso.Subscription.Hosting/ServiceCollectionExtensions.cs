@@ -1,4 +1,4 @@
-using Eventso.Subscription.Kafka.DeadLetter.Store;
+using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Observing.DeadLetter;
 using Eventso.Subscription.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -32,25 +32,37 @@ public static class ServiceCollectionExtensions
                 .AsImplementedInterfaces()
                 .WithLifetime(handlersLifetime));
 
-        if (configureDeadLetterQueue != null)
-            AddDeadLetterQueueServices(services, configureDeadLetterQueue);
+        AddDeadLetterQueueServices(services, configureDeadLetterQueue);
 
         return services;
     }
 
     private static void AddDeadLetterQueueServices(
         IServiceCollection services,
-        Action<IServiceCollection,DeadLetterQueueOptions> configureDeadLetterQueue)
+        Action<IServiceCollection, DeadLetterQueueOptions>? configureDeadLetterQueue)
     {
-        var dlqOptions = new DeadLetterQueueOptions();
+        DeadLetterQueueOptions dlqOptions;
 
-        configureDeadLetterQueue(services, dlqOptions);
+        if (configureDeadLetterQueue != null)
+        {
+            dlqOptions = new DeadLetterQueueOptions();
+            configureDeadLetterQueue(services, dlqOptions);
+        }
+        else
+        {
+            dlqOptions = DeadLetterQueueOptions.Disabled;
+        }
 
-        services.TryAddSingleton<PoisonEventManagerFactory>();
-        services.AddHostedService<PoisonEventRetryingHost>();
+        services.TryAddSingleton<IPoisonEventStore>(_ => throw new Exception("DLQ store was not configured"));
+        services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
         services.TryAddSingleton<IDeadLetterQueueScopeFactory>(AsyncLocalDeadLetterWatcher.Instance);
-        services.TryAddSingleton<IDeadLetterQueue>(AsyncLocalDeadLetterWatcher.Instance);
         services.TryAddSingleton(dlqOptions);
+        services.AddHostedService<PoisonEventRetryingHost>();
+        services.TryAddSingleton<IDeadLetterQueue>(
+            sp => sp.GetRequiredService<DeadLetterQueueOptions>().IsEnabled
+                ? AsyncLocalDeadLetterWatcher.Instance
+                // disable api for clients
+                : throw new Exception("DLQ was not configured."));
     }
 
     private static void TryAddSubscriptionServices(IServiceCollection services)

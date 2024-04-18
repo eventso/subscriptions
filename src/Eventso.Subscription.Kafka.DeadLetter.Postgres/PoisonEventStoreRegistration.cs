@@ -1,5 +1,4 @@
 using Eventso.Subscription.Hosting;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -7,22 +6,21 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 public static class PoisonEventStoreRegistration
 {
-    public static DeadLetterQueueOptions UsePostgresStore<T>(
-        this DeadLetterQueueOptions options,
-        IServiceCollection services)
-        where T : class, IConnectionFactory
+    public static DeadLetterQueueOptions UsePostgresDeadLetterQueueStore(
+        this IServiceCollection services,
+        DeadLetterQueueOptions options,
+        Func<IServiceProvider, IConnectionFactory> connectionFactoryProvider)
     {
-        services.TryAddSingleton<IConnectionFactory, T>();
-
         services.Replace(
             ServiceDescriptor.Singleton<IPoisonEventStore>(p =>
                 PoisonEventStore.Initialize(
-                        p.GetRequiredService<IConnectionFactory>(),
+                        connectionFactoryProvider(p),
                         options.MaxRetryAttemptCount,
                         options.MinHandlingRetryInterval,
                         options.MaxRetryDuration,
                         CancellationToken.None)
-                    .GetAwaiter().GetResult()));
+                    .GetAwaiter()
+                    .GetResult()));
         return options;
     }
 }

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
@@ -8,22 +7,22 @@ namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
 {
-    private readonly IPoisonEventManager _poisonEventManager;
+    private readonly IPoisonEventQueue _poisonEventQueue;
     private readonly ThreadSafeConsumer _deadMessageConsumer;
 
     public PoisonEventInbox(
-        IPoisonEventManager poisonEventManager,
+        IPoisonEventQueue poisonEventQueue,
         KafkaConsumerSettings settings,
-        string[] topics,
+        string topic,
         ILogger<PoisonEventInbox> logger)
     {
-        _poisonEventManager = poisonEventManager;
-        _deadMessageConsumer = new ThreadSafeConsumer(settings, topics, logger);
+        _poisonEventQueue = poisonEventQueue;
+        _deadMessageConsumer = new ThreadSafeConsumer(settings, topic, logger);
     }
 
     public ValueTask<bool> IsPartOfPoisonStream(Event @event, CancellationToken token)
     {
-        return _poisonEventManager.IsPoison(
+        return _poisonEventQueue.IsPoison(
             @event.GetTopicPartitionOffset().TopicPartition,
             @event.GetKey(),
             token);
@@ -34,7 +33,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
         var topicPartitionOffset = @event.GetTopicPartitionOffset();
         var rawEvent = _deadMessageConsumer.Consume(topicPartitionOffset, token);
         var openingPoisonEvent = PoisonEvent.From(rawEvent);
-        return _poisonEventManager.Blame(openingPoisonEvent, DateTime.UtcNow, reason, token);
+        return _poisonEventQueue.Blame(openingPoisonEvent, DateTime.UtcNow, reason, token);
     }
 
     public void Dispose()
@@ -47,7 +46,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
 
         public ThreadSafeConsumer(
             KafkaConsumerSettings settings,
-            string[] topics,
+            string topic,
             ILogger logger)
         {
             if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
@@ -61,15 +60,14 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
                 EnableAutoCommit = false,
                 EnableAutoOffsetStore = false,
                 AutoOffsetReset = AutoOffsetReset.Error,
-                AllowAutoCreateTopics = false,
-                GroupId = settings.Config.GroupId + "_cemetery" // boo!
+                AllowAutoCreateTopics = false
             };
 
             _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
                 .SetKeyDeserializer(Deserializers.ByteArray)
                 .SetValueDeserializer(Deserializers.ByteArray)
                 .SetErrorHandler((_, e) => logger.LogError(
-                    $"{nameof(PoisonEventInbox)} internal error: Topics: {string.Join(", ", topics)}, {e.Reason}," +
+                    $"{nameof(PoisonEventInbox)} internal error: Topic: {topic}, {e.Reason}," +
                     $" Fatal={e.IsFatal}, IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
                 .Build();
         }

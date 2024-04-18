@@ -17,8 +17,8 @@ public sealed class AsyncLocalDeadLetterWatcher : IDeadLetterQueueScopeFactory, 
     public void Enqueue(Subscription.DeadLetter message)
         => _localContext.Value?.Enqueue(message);
 
-    public void EnqueueRange(IEnumerable<Subscription.DeadLetter> messages)
-        => _localContext.Value?.EnqueueRange(messages);
+    public void Enqueue(IEnumerable<Subscription.DeadLetter> messages)
+        => _localContext.Value?.Enqueue(messages);
 
     private IDeadLetterQueueScope<TEvent> Create<TEvent>(IEventContext<TEvent> eventContext) where TEvent : IEvent
     {

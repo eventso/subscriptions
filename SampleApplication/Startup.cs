@@ -130,20 +130,21 @@ public class Startup
                         {
                             Topic = topic
                         },
-                        new JsonMessageDeserializer<T>(),
-                        enableDeadLetterQueue: enableDlq);
+                        new JsonMessageDeserializer<T>());
                 void AddBatch<T>(string topic)
                     => subs.AddBatch(new ConsumerSettings(brokers, groupId, autoOffsetReset: AutoOffsetReset.Latest)
                         {
                             Topic = topic
                         },
                         new BatchConfiguration() { MaxBatchSize = 3, MaxBufferSize = 5 },
-                        new JsonMessageDeserializer<T>(),
-                        enableDeadLetterQueue: enableDlq);
+                        new JsonMessageDeserializer<T>());
             },
             types => types.FromCallingAssembly(),
             configureDeadLetterQueue: enableDlq
-                ? (services, options) => options.UsePostgresStore<ConnectionFactory>(services)
+                ? (sc, options) =>
+                {
+                    sc.UsePostgresDeadLetterQueueStore(options, _ => new ConnectionFactory());
+                }
                 : default);
     }
 

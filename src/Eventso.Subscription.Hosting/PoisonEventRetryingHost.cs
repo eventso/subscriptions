@@ -16,19 +16,29 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         DeadLetterQueueOptions deadLetterQueueOptions,
-        PoisonEventManagerFactory poisonEventManagerFactory,
+        PoisonEventQueueFactory poisonEventQueueFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
+        if (subscriptions == null)
+            throw new ArgumentNullException(nameof(subscriptions));
+        
         _reprocessingInterval = deadLetterQueueOptions.ReprocessingJobInterval;
         _logger = loggerFactory.CreateLogger<SubscriptionHost>();
 
-        _topicRetryingServices = (subscriptions ?? throw new ArgumentNullException(nameof(subscriptions)))
-            .SelectMany(x => x)
-            .Where(x => x.EnableDeadLetterQueue)
-            .SelectMany(x => x.ClonePerConsumerInstance())
-            .Select(x => CreateTopicRetryingService(x, pipelineFactory, handlersRegistry, poisonEventManagerFactory, deadLetterQueueScopeFactory, loggerFactory))
-            .ToArray();
+        _topicRetryingServices = deadLetterQueueOptions.IsEnabled
+            ? subscriptions
+                .SelectMany(x => x)
+                .SelectMany(x => x.ClonePerConsumerInstance())
+                .Select(x => CreateTopicRetryingService(
+                    x,
+                    pipelineFactory,
+                    handlersRegistry,
+                    poisonEventQueueFactory,
+                    deadLetterQueueScopeFactory,
+                    loggerFactory))
+                .ToArray()
+            : [];
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,7 +66,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         SubscriptionConfiguration config,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
-        PoisonEventManagerFactory poisonEventManagerFactory,
+        PoisonEventQueueFactory poisonEventQueueFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
@@ -76,7 +86,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
             valueDeserializer,
             eventHandlers,
             deadLetterQueueScopeFactory,
-            poisonEventManagerFactory.Create(
+            poisonEventQueueFactory.Create(
                 config.Settings.Config.GroupId,
                 config.SubscriptionConfigurationId)!,
             loggerFactory.CreateLogger<TopicRetryingService>());

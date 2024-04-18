@@ -9,7 +9,6 @@ public sealed record SubscriptionConfiguration
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
         int consumerInstances,
-        bool enableDeadLetterQueue = false,
         params TopicSubscriptionConfiguration[] topicConfigurations)
     {
         if (consumerInstances < 1)
@@ -25,24 +24,20 @@ public sealed record SubscriptionConfiguration
         SubscriptionConfigurationId = $"{_subscriptionConfigurationId}-0";
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ConsumerInstances = consumerInstances;
-        EnableDeadLetterQueue = enableDeadLetterQueue;
         TopicConfigurations = topicConfigurations;
 
     }
 
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
-        bool enableDeadLetterQueue = false,
         params TopicSubscriptionConfiguration[] topics)
-        : this(settings, consumerInstances: 1, enableDeadLetterQueue, topics)
+        : this(settings, consumerInstances: 1, topics)
     {
     }
     
     public string SubscriptionConfigurationId { get; private init; }
 
     public int ConsumerInstances { get; }
-
-    public bool EnableDeadLetterQueue { get; }
 
     public TopicSubscriptionConfiguration[] TopicConfigurations { get; }
 

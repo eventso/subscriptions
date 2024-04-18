@@ -1,6 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
@@ -306,7 +305,7 @@ RETURNING
             reader.GetFieldValue<byte[]>(1),
             reader.GetFieldValue<byte[]>(2),
             reader.GetDateTime(3),
-            ReadEventHeaders(),
+            ReadHeaders(),
             reader.GetInt32(6));
 
         if (await reader.ReadAsync(token))
@@ -314,16 +313,16 @@ RETURNING
 
         return poisonEvent;
 
-        EventHeader[] ReadEventHeaders()
+        PoisonEvent.Header[] ReadHeaders()
         {
             var headerKeys = reader.GetFieldValue<string[]>(4);
             if (headerKeys.Length <= 0)
                 return [];
 
             var headerValues = reader.GetFieldValue<byte[][]>(5);
-            var headers = new EventHeader[headerKeys.Length];
+            var headers = new PoisonEvent.Header[headerKeys.Length];
             for (var i = 0; i < headerKeys.Length; i++)
-                headers[i] = new EventHeader(headerKeys[i], headerValues[i]);
+                headers[i] = new PoisonEvent.Header(headerKeys[i], headerValues[i]);
             return headers;
         }
     }

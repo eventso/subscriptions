@@ -2,6 +2,16 @@
 
 public sealed class DeadLetterQueueOptions
 {
+    public static DeadLetterQueueOptions Disabled { get; } = new DeadLetterQueueOptions
+    {
+        IsEnabled = false
+    };
+
+    /// <summary>
+    /// Is dead letter queue configured.
+    /// </summary>
+    internal bool IsEnabled { get; private init; } = true;
+
     /// <summary>
     /// Interval between whole DLQ reprocessing job run.
     /// </summary>

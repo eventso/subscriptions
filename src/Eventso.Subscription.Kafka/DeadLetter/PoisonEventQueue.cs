@@ -1,11 +1,9 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
-public sealed class PoisonEventManager : IPoisonEventManager
+public sealed class PoisonEventQueue : IPoisonEventQueue
 {
     private readonly Dictionary<TopicPartition, Task<HashSet<Guid>>> _partitionPoisonKeys = new();
 
@@ -13,7 +11,7 @@ public sealed class PoisonEventManager : IPoisonEventManager
     private readonly string _groupId;
     private readonly int _maxNumberOfPoisonedEventsInTopic;
 
-    public PoisonEventManager(
+    public PoisonEventQueue(
         IPoisonEventStore poisonEventStore,
         string groupId,
         int maxNumberOfPoisonedEventsInTopic)
@@ -22,8 +20,10 @@ public sealed class PoisonEventManager : IPoisonEventManager
         _groupId = groupId;
         _maxNumberOfPoisonedEventsInTopic = maxNumberOfPoisonedEventsInTopic;
     }
-    
-    public void Enable(TopicPartition topicPartition)
+
+    public bool IsEnabled => true;
+
+    public void Assign(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
         _partitionPoisonKeys[topicPartition] = GetPoisonKeys();
@@ -39,7 +39,7 @@ public sealed class PoisonEventManager : IPoisonEventManager
         }
     }
 
-    public void Disable(TopicPartition topicPartition)
+    public void Revoke(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
         _partitionPoisonKeys.Remove(topicPartition);
@@ -90,7 +90,7 @@ public sealed class PoisonEventManager : IPoisonEventManager
                 var eventForRetrying = await _poisonEventStore.GetEventForRetrying(_groupId, topicPartition, token);
                 if (eventForRetrying == null)
                     continue;
-                
+
                 needToProcess = true;
                 yield return eventForRetrying;
             }

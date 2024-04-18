@@ -27,7 +27,7 @@ public sealed class DeadLetterQueue : IDeadLetterQueue
         }
     }
 
-    public void EnqueueRange(IEnumerable<Subscription.DeadLetter> deadLetters)
+    public void Enqueue(IEnumerable<Subscription.DeadLetter> deadLetters)
     {
         lock (_lockObject)
         {

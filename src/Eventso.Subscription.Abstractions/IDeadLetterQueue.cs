@@ -4,5 +4,5 @@ public interface IDeadLetterQueue
 {
     void Enqueue(DeadLetter message);
 
-    void EnqueueRange(IEnumerable<DeadLetter> messages);
+    void Enqueue(IEnumerable<DeadLetter> messages);
 }

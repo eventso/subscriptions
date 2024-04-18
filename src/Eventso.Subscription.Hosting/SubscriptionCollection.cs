@@ -1,5 +1,6 @@
 using System.Collections;
 using Eventso.Subscription.Kafka;
+using Scrutor;
 
 namespace Eventso.Subscription.Hosting;
 
@@ -14,13 +15,11 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
-        TimeSpan? messageObservingDelay = default,
-        bool enableDeadLetterQueue = false)
+        TimeSpan? messageObservingDelay = default)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            enableDeadLetterQueue,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 serializer,
@@ -41,13 +40,11 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
-        TimeSpan? messageObservingDelay = default,
-        bool enableDeadLetterQueue = false)
+        TimeSpan? messageObservingDelay = default)
     {
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            enableDeadLetterQueue,
             new TopicSubscriptionConfiguration(
                 settings.Topic,
                 batchConfig,
@@ -64,8 +61,7 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
     public ISubscriptionCollection AddMultiTopic(
         KafkaConsumerSettings settings,
         Action<IMultiTopicSubscriptionCollection> addSubscriptions,
-        int instances = 1,
-        bool enableDeadLetterQueue = false)
+        int instances = 1)
     {
         var collection = new MultiTopicSubscriptionCollection();
         addSubscriptions(collection);
@@ -76,7 +72,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         var subscription = new SubscriptionConfiguration(
             settings,
             instances,
-            enableDeadLetterQueue,
             collection.TopicConfigurations.ToArray());
 
         return Add(subscription);

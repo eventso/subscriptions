@@ -1,4 +1,5 @@
 using Eventso.Subscription.Kafka;
+using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
@@ -8,7 +9,7 @@ public sealed class ObserverFactory : IObserverFactory<Event>
     private readonly SubscriptionConfiguration _configuration;
     private readonly IMessagePipelineFactory _messagePipelineFactory;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
-    private readonly IPoisonEventInbox<Event>? _poisonEventInbox;
+    private readonly IPoisonEventQueue _poisonEventQueue;
     private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
     private readonly ILoggerFactory _loggerFactory;
 
@@ -16,14 +17,14 @@ public sealed class ObserverFactory : IObserverFactory<Event>
         SubscriptionConfiguration configuration,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry messageHandlersRegistry,
-        IPoisonEventInbox<Event>? poisonEventInbox,
+        IPoisonEventQueue poisonEventQueue,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
         _configuration = configuration;
         _messagePipelineFactory = messagePipelineFactory;
         _messageHandlersRegistry = messageHandlersRegistry;
-        _poisonEventInbox = poisonEventInbox;
+        _poisonEventQueue = poisonEventQueue;
         _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
         _loggerFactory = loggerFactory;
     }
@@ -39,12 +40,17 @@ public sealed class ObserverFactory : IObserverFactory<Event>
 
         eventHandler = new LoggingScopeEventHandler<Event>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
 
-        if (_poisonEventInbox != null) 
-            // todo znake if (_configuration.EnableDeadLetterQueue) ? 
+        if (_poisonEventQueue.IsEnabled)
+        {
             eventHandler = new PoisonEventHandler<Event>(
-                _poisonEventInbox,
+                new PoisonEventInbox(
+                    _poisonEventQueue,
+                    _configuration.Settings,
+                    topic,
+                    _loggerFactory.CreateLogger<PoisonEventInbox>()),
                 _deadLetterQueueScopeFactory,
                 eventHandler);
+        }
 
         var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)

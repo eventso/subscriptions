@@ -1,6 +1,6 @@
 using Confluent.Kafka;
 
-namespace Eventso.Subscription.Kafka.DeadLetter.Store;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public interface IPoisonEventStore
 {
@@ -15,5 +15,6 @@ public interface IPoisonEventStore
 
     Task RemoveEvent(string groupId, TopicPartitionOffset partitionOffset, CancellationToken token);
 
+    // todo extract it from store interface to some scheduler
     Task<PoisonEvent?> GetEventForRetrying(string groupId, TopicPartition topicPartition, CancellationToken token);
 }

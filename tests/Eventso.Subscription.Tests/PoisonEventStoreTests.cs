@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
+using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Kafka.DeadLetter.Postgres;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -375,7 +375,7 @@ public class PoisonEventStoreTests
                 key,
                 _fixture.CreateMany<byte>().ToArray(),
                 _fixture.Create<DateTime>(),
-                Array.Empty<EventHeader>(),
+                Array.Empty<PoisonEvent.Header>(),
                 totalFailureCount);
             await store.AddEvent(groupId, @event, lastFailureTimestamp, lastFailureReason, CancellationToken.None);
 

@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +10,7 @@ public sealed class TopicRetryingService
     private readonly IDeserializer<ConsumedMessage> _deserializer;
     private readonly IReadOnlyDictionary<string, Observing.EventHandler<Event>> _eventHandlers;
     private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
-    private readonly IPoisonEventManager _poisonEventManager;
+    private readonly IPoisonEventQueue _poisonEventQueue;
     private readonly ILogger<TopicRetryingService> _logger;
 
     public TopicRetryingService(
@@ -19,14 +18,14 @@ public sealed class TopicRetryingService
         IDeserializer<ConsumedMessage> deserializer,
         IReadOnlyDictionary<string, Observing.EventHandler<Event>> eventHandlers,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
-        IPoisonEventManager poisonEventManager,
+        IPoisonEventQueue poisonEventQueue,
         ILogger<TopicRetryingService> logger)
     {
         _topics = topics;
         _deserializer = deserializer;
         _eventHandlers = eventHandlers;
         _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
-        _poisonEventManager = poisonEventManager;
+        _poisonEventQueue = poisonEventQueue;
         _logger = logger;
     }
 
@@ -37,7 +36,7 @@ public sealed class TopicRetryingService
 
         _logger.LogInformation("Started event retrying.");
 
-        await foreach (var storedEvent in _poisonEventManager.GetEventsForRetrying(cancellationToken))
+        await foreach (var storedEvent in _poisonEventQueue.GetEventsForRetrying(cancellationToken))
         {
             await Retry(storedEvent, cancellationToken);
             _logger.LogInformation("Retried event {TopicPartitionOffset}.", storedEvent.TopicPartitionOffset);
@@ -56,7 +55,7 @@ public sealed class TopicRetryingService
         }
         catch (Exception exception)
         {
-            await _poisonEventManager.Blame(
+            await _poisonEventQueue.Blame(
                 // looks bad, think how deal with failure count in a better way
                 poisonEvent with { FailureCount = poisonEvent.FailureCount + 1 },
                 DateTime.UtcNow,
@@ -65,7 +64,7 @@ public sealed class TopicRetryingService
             return;
         }
 
-        await _poisonEventManager.Rehabilitate(poisonEvent, cancellationToken);
+        await _poisonEventQueue.Rehabilitate(poisonEvent, cancellationToken);
     }
 
     private Event Deserialize(PoisonEvent storedEvent)
