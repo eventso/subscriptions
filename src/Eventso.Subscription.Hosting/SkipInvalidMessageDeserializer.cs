@@ -2,7 +2,20 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Eventso.Subscription.Hosting;
 
-public class SkipInvalidMessageDeserializer : IMessageDeserializer
+public static class SkipInvalidMessageExtensions
+{
+    public static IMessageDeserializer SkipInvalidMessage(
+        this IMessageDeserializer messageDeserializer,
+        ILoggerFactory loggerFactory)
+        => messageDeserializer.SkipInvalidMessage(loggerFactory.CreateLogger<SkipInvalidMessageDeserializer>());
+
+    public static IMessageDeserializer SkipInvalidMessage(
+        this IMessageDeserializer messageDeserializer,
+        ILogger<SkipInvalidMessageDeserializer> logger)
+        => new SkipInvalidMessageDeserializer(messageDeserializer, logger);
+}
+
+public sealed class SkipInvalidMessageDeserializer : IMessageDeserializer
 {
     private readonly IMessageDeserializer _inner;
     private readonly ILogger _logger;
@@ -27,7 +40,8 @@ public class SkipInvalidMessageDeserializer : IMessageDeserializer
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            _logger.LogError(
+                ex,
                 $"Can't deserialize message from topic {context.Topic}. Deserializer type {_inner.GetType().Name}. Skipped.");
 
             return ConsumedMessage.Skipped;
