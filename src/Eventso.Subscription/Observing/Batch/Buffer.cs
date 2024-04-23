@@ -29,8 +29,8 @@ internal sealed class Buffer<TEvent> : IDisposable
         int maxBufferSize,
         CancellationToken token)
     {
-        if (maxBatchSize <= 1)
-            throw new ArgumentException("Buffer size must be greater than 1.");
+        if (maxBatchSize < 1)
+            throw new ArgumentException("Buffer size should not be less than 1.");
 
         _maxBatchSize = maxBatchSize;
         _maxBufferSize = maxBufferSize;

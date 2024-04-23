@@ -23,11 +23,14 @@ public sealed class TriggerHandle : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task HandlingOnTimeout(bool enableAutoCommit)
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    [InlineData(100, true)]
+    [InlineData(100, false)]
+    [InlineData(1000, true)]
+    [InlineData(1000, false)]
+    public async Task HandlingOnTimeout(int messageCount, bool enableAutoCommit)
     {
-        const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
         var consumerSettings = _config.ToSettings(topic, enableAutoCommit);
@@ -60,11 +63,14 @@ public sealed class TriggerHandle : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task HandlingOnBatchSize(bool enableAutoCommit)
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    [InlineData(100, true)]
+    [InlineData(100, false)]
+    [InlineData(1000, true)]
+    [InlineData(1000, false)]
+    public async Task HandlingOnBatchSize(int messageCount, bool enableAutoCommit)
     {
-        const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(10);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
         var consumerSettings = _config.ToSettings(topic, enableAutoCommit);
