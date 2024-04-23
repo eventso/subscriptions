@@ -23,10 +23,11 @@ public sealed class BatchFail : IAsyncLifetime
         _fixture = fixture;
     }
 
-    [Fact]
-    public async Task FailingBatch_NoCommits()
+    [Theory]
+    [InlineData(100)]
+    [InlineData(1000)]
+    public async Task FailingBatch_NoCommits(int messageCount)
     {
-        const int messageCount = 100;
         var batchTriggerTimeout = TimeSpan.FromSeconds(1);
         var (topic, messages) = await _topicSource.CreateTopicWithMessages<BlackMessage>(_fixture, messageCount);
         var consumerSettings = _config.ToSettings(topic);
