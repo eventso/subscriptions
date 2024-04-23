@@ -1,38 +1,28 @@
 namespace Eventso.Subscription.Observing.DeadLetter;
 
-public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
+public sealed class PoisonEventHandler<TEvent>(
+    IPoisonEventInbox<TEvent> poisonEventInbox,
+    IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
+    IEventHandler<TEvent> inner)
+    : IEventHandler<TEvent>
     where TEvent : IEvent
 {
     internal const string StreamIsPoisonReason = "Event stream is poisoned.";
 
-    private readonly IPoisonEventInbox<TEvent> _poisonEventInbox;
-    private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
-    private readonly IEventHandler<TEvent> _inner;
-
-    public PoisonEventHandler(
-        IPoisonEventInbox<TEvent> poisonEventInbox,
-        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
-        IEventHandler<TEvent> inner)
-    {
-        _poisonEventInbox = poisonEventInbox;
-        _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
-        _inner = inner;
-    }
-
     public async Task Handle(TEvent @event, CancellationToken cancellationToken)
     {
-        if (await _poisonEventInbox.IsPartOfPoisonStream(@event, cancellationToken))
+        if (await poisonEventInbox.IsPartOfPoisonStream(@event, cancellationToken))
         {
-            await _poisonEventInbox.Add(@event, StreamIsPoisonReason, cancellationToken);
+            await poisonEventInbox.Add(@event, StreamIsPoisonReason, cancellationToken);
             return;
         }
 
-        using var dlqScope = _deadLetterQueueScopeFactory.Create(@event);
+        using var dlqScope = deadLetterQueueScopeFactory.Create(@event);
 
         PoisonEvent<TEvent>? poisonEvent = null;
         try
         {
-            await _inner.Handle(@event, cancellationToken);
+            await inner.Handle(@event, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -43,7 +33,7 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         if (poisonEvent == null)
             return;
 
-        await _poisonEventInbox.Add(poisonEvent.Value.Event, poisonEvent.Value.Reason, cancellationToken);
+        await poisonEventInbox.Add(poisonEvent.Value.Event, poisonEvent.Value.Reason, cancellationToken);
 
         static PoisonEvent<TEvent>? Coalesce(PoisonEvent<TEvent>? @event, IDeadLetterQueueScope<TEvent> dlqScope)
         {
@@ -62,11 +52,11 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         FilterPoisonEvents(events, poisonStreamCollection, out var withoutPoison, out var poison);
 
         var healthyEvents = withoutPoison ?? events;
-        using var dlqScope = _deadLetterQueueScopeFactory.Create(healthyEvents);
+        using var dlqScope = deadLetterQueueScopeFactory.Create(healthyEvents);
 
         try
         {
-            await _inner.Handle(healthyEvents, token);
+            await inner.Handle(healthyEvents, token);
 
             var userDefinedPoison = dlqScope.GetPoisonEvents();
             if (userDefinedPoison.Count > 0)
@@ -84,7 +74,7 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
 
         if (poison?.Count > 0)
             foreach (var @event in poison)
-                await _poisonEventInbox.Add(@event.Event, @event.Reason, token);
+                await poisonEventInbox.Add(@event.Event, @event.Reason, token);
 
         withoutPoison?.Dispose();
         poison?.Dispose();
@@ -97,7 +87,7 @@ public sealed class PoisonEventHandler<TEvent> : IEventHandler<TEvent>
         HashSet<TEvent>? poisonEvents = null;
         foreach (var @event in events)
         {
-            if (!await _poisonEventInbox.IsPartOfPoisonStream(@event, token))
+            if (!await poisonEventInbox.IsPartOfPoisonStream(@event, token))
                 continue;
 
             poisonEvents ??= new HashSet<TEvent>();

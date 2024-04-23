@@ -3,23 +3,13 @@ using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
-public sealed class PoisonEventQueue : IPoisonEventQueue
+public sealed class PoisonEventQueue(
+    IPoisonEventStore poisonEventStore,
+    string groupId,
+    int maxNumberOfPoisonedEventsInTopic)
+    : IPoisonEventQueue
 {
     private readonly Dictionary<TopicPartition, Task<HashSet<Guid>>> _partitionPoisonKeys = new();
-
-    private readonly IPoisonEventStore _poisonEventStore;
-    private readonly string _groupId;
-    private readonly int _maxNumberOfPoisonedEventsInTopic;
-
-    public PoisonEventQueue(
-        IPoisonEventStore poisonEventStore,
-        string groupId,
-        int maxNumberOfPoisonedEventsInTopic)
-    {
-        _poisonEventStore = poisonEventStore;
-        _groupId = groupId;
-        _maxNumberOfPoisonedEventsInTopic = maxNumberOfPoisonedEventsInTopic;
-    }
 
     public bool IsEnabled => true;
 
@@ -32,7 +22,7 @@ public sealed class PoisonEventQueue : IPoisonEventQueue
         {
             var poisonedKeys = new HashSet<Guid>();
 
-            var keysSource = _poisonEventStore.GetPoisonedKeys(_groupId, topicPartition, CancellationToken.None);
+            var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, CancellationToken.None);
             await foreach (var key in keysSource)
                 poisonedKeys.Add(DeserializeKey(key.Span));
             return poisonedKeys;
@@ -53,14 +43,14 @@ public sealed class PoisonEventQueue : IPoisonEventQueue
 
     public async Task Blame(PoisonEvent @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
     {
-        var alreadyPoisoned = await _poisonEventStore.CountPoisonedEvents(_groupId, @event.TopicPartitionOffset.Topic, token);
-        if (alreadyPoisoned >= _maxNumberOfPoisonedEventsInTopic)
+        var alreadyPoisoned = await poisonEventStore.CountPoisonedEvents(groupId, @event.TopicPartitionOffset.Topic, token);
+        if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
             throw new EventHandlingException(
                 @event.TopicPartitionOffset.Topic,
-                $"Dead letter queue exceeds {_maxNumberOfPoisonedEventsInTopic} size.",
+                $"Dead letter queue exceeds {maxNumberOfPoisonedEventsInTopic} size.",
                 null);
         
-        await _poisonEventStore.AddEvent(_groupId, @event, failureTimestamp, failureReason, token);
+        await poisonEventStore.AddEvent(groupId, @event, failureTimestamp, failureReason, token);
         
         var keys = await GetTopicPartitionKeys(@event.TopicPartitionOffset.TopicPartition, token);
         keys.Add(DeserializeKey(@event.Key.Span));
@@ -87,7 +77,7 @@ public sealed class PoisonEventQueue : IPoisonEventQueue
                     continue;
                 }
 
-                var eventForRetrying = await _poisonEventStore.GetEventForRetrying(_groupId, topicPartition, token);
+                var eventForRetrying = await poisonEventStore.GetEventForRetrying(groupId, topicPartition, token);
                 if (eventForRetrying == null)
                     continue;
 
@@ -102,8 +92,8 @@ public sealed class PoisonEventQueue : IPoisonEventQueue
 
     public async Task Rehabilitate(PoisonEvent @event, CancellationToken token)
     {
-        await _poisonEventStore.RemoveEvent(_groupId, @event.TopicPartitionOffset, token);
-        if (await _poisonEventStore.IsKeyPoisoned(_groupId, @event.TopicPartitionOffset.Topic, @event.Key, token))
+        await poisonEventStore.RemoveEvent(groupId, @event.TopicPartitionOffset, token);
+        if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Key, token))
             return;
 
         var keys = await GetTopicPartitionKeys(@event.TopicPartitionOffset.TopicPartition, token);

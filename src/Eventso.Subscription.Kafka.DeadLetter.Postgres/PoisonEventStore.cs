@@ -4,24 +4,16 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-internal sealed class PoisonEventStore : IPoisonEventStore
+internal sealed class PoisonEventStore(
+    IConnectionFactory connectionFactory,
+    int? maxAllowedFailureCount,
+    TimeSpan? minIntervalBetweenRetries,
+    TimeSpan? maxLockHandleInterval)
+    : IPoisonEventStore
 {
-    private readonly IConnectionFactory _connectionFactory;
-    private readonly int _maxAllowedFailureCount;
-    private readonly TimeSpan _minIntervalBetweenRetries;
-    private readonly TimeSpan _maxLockHandleInterval;
-
-    public PoisonEventStore(
-        IConnectionFactory connectionFactory,
-        int? maxAllowedFailureCount,
-        TimeSpan? minIntervalBetweenRetries,
-        TimeSpan? maxLockHandleInterval)
-    {
-        _connectionFactory = connectionFactory;
-        _maxAllowedFailureCount = maxAllowedFailureCount ?? 10;
-        _minIntervalBetweenRetries = minIntervalBetweenRetries ?? TimeSpan.FromMinutes(1);
-        _maxLockHandleInterval = maxLockHandleInterval ?? TimeSpan.FromMinutes(1);
-    }
+    private readonly int _maxAllowedFailureCount = maxAllowedFailureCount ?? 10;
+    private readonly TimeSpan _minIntervalBetweenRetries = minIntervalBetweenRetries ?? TimeSpan.FromMinutes(1);
+    private readonly TimeSpan _maxLockHandleInterval = maxLockHandleInterval ?? TimeSpan.FromMinutes(1);
 
     public static async Task<PoisonEventStore> Initialize(
         IConnectionFactory connectionFactory,
@@ -68,7 +60,7 @@ internal sealed class PoisonEventStore : IPoisonEventStore
 
     public async Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.ReadOnly();
+        await using var connection = connectionFactory.ReadOnly();
 
         await using var command = new NpgsqlCommand(
             "SELECT COUNT(*) FROM eventso_dlq.poison_events WHERE topic = @topic AND group_id = @groupId;",
@@ -89,7 +81,7 @@ internal sealed class PoisonEventStore : IPoisonEventStore
 
     public async Task<bool> IsKeyPoisoned(string groupId, string topic, ReadOnlyMemory<byte> key, CancellationToken token)
     {
-         await using var connection = _connectionFactory.ReadOnly();
+         await using var connection = connectionFactory.ReadOnly();
 
          await using var command = new NpgsqlCommand(
              "SELECT TRUE FROM eventso_dlq.poison_events WHERE topic = @topic AND key = @key AND group_id = @groupId LIMIT 1;",
@@ -114,7 +106,7 @@ internal sealed class PoisonEventStore : IPoisonEventStore
         TopicPartition topicPartition,
         [EnumeratorCancellation] CancellationToken token)
     {
-        await using var connection = _connectionFactory.ReadOnly();
+        await using var connection = connectionFactory.ReadOnly();
 
         await using var command = new NpgsqlCommand(
             @"
@@ -145,7 +137,7 @@ WHERE topic = @topic AND partition = @partition AND group_id = @groupId;",
         string reason,
         CancellationToken token)
     {
-        await using var connection = _connectionFactory.ReadWrite();
+        await using var connection = connectionFactory.ReadWrite();
 
         var headerKeys = new string[@event.Headers.Count];
         var headerValues = new ReadOnlyMemory<byte>[@event.Headers.Count];
@@ -217,7 +209,7 @@ WHERE poison_events.total_failure_count < excluded.total_failure_count;",
 
     public async Task RemoveEvent(string groupId, TopicPartitionOffset partitionOffset, CancellationToken token)
     {
-        await using var connection = _connectionFactory.ReadWrite();
+        await using var connection = connectionFactory.ReadWrite();
 
         await using var command = new NpgsqlCommand(
             @"
@@ -241,7 +233,7 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
 
     public async Task<PoisonEvent?> GetEventForRetrying(string groupId, TopicPartition topicPartition, CancellationToken token)
     {
-        await using var connection = _connectionFactory.ReadOnly();
+        await using var connection = connectionFactory.ReadOnly();
 
         await connection.OpenAsync(token);
 

@@ -82,13 +82,14 @@ public sealed class PoisonEventRetryingHost : BackgroundService
                     messagePipelineFactory.Create(c.HandlerConfig)));
 
         return new TopicRetryingService(
+            config.Settings.Config.GroupId,
             config.TopicConfigurations.Select(c => c.Topic).ToArray(),
             valueDeserializer,
             eventHandlers,
             deadLetterQueueScopeFactory,
             poisonEventQueueFactory.Create(
                 config.Settings.Config.GroupId,
-                config.SubscriptionConfigurationId)!,
+                config.SubscriptionConfigurationId),
             loggerFactory.CreateLogger<TopicRetryingService>());
     }
 }

@@ -5,24 +5,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
-public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
+public sealed class PoisonEventInbox(
+    IPoisonEventQueue poisonEventQueue,
+    KafkaConsumerSettings settings,
+    string topic,
+    ILogger<PoisonEventInbox> logger)
+    : IPoisonEventInbox<Event>, IDisposable
 {
-    private readonly IPoisonEventQueue _poisonEventQueue;
-    private readonly ThreadSafeConsumer _deadMessageConsumer;
-
-    public PoisonEventInbox(
-        IPoisonEventQueue poisonEventQueue,
-        KafkaConsumerSettings settings,
-        string topic,
-        ILogger<PoisonEventInbox> logger)
-    {
-        _poisonEventQueue = poisonEventQueue;
-        _deadMessageConsumer = new ThreadSafeConsumer(settings, topic, logger);
-    }
+    private readonly ThreadSafeConsumer _deadMessageConsumer = new(settings, topic, logger);
 
     public ValueTask<bool> IsPartOfPoisonStream(Event @event, CancellationToken token)
     {
-        return _poisonEventQueue.IsPoison(
+        return poisonEventQueue.IsPoison(
             @event.GetTopicPartitionOffset().TopicPartition,
             @event.GetKey(),
             token);
@@ -33,7 +27,7 @@ public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IDisposable
         var topicPartitionOffset = @event.GetTopicPartitionOffset();
         var rawEvent = _deadMessageConsumer.Consume(topicPartitionOffset, token);
         var openingPoisonEvent = PoisonEvent.From(rawEvent);
-        return _poisonEventQueue.Blame(openingPoisonEvent, DateTime.UtcNow, reason, token);
+        return poisonEventQueue.Blame(openingPoisonEvent, DateTime.UtcNow, reason, token);
     }
 
     public void Dispose()
