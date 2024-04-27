@@ -2,20 +2,10 @@
 
 public sealed class DeadLetterQueueOptions
 {
-    public static DeadLetterQueueOptions Disabled { get; } = new DeadLetterQueueOptions
-    {
-        IsEnabled = false
-    };
-
-    /// <summary>
-    /// Is dead letter queue configured.
-    /// </summary>
-    internal bool IsEnabled { get; private init; } = true;
-
     /// <summary>
     /// Interval between whole DLQ reprocessing job run.
     /// </summary>
-    public TimeSpan ReprocessingJobInterval { get; set; } = TimeSpan.FromMinutes(1);
+    public TimeSpan ReprocessingJobInterval { get; set; } = TimeSpan.FromMinutes(60);
 
     /// <summary>
     /// Max size of DLQ for a topic. When exceeded - exception is thrown.
@@ -25,15 +15,23 @@ public sealed class DeadLetterQueueOptions
     /// <summary>
     /// Max retry attempts for an event. When exceeded - event is no longer a subject for retry.
     /// </summary>
-    public int? MaxRetryAttemptCount { get; set; } = 10;
+    public int MaxRetryAttemptCount { get; set; } = 10;
 
     /// <summary>
     /// Minimum interval between retries of concrete event processing.
     /// </summary>
-    public TimeSpan? MinHandlingRetryInterval { get; set; } = TimeSpan.FromMinutes(10);
+    public TimeSpan MinHandlingRetryInterval { get; set; } = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// Maximum allowed duration of a retry. When exceeded - one more retry could be executed.
     /// </summary>
-    public TimeSpan? MaxRetryDuration { get; set; } = TimeSpan.FromHours(1);
+    public TimeSpan MaxRetryDuration { get; set; } = TimeSpan.FromHours(1);
+
+    internal RetrySchedulingOptions GetRetrySchedulingOptions()
+        => new(MaxRetryAttemptCount, MinHandlingRetryInterval, MaxRetryDuration);
+
+    public sealed record RetrySchedulingOptions(
+        int MaxRetryAttemptCount,
+        TimeSpan MinHandlingRetryInterval,
+        TimeSpan MaxRetryDuration);
 }

@@ -1,4 +1,3 @@
-using System.Net;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Eventso.Subscription.Configurations;
@@ -11,12 +10,6 @@ using Npgsql;
 
 namespace SampleApplication;
 
-/*
-docker run --name eventso-postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres -d postgres
-docker network create eventso-network --driver bridge
-docker run --name eventso-zookeeper --network eventso-network  -p 2181:2181 -e ALLOW_ANONYMOUS_LOGIN=yes -d bitnami/zookeeper
-docker run --name eventso-kafka --network eventso-network -p 9092:9092 -e KAFKA_BROKER_ID=1 -e KAFKA_LISTENERS=PLAINTEXT://:9092 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092 -e KAFKA_CFG_ZOOKEEPER_CONNECT=eventso-zookeeper:2181 -e KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true -e ALLOW_PLAINTEXT_LISTENER=yes -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 -d bitnami/kafka
-*/
 public class Startup
 {
     public void ConfigureServices(IServiceCollection services)
@@ -42,7 +35,7 @@ public class Startup
 
         var brokers = "localhost:9092";
         var groupId = "sample-app";
-        var enableDlq = true;
+        var enableDlq = false;
 
         CreateTopics(brokers);
 
@@ -139,13 +132,10 @@ public class Startup
                         new BatchConfiguration() { MaxBatchSize = 3, MaxBufferSize = 5 },
                         new JsonMessageDeserializer<T>());
             },
-            types => types.FromCallingAssembly(),
-            configureDeadLetterQueue: enableDlq
-                ? (sc, options) =>
-                {
-                    sc.UsePostgresDeadLetterQueueStore(options, _ => new ConnectionFactory());
-                }
-                : default);
+            types => types.FromCallingAssembly());
+
+        if (enableDlq)
+            services.AddPostgresDeadLetterQueue<ConnectionFactory>();
     }
 
     private sealed class ConnectionFactory : IConnectionFactory

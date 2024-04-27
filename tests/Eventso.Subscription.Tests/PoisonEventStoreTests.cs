@@ -12,7 +12,7 @@ public class PoisonEventStoreTests
     // comment FactAttribute line to enable tests in class
     // xUnit doesn't have "skip whole class" functionality out of the box
     // this test class requires PostgreSQL database so it is local only for now
-    // private class FactAttribute : Attribute { }
+    private class FactAttribute : Attribute { }
 
     private readonly IFixture _fixture = new Fixture();
 
@@ -21,7 +21,7 @@ public class PoisonEventStoreTests
     {
         await using var database = await Database.Create(); 
 
-        await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
 
         await using var connection = database.ConnectionFactory.ReadWrite();
 
@@ -37,7 +37,8 @@ public class PoisonEventStoreTests
     public async Task AddFirstTime_EventsAdded()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -71,7 +72,8 @@ public class PoisonEventStoreTests
     public async Task AddSecondTime_EventsUpdated()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -110,7 +112,8 @@ public class PoisonEventStoreTests
     public async Task AddSame_NoChanges()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -145,7 +148,8 @@ public class PoisonEventStoreTests
     public async Task RemoveSingleFromStore_EventsRemoved()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -182,7 +186,8 @@ public class PoisonEventStoreTests
     public async Task Count_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -207,7 +212,8 @@ public class PoisonEventStoreTests
     public async Task IsPoisonedKey_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -230,7 +236,8 @@ public class PoisonEventStoreTests
     public async Task GetPoisonedKeys_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory, default, default, default, default);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
@@ -265,12 +272,13 @@ public class PoisonEventStoreTests
         const string relevantGroupId = "group1", irrelevantGroupId = "group2";
 
         await using var database = await Database.Create();
-        var store = await PoisonEventStore.Initialize(
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
+        var scheduler = new PoisonEventRetryingScheduler(
             database.ConnectionFactory,
             maxFailureCount,
             minIntervalBetweenRetries,
-            maxLockHandleInterval,
-            default);
+            maxLockHandleInterval);
 
         var reason = _fixture.Create<string>();
 
@@ -313,7 +321,7 @@ public class PoisonEventStoreTests
         var eventsForRetrying = new List<PoisonEvent>();
         while (true)
         {
-            var @event = await store.GetEventForRetrying(
+            var @event = await scheduler.GetEventForRetrying(
                 relevantGroupId,
                 new TopicPartition(relevantTopic, 20),
                 CancellationToken.None);
@@ -322,26 +330,6 @@ public class PoisonEventStoreTests
 
             await using var command = new NpgsqlCommand($"SELECT * FROM eventso_dlq.poison_events;", connection);
             await connection.OpenAsync();
-
-            var storedEvents1 = new List<PoisonEventRaw2>();
-            await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
-            while (await reader.ReadAsync(CancellationToken.None))
-            {
-                storedEvents1.Add(new PoisonEventRaw2(
-                    reader.GetFieldValue<string>(0),
-                    reader.GetFieldValue<string>(1),
-                    reader.GetFieldValue<int>(2),
-                    reader.GetFieldValue<long>(3),
-                    reader.GetFieldValue<byte[]>(4),
-                    reader.GetFieldValue<byte[]>(5),
-                    reader.GetDateTime(6),
-                    reader.GetFieldValue<string[]>(7),
-                    reader.GetFieldValue<byte[][]>(8),
-                    reader.GetDateTime(9),
-                    reader.GetString(10),
-                    reader.GetInt32(11),
-                    reader.GetFieldValue<DateTime?>(12)));
-            }
             
             if (@event == null)
                 break;
@@ -354,11 +342,7 @@ public class PoisonEventStoreTests
             .BeEquivalentTo(
                 events
                     .Where(e => (e.Key.ToArray().SequenceEqual(secondKey) && e.TopicPartitionOffset.Offset == 1)
-                                || (e.Key.ToArray().SequenceEqual(sixthKey) && e.TopicPartitionOffset.Offset == 4)
-                                 // || e.Key.ToArray().SequenceEqual(fourthKey)
-                                 // || e.Key.ToArray().SequenceEqual(sixthKey))
-                                // && e.TopicPartitionOffset.Offset.Value == 1),
-                                ),
+                                || (e.Key.ToArray().SequenceEqual(sixthKey) && e.TopicPartitionOffset.Offset == 4)),
                 o => o.AcceptingCloseDateTimes().ComparingByteReadOnlyMemoryAsArrays());
 
         async Task<PoisonEvent> CreateEvent(
@@ -435,7 +419,7 @@ WHERE group_id = @groupId AND pe.topic = @topic AND pe.partition = @partition AN
         await connection.OpenAsync();
 
         var storedEvents = new List<PoisonEventRaw>();
-        var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         while (await reader.ReadAsync(CancellationToken.None))
         {
             storedEvents.Add(new PoisonEventRaw(
@@ -511,14 +495,16 @@ WHERE group_id = @groupId AND pe.topic = @topic AND pe.partition = @partition AN
         public async ValueTask DisposeAsync()
         {
             await using var connection = new NpgsqlConnection(CreateCommonConnectionString());
-                
-            await using var command = new NpgsqlCommand($@"
-                REVOKE CONNECT ON DATABASE {_databaseName} FROM public;
-                SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{_databaseName}';
-                DROP DATABASE {_databaseName};", connection);
-                
             await connection.OpenAsync();
-            await command.ExecuteNonQueryAsync();
+
+            await using var cleanupCommand = new NpgsqlCommand($@"
+                REVOKE CONNECT ON DATABASE {_databaseName} FROM public;
+                SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{_databaseName}';",
+                connection);
+            await cleanupCommand.ExecuteNonQueryAsync();
+
+            await using var dropCommand = new NpgsqlCommand($"DROP DATABASE {_databaseName};", connection);
+            await dropCommand.ExecuteNonQueryAsync();
         }
 
         private static string CreateCommonConnectionString()

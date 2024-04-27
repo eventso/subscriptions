@@ -24,4 +24,11 @@
 		<Using Include="Eventso.Subscription.Observing.Batch" />
 	</ItemGroup>
 
+    <ItemGroup>
+        <!-- TODO znake remove it when production ready -->
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+            <_Parameter1>Eventso.Subscription.Kafka.DeadLetter.Postgres</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
 </Project>

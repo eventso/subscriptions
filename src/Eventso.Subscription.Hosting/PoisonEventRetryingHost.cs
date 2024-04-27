@@ -16,7 +16,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         DeadLetterQueueOptions deadLetterQueueOptions,
-        PoisonEventQueueFactory poisonEventQueueFactory,
+        IPoisonEventQueueFactory poisonEventQueueFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
@@ -26,19 +26,17 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         _reprocessingInterval = deadLetterQueueOptions.ReprocessingJobInterval;
         _logger = loggerFactory.CreateLogger<SubscriptionHost>();
 
-        _topicRetryingServices = deadLetterQueueOptions.IsEnabled
-            ? subscriptions
-                .SelectMany(x => x)
-                .SelectMany(x => x.ClonePerConsumerInstance())
-                .Select(x => CreateTopicRetryingService(
-                    x,
-                    pipelineFactory,
-                    handlersRegistry,
-                    poisonEventQueueFactory,
-                    deadLetterQueueScopeFactory,
-                    loggerFactory))
-                .ToArray()
-            : [];
+        _topicRetryingServices = subscriptions
+            .SelectMany(x => x)
+            .SelectMany(x => x.ClonePerConsumerInstance())
+            .Select(x => CreateTopicRetryingService(
+                x,
+                pipelineFactory,
+                handlersRegistry,
+                poisonEventQueueFactory,
+                deadLetterQueueScopeFactory,
+                loggerFactory))
+            .ToArray();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -66,7 +64,7 @@ public sealed class PoisonEventRetryingHost : BackgroundService
         SubscriptionConfiguration config,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
-        PoisonEventQueueFactory poisonEventQueueFactory,
+        IPoisonEventQueueFactory poisonEventQueueFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {

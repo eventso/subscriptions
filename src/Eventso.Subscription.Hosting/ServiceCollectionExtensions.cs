@@ -12,8 +12,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<ISubscriptionCollection, IServiceProvider> subscriptions,
         Func<ITypeSourceSelector, IImplementationTypeSelector>? handlersSelector = null,
-        ServiceLifetime handlersLifetime = ServiceLifetime.Scoped,
-        Action<IServiceCollection, DeadLetterQueueOptions>? configureDeadLetterQueue = default)
+        ServiceLifetime handlersLifetime = ServiceLifetime.Scoped)
     {
         TryAddSubscriptionServices(services);
 
@@ -32,37 +31,43 @@ public static class ServiceCollectionExtensions
                 .AsImplementedInterfaces()
                 .WithLifetime(handlersLifetime));
 
-        AddDeadLetterQueueServices(services, configureDeadLetterQueue);
+        // just for DI work
+        services.TryAddSingleton<IPoisonEventQueueFactory>(DisabledDeadLetterQueue.Instance);
+        services.TryAddSingleton<IDeadLetterQueueScopeFactory>(DisabledDeadLetterQueue.Instance);
+        services.TryAddSingleton<IDeadLetterQueue>(_ =>
+            throw new Exception(
+                $"Dead letter queue was not configured, please refer to {nameof(AddDeadLetterQueue)} method."));
 
         return services;
     }
 
-    private static void AddDeadLetterQueueServices(
-        IServiceCollection services,
-        Action<IServiceCollection, DeadLetterQueueOptions>? configureDeadLetterQueue)
+    // make public when ready
+    internal static void AddDeadLetterQueue(
+        this IServiceCollection services,
+        Action<DeadLetterQueueOptions> configureOptions,
+        Func<IServiceProvider, IPoisonEventStore> provideStore,
+        Func<IServiceProvider, DeadLetterQueueOptions.RetrySchedulingOptions, IPoisonEventRetryingScheduler> provideRetryingScheduler)
     {
-        DeadLetterQueueOptions dlqOptions;
+        services.RemoveAll<IPoisonEventQueueFactory>();
+        services.RemoveAll<IDeadLetterQueueScopeFactory>();
+        services.RemoveAll<IDeadLetterQueue>();
+        services.RemoveAll<DeadLetterQueueOptions>();
+        services.RemoveAll<IPoisonEventStore>();
+        services.RemoveAll<IPoisonEventRetryingScheduler>();
+        
+        var options = new DeadLetterQueueOptions();
+        configureOptions(options);
+        services.TryAddSingleton(options);
 
-        if (configureDeadLetterQueue != null)
-        {
-            dlqOptions = new DeadLetterQueueOptions();
-            configureDeadLetterQueue(services, dlqOptions);
-        }
-        else
-        {
-            dlqOptions = DeadLetterQueueOptions.Disabled;
-        }
-
-        services.TryAddSingleton<IPoisonEventStore>(_ => throw new Exception("DLQ store was not configured"));
+        services.TryAddSingleton(provideStore);
+        services.TryAddSingleton<IPoisonEventRetryingScheduler>(sp =>
+            provideRetryingScheduler(
+                sp,
+                sp.GetRequiredService<DeadLetterQueueOptions>().GetRetrySchedulingOptions()));
         services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
         services.TryAddSingleton<IDeadLetterQueueScopeFactory>(AsyncLocalDeadLetterWatcher.Instance);
-        services.TryAddSingleton(dlqOptions);
         services.AddHostedService<PoisonEventRetryingHost>();
-        services.TryAddSingleton<IDeadLetterQueue>(
-            sp => sp.GetRequiredService<DeadLetterQueueOptions>().IsEnabled
-                ? AsyncLocalDeadLetterWatcher.Instance
-                // disable api for clients
-                : throw new Exception("DLQ was not configured."));
+        services.TryAddSingleton<IDeadLetterQueue>(AsyncLocalDeadLetterWatcher.Instance);
     }
 
     private static void TryAddSubscriptionServices(IServiceCollection services)

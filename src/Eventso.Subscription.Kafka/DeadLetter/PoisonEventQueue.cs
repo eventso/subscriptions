@@ -5,6 +5,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventQueue(
     IPoisonEventStore poisonEventStore,
+    IPoisonEventRetryingScheduler retryingScheduler,
     string groupId,
     int maxNumberOfPoisonedEventsInTopic)
     : IPoisonEventQueue
@@ -77,7 +78,7 @@ public sealed class PoisonEventQueue(
                     continue;
                 }
 
-                var eventForRetrying = await poisonEventStore.GetEventForRetrying(groupId, topicPartition, token);
+                var eventForRetrying = await retryingScheduler.GetEventForRetrying(groupId, topicPartition, token);
                 if (eventForRetrying == null)
                     continue;
 
