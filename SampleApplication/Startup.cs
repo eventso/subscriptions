@@ -7,6 +7,7 @@ using Eventso.Subscription.Kafka.DeadLetter.Postgres;
 using Eventso.Subscription.Kafka.Insights;
 using Eventso.Subscription.SpanJson;
 using Npgsql;
+using Polly;
 
 namespace SampleApplication;
 
@@ -35,7 +36,7 @@ public class Startup
 
         var brokers = "localhost:9092";
         var groupId = "sample-app";
-        var enableDlq = false;
+        var enableDlq = true;
 
         CreateTopics(brokers);
 
@@ -82,6 +83,10 @@ public class Startup
                         new TopicSpecification { Name = "no-error-batch", ReplicationFactor = 1, NumPartitions = 1 },
                         new TopicSpecification { Name = "exception-batch", ReplicationFactor = 1, NumPartitions = 1 },
                         new TopicSpecification { Name = "poison-batch", ReplicationFactor = 1, NumPartitions = 1 },
+                    },
+                    options: new CreateTopicsOptions()
+                    {
+                        
                     })
                 .GetAwaiter()
                 .GetResult();
@@ -123,19 +128,28 @@ public class Startup
                         {
                             Topic = topic
                         },
-                        new JsonMessageDeserializer<T>());
+                        new JsonMessageDeserializer<T>(),
+                        new HandlerConfiguration
+                        {
+                            ResiliencePipeline = ResiliencePipeline.Empty
+                        });
+
                 void AddBatch<T>(string topic)
                     => subs.AddBatch(new ConsumerSettings(brokers, groupId, autoOffsetReset: AutoOffsetReset.Latest)
                         {
                             Topic = topic
                         },
                         new BatchConfiguration() { MaxBatchSize = 3, MaxBufferSize = 5 },
-                        new JsonMessageDeserializer<T>());
+                        new JsonMessageDeserializer<T>(),
+                        new HandlerConfiguration
+                        {
+                            ResiliencePipeline = ResiliencePipeline.Empty
+                        });
             },
             types => types.FromCallingAssembly());
 
         if (enableDlq)
-            services.AddPostgresDeadLetterQueue<ConnectionFactory>();
+            services.AddPostgresDeadLetterQueue<ConnectionFactory>(installSchema: true);
     }
 
     private sealed class ConnectionFactory : IConnectionFactory

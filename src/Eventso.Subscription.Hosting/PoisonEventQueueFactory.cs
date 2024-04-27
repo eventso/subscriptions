@@ -10,7 +10,8 @@ public sealed class PoisonEventQueueFactory : IPoisonEventQueueFactory
         IEnumerable<ISubscriptionCollection> subscriptions,
         DeadLetterQueueOptions deadLetterQueueOptions,
         IPoisonEventStore poisonEventStore,
-        IPoisonEventRetryingScheduler poisonEventRetryingScheduler)
+        IPoisonEventRetryingScheduler poisonEventRetryingScheduler,
+        ILoggerFactory loggerFactory)
     {
         _poisonEventQueues = subscriptions
             .SelectMany(x => x)
@@ -21,7 +22,8 @@ public sealed class PoisonEventQueueFactory : IPoisonEventQueueFactory
                     poisonEventStore,
                     poisonEventRetryingScheduler,
                     c.Settings.Config.GroupId,
-                    deadLetterQueueOptions.MaxTopicQueueSize));
+                    deadLetterQueueOptions.MaxTopicQueueSize,
+                    loggerFactory.CreateLogger<PoisonEventQueue>()));
 
     }
     

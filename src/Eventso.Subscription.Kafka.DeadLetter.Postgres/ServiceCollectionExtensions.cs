@@ -6,7 +6,6 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 public static class ServiceCollectionExtensions
 {
-    // make public when ready
     public static void AddPostgresDeadLetterQueue<TConnectionFactory>(
         this IServiceCollection services,
         Action<DeadLetterQueueOptions>? configureOptions = default,

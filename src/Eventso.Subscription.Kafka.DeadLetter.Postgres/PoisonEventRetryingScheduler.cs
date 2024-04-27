@@ -3,7 +3,7 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-public sealed class PoisonEventRetryingScheduler(
+internal sealed class PoisonEventRetryingScheduler(
     IConnectionFactory connectionFactory,
     int maxAllowedFailureCount,
     TimeSpan minIntervalBetweenRetries,

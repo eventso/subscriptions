@@ -26,4 +26,10 @@
 		<Using Include="Eventso.Subscription.Observing.Batch" />
 
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="DeadLetter\PoisonEventQueue.Log.cs">
+	    <DependentUpon>PoisonEventQueue.cs</DependentUpon>
+	  </Compile>
+	</ItemGroup>
 </Project>

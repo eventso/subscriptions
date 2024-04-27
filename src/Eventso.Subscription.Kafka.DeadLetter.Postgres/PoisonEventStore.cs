@@ -4,7 +4,7 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-public sealed class PoisonEventStore(IConnectionFactory connectionFactory) : IPoisonEventStore
+internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : IPoisonEventStore
 {
     public async Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken cancellationToken)
     {
