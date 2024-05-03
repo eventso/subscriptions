@@ -23,8 +23,8 @@ static partial class PoisonEventQueueLog
     [LoggerMessage(
         EventId = 1002,
         Level = LogLevel.Information,
-        Message = MessagePrefix + "Blame message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key} because of {Reason}")]
-    public static partial void Blame(
+        Message = MessagePrefix + "Enqueue message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key} because of {Reason}")]
+    public static partial void Enqueue(
         this ILogger<PoisonEventQueue> logger,
         string groupId,
         string topic,
@@ -36,8 +36,8 @@ static partial class PoisonEventQueueLog
     [LoggerMessage(
         EventId = 1003,
         Level = LogLevel.Information,
-        Message = MessagePrefix + "Rehabilitate message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key}")]
-    public static partial void Rehabilitate(
+        Message = MessagePrefix + "Dequeue message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key}")]
+    public static partial void Dequeue(
         this ILogger<PoisonEventQueue> logger,
         string groupId,
         string topic,

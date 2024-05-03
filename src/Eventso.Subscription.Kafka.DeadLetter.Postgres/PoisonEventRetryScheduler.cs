@@ -3,14 +3,14 @@ using Npgsql;
 
 namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
-internal sealed class PoisonEventRetryingScheduler(
+internal sealed class PoisonEventRetryScheduler(
     IConnectionFactory connectionFactory,
     int maxAllowedFailureCount,
     TimeSpan minIntervalBetweenRetries,
     TimeSpan maxLockHandleInterval)
-    : IPoisonEventRetryingScheduler
+    : IPoisonEventRetryScheduler
 {
-    public async Task<PoisonEvent?> GetEventForRetrying(string groupId, TopicPartition topicPartition, CancellationToken token)
+    public async Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, TopicPartition topicPartition, CancellationToken token)
     {
         await using var connection = connectionFactory.ReadOnly();
 
@@ -52,9 +52,7 @@ internal sealed class PoisonEventRetryingScheduler(
                 pe.value,
                 pe.creation_timestamp,
                 pe.header_keys,
-                pe.header_values,
-                pe.total_failure_count,
-                pe.lock_timestamp;
+                pe.header_values;
             """,
             connection);
 
@@ -69,30 +67,38 @@ internal sealed class PoisonEventRetryingScheduler(
         if (!await reader.ReadAsync(token))
             return null;
 
-        var poisonEvent = new PoisonEvent(
-            new TopicPartitionOffset(topicPartition, reader.GetFieldValue<long>(0)),
-            reader.GetFieldValue<byte[]>(1),
-            reader.GetFieldValue<byte[]>(2),
-            reader.GetDateTime(3),
-            ReadHeaders(),
-            reader.GetInt32(6));
+        var consumeResult = new ConsumeResult<byte[], byte[]>
+        {
+            TopicPartitionOffset = new TopicPartitionOffset(topicPartition, reader.GetFieldValue<long>(0)),
+            Message = new Message<byte[], byte[]>
+            {
+                Key = reader.GetFieldValue<byte[]>(1),
+                Value = reader.GetFieldValue<byte[]>(2),
+                Timestamp = new Timestamp(
+                    DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc),
+                    TimestampType.NotAvailable),
+                Headers = []
+            },
+            IsPartitionEOF = false,
+        };
+
+        foreach (var (key, value) in ReadHeaders(reader))
+            consumeResult.Message.Headers.Add(key, value);
 
         if (await reader.ReadAsync(token))
             throw new Exception("Unexpected additional row");
 
-        return poisonEvent;
+        return consumeResult;
 
-        PoisonEvent.Header[] ReadHeaders()
+        IEnumerable<(string Key, byte[] Value)> ReadHeaders(NpgsqlDataReader notDisposedReader)
         {
-            var headerKeys = reader.GetFieldValue<string[]>(4);
+            var headerKeys = notDisposedReader.GetFieldValue<string[]>(4);
             if (headerKeys.Length <= 0)
-                return [];
+                yield break;
 
-            var headerValues = reader.GetFieldValue<byte[][]>(5);
-            var headers = new PoisonEvent.Header[headerKeys.Length];
+            var headerValues = notDisposedReader.GetFieldValue<byte[][]>(5);
             for (var i = 0; i < headerKeys.Length; i++)
-                headers[i] = new PoisonEvent.Header(headerKeys[i], headerValues[i]);
-            return headers;
+                yield return (headerKeys[i], headerValues[i]);
         }
     }
 }

@@ -46,27 +46,29 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<DeadLetterQueueOptions> configureOptions,
         Func<IServiceProvider, IPoisonEventStore> provideStore,
-        Func<IServiceProvider, DeadLetterQueueOptions.RetrySchedulingOptions, IPoisonEventRetryingScheduler> provideRetryingScheduler)
+        Func<IServiceProvider, DeadLetterQueueOptions.RetrySchedulingOptions, IPoisonEventRetryScheduler> provideRetryingScheduler)
     {
         services.RemoveAll<IPoisonEventQueueFactory>();
         services.RemoveAll<IDeadLetterQueueScopeFactory>();
         services.RemoveAll<IDeadLetterQueue>();
         services.RemoveAll<DeadLetterQueueOptions>();
         services.RemoveAll<IPoisonEventStore>();
-        services.RemoveAll<IPoisonEventRetryingScheduler>();
+        services.RemoveAll<IPoisonEventRetryScheduler>();
+        services.RemoveAll<IPoisonEventQueueRetryingService>();
         
         var options = new DeadLetterQueueOptions();
         configureOptions(options);
         services.TryAddSingleton(options);
 
         services.TryAddSingleton(provideStore);
-        services.TryAddSingleton<IPoisonEventRetryingScheduler>(sp =>
+        services.TryAddSingleton<IPoisonEventRetryScheduler>(sp =>
             provideRetryingScheduler(
                 sp,
                 sp.GetRequiredService<DeadLetterQueueOptions>().GetRetrySchedulingOptions()));
         services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
+        services.TryAddSingleton<IPoisonEventQueueRetryingService, PoisonEventQueueRetryingService>();
         services.TryAddSingleton<IDeadLetterQueueScopeFactory>(AsyncLocalDeadLetterWatcher.Instance);
-        services.AddHostedService<PoisonEventRetryingHost>();
+        services.AddHostedService<PoisonEventQueueRetryingHost>();
         services.TryAddSingleton<IDeadLetterQueue>(AsyncLocalDeadLetterWatcher.Instance);
     }
 

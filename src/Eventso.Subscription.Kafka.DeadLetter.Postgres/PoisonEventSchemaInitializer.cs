@@ -19,7 +19,7 @@ internal sealed class PoisonEventSchemaInitializer
                 group_id               TEXT         NOT NULL,
                 topic                  TEXT         NOT NULL,
                 partition              INT          NOT NULL,
-                "offset"             BIGINT       NOT NULL,
+                "offset"               BIGINT       NOT NULL,
                 key                    BYTEA        NOT NULL,
                 value                  BYTEA        NULL,
                 creation_timestamp     TIMESTAMP    NOT NULL,
@@ -29,6 +29,7 @@ internal sealed class PoisonEventSchemaInitializer
                 last_failure_reason    TEXT         NOT NULL,
                 total_failure_count    INT          NOT NULL,
                 lock_timestamp         TIMESTAMP    NULL,
+                update_timestamp       TIMESTAMP    NOT NULL,
                 PRIMARY KEY ("offset", partition, topic, group_id)
             );
 

@@ -16,7 +16,7 @@ public sealed class PoisonEventInbox(
 
     public ValueTask<bool> IsPartOfPoisonStream(Event @event, CancellationToken token)
     {
-        return poisonEventQueue.IsPoison(
+        return poisonEventQueue.Contains(
             @event.GetTopicPartitionOffset().TopicPartition,
             @event.GetKey(),
             token);
@@ -26,8 +26,7 @@ public sealed class PoisonEventInbox(
     {
         var topicPartitionOffset = @event.GetTopicPartitionOffset();
         var rawEvent = _deadMessageConsumer.Consume(topicPartitionOffset, token);
-        var openingPoisonEvent = PoisonEvent.From(rawEvent);
-        return poisonEventQueue.Blame(openingPoisonEvent, DateTime.UtcNow, reason, token);
+        return poisonEventQueue.Enqueue(rawEvent, DateTime.UtcNow, reason, token);
     }
 
     public void Dispose()

@@ -21,6 +21,7 @@
     <PackageVersion Include="SpanJson" Version="4.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="System.Collections.Immutable" Version="8.0.0" />
+    <PackageVersion Include="System.Interactive.Async" Version="6.0.1" />
     <PackageVersion Include="xunit" Version="2.7.0" />
     <PackageVersion Include="Xunit.DependencyInjection" Version="8.9.1" />
     <PackageVersion Include="Xunit.DependencyInjection.Logging" Version="8.1.0" />

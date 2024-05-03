@@ -32,16 +32,16 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory, IDeadLet
         {
         }
 
-        public ValueTask<bool> IsPoison(TopicPartition topicPartition, Guid key, CancellationToken token)
+        public ValueTask<bool> Contains(TopicPartition topicPartition, Guid key, CancellationToken token)
             => ValueTask.FromResult(false);
 
-        public Task Blame(PoisonEvent @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+        public Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
             => Task.FromResult(false);
 
-        public Task Rehabilitate(PoisonEvent @event, CancellationToken token)
+        public Task Dequeue(ConsumeResult<byte[], byte[]> @event, CancellationToken token)
             => Task.CompletedTask;
 
-        public async IAsyncEnumerable<PoisonEvent> GetEventsForRetrying([EnumeratorCancellation] CancellationToken token)
+        public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek([EnumeratorCancellation] CancellationToken token)
         {
             await Task.CompletedTask;
             yield break;

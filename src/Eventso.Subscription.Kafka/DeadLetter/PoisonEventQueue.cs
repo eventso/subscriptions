@@ -6,7 +6,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventQueue(
     IPoisonEventStore poisonEventStore,
-    IPoisonEventRetryingScheduler retryingScheduler,
+    IPoisonEventRetryScheduler retryScheduler,
     string groupId,
     int maxNumberOfPoisonedEventsInTopic,
     ILogger<PoisonEventQueue> logger)
@@ -29,7 +29,7 @@ public sealed class PoisonEventQueue(
 
             var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, CancellationToken.None);
             await foreach (var key in keysSource)
-                poisonedKeys.Add(DeserializeKey(key.Span));
+                poisonedKeys.Add(DeserializeKey(topicPartition.Topic, [], key)); // note: empty headers here
             return poisonedKeys;
         }
     }
@@ -42,16 +42,16 @@ public sealed class PoisonEventQueue(
         logger.PartitionRevoke(groupId, topicPartition.Topic, topicPartition.Partition);
     }
 
-    public async ValueTask<bool> IsPoison(TopicPartition topicPartition, Guid key, CancellationToken token)
+    public async ValueTask<bool> Contains(TopicPartition topicPartition, Guid key, CancellationToken token)
     {
         var keys = await GetTopicPartitionKeys(topicPartition, token);
         return keys.Contains(key);
     }
 
-    public async Task Blame(PoisonEvent @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+    public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
     {
-        var key = DeserializeKey(@event.Key.Span);
-        logger.Blame(
+        var key = DeserializeKey(@event.Topic, @event.Message.Headers, @event.Message.Key);
+        logger.Enqueue(
             groupId,
             @event.TopicPartitionOffset.Topic,
             @event.TopicPartitionOffset.Partition,
@@ -63,7 +63,9 @@ public sealed class PoisonEventQueue(
         if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
             throw new EventHandlingException(
                 @event.TopicPartitionOffset.Topic,
-                $"Dead letter queue exceeds {maxNumberOfPoisonedEventsInTopic} size.",
+                $"Dead letter queue exceeds {maxNumberOfPoisonedEventsInTopic} size. " +
+                $"Poison event: {@event.TopicPartitionOffset}. " +
+                $"Error: {failureReason}",
                 null);
         
         await poisonEventStore.AddEvent(groupId, @event, failureTimestamp, failureReason, token);
@@ -72,7 +74,7 @@ public sealed class PoisonEventQueue(
         keys.Add(key);
     }
 
-    public async IAsyncEnumerable<PoisonEvent> GetEventsForRetrying([EnumeratorCancellation] CancellationToken token)
+    public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek([EnumeratorCancellation] CancellationToken token)
     {
         bool needToProcess = true;
 
@@ -93,7 +95,7 @@ public sealed class PoisonEventQueue(
                     continue;
                 }
 
-                var eventForRetrying = await retryingScheduler.GetEventForRetrying(groupId, topicPartition, token);
+                var eventForRetrying = await retryScheduler.GetNextRetryTarget(groupId, topicPartition, token);
                 if (eventForRetrying == null)
                     continue;
 
@@ -103,24 +105,29 @@ public sealed class PoisonEventQueue(
         }
     }
 
-    private static Guid DeserializeKey(ReadOnlySpan<byte> keySpan)
-        => KeyGuidDeserializer.Instance.Deserialize(keySpan, false, SerializationContext.Empty);
-
-    public async Task Rehabilitate(PoisonEvent @event, CancellationToken token)
+    public async Task Dequeue(ConsumeResult<byte[], byte[]> @event, CancellationToken token)
     {
-        var key = DeserializeKey(@event.Key.Span);
-        logger.Rehabilitate(
+        var key = DeserializeKey(@event.Topic, @event.Message.Headers, @event.Message.Key);
+        logger.Dequeue(
             groupId,
             @event.TopicPartitionOffset.Topic,
             @event.TopicPartitionOffset.Partition,
             @event.TopicPartitionOffset.Offset,
             key);
         await poisonEventStore.RemoveEvent(groupId, @event.TopicPartitionOffset, token);
-        if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Key, token))
+        if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, token))
             return;
 
         var keys = await GetTopicPartitionKeys(@event.TopicPartitionOffset.TopicPartition, token);
         keys.Remove(key);
+    }
+
+    private static Guid DeserializeKey(string topic, Headers headers, byte[] keyBytes)
+    {
+        return KeyGuidDeserializer.Instance.Deserialize(
+            keyBytes,
+            keyBytes.Length == 0,
+            new SerializationContext(MessageComponentType.Key, topic, headers));
     }
 
     private async ValueTask<HashSet<Guid>> GetTopicPartitionKeys(TopicPartition topicPartition, CancellationToken token)

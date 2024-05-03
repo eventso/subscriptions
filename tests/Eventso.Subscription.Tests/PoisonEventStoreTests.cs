@@ -43,7 +43,7 @@ public class PoisonEventStoreTests
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
-        var @event = _fixture.Create<PoisonEvent>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
         await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
@@ -57,14 +57,14 @@ public class PoisonEventStoreTests
                     @event.TopicPartitionOffset.Topic,
                     @event.TopicPartitionOffset.Partition.Value,
                     @event.TopicPartitionOffset.Offset.Value,
-                    @event.Key.ToArray(),
-                    @event.Value.ToArray(),
-                    @event.CreationTimestamp,
-                    @event.Headers.Select(h => h.Key).ToArray(),
-                    @event.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
                     timestamp,
                     reason,
-                    @event.FailureCount),
+                    1),
                 o => o.AcceptingCloseDateTimes());
     }
 
@@ -76,16 +76,13 @@ public class PoisonEventStoreTests
         var store = new PoisonEventStore(database.ConnectionFactory);
 
         var groupId = _fixture.Create<string>();
-        var timestamp = _fixture.Create<DateTime>();
+        var firstTimestamp = _fixture.Create<DateTime>();
+        var secondTimestamp = firstTimestamp.AddSeconds(1);
         var reason = _fixture.Create<string>();
-        var @event = _fixture.Create<PoisonEvent>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
-        await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
-        await store.AddEvent(
-            groupId,
-            @event with { FailureCount = @event.FailureCount + 1 },
-            timestamp, reason,
-            CancellationToken.None);
+        await store.AddEvent(groupId, @event, firstTimestamp, reason, CancellationToken.None);
+        await store.AddEvent(groupId, @event, secondTimestamp, reason, CancellationToken.None);
 
         var storedEvents = await GetStoredEvents(database);
         storedEvents.Should().ContainSingle()
@@ -97,14 +94,14 @@ public class PoisonEventStoreTests
                     @event.TopicPartitionOffset.Topic,
                     @event.TopicPartitionOffset.Partition.Value,
                     @event.TopicPartitionOffset.Offset.Value,
-                    @event.Key.ToArray(),
-                    @event.Value.ToArray(),
-                    @event.CreationTimestamp,
-                    @event.Headers.Select(h => h.Key).ToArray(),
-                    @event.Headers.Select(h => h.Data.ToArray()).ToArray(),
-                    timestamp,
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
+                    secondTimestamp,
                     reason,
-                    @event.FailureCount + 1),
+                    2),
                 o => o.AcceptingCloseDateTimes());
     }
 
@@ -118,7 +115,7 @@ public class PoisonEventStoreTests
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
-        var @event = _fixture.Create<PoisonEvent>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
         await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
         await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
@@ -133,14 +130,14 @@ public class PoisonEventStoreTests
                     @event.TopicPartitionOffset.Topic,
                     @event.TopicPartitionOffset.Partition.Value,
                     @event.TopicPartitionOffset.Offset.Value,
-                    @event.Key.ToArray(),
-                    @event.Value.ToArray(),
-                    @event.CreationTimestamp,
-                    @event.Headers.Select(h => h.Key).ToArray(),
-                    @event.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
                     timestamp,
                     reason,
-                    @event.FailureCount),
+                    1),
                 o => o.AcceptingCloseDateTimes());
     }
 
@@ -154,7 +151,7 @@ public class PoisonEventStoreTests
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
-        var events = _fixture.CreateMany<PoisonEvent>(10).ToArray();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(10).ToArray();
         foreach (var @event in events)
             await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
@@ -170,14 +167,14 @@ public class PoisonEventStoreTests
                 e.TopicPartitionOffset.Topic,
                 e.TopicPartitionOffset.Partition.Value,
                 e.TopicPartitionOffset.Offset.Value,
-                e.Key.ToArray(),
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                e.Message.Key.ToArray(),
+                e.Message.Value.ToArray(),
+                e.Message.Timestamp.UtcDateTime,
+                e.Message.Headers.Select(h => h.Key).ToArray(),
+                e.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
                 timestamp,
                 reason,
-                e.FailureCount))
+                1))
             .Should()
             .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
     }
@@ -193,7 +190,7 @@ public class PoisonEventStoreTests
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
         var expectedCount = _fixture.Create<byte>() % 10 + 1;
-        var events = _fixture.CreateMany<PoisonEvent>(expectedCount * 2).ToArray();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(expectedCount * 2).ToArray();
         foreach (var @event in events)
             await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
@@ -218,13 +215,13 @@ public class PoisonEventStoreTests
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
-        var events = _fixture.CreateMany<PoisonEvent>(3).ToArray();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(3).ToArray();
         foreach (var @event in events)
             await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         foreach (var @event in events)
         {
-            var isStored = await store.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Key.ToArray(), CancellationToken.None);
+            var isStored = await store.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, CancellationToken.None);
             isStored.Should().BeTrue();
 
             var isNotStored = await store.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, _fixture.Create<byte[]>(), CancellationToken.None);
@@ -242,13 +239,13 @@ public class PoisonEventStoreTests
         var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
         var reason = _fixture.Create<string>();
-        var events = _fixture.CreateMany<PoisonEvent>(10).ToArray();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(10).ToArray();
         foreach (var @event in events)
             await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         foreach (var topicPartitionEvents in events.GroupBy(e => e.TopicPartitionOffset.TopicPartition))
         {
-            var expectedKeys = topicPartitionEvents.Select(e => GetKey(e.Key.ToArray())).ToArray();
+            var expectedKeys = topicPartitionEvents.Select(e => GetKey(e.Message.Key)).ToArray();
             await foreach (var keyRaw in store.GetPoisonedKeys(groupId, topicPartitionEvents.Key,
                                CancellationToken.None))
                 expectedKeys.Should().Contain(GetKey(keyRaw.ToArray()));
@@ -274,7 +271,7 @@ public class PoisonEventStoreTests
         await using var database = await Database.Create();
         await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
         var store = new PoisonEventStore(database.ConnectionFactory);
-        var scheduler = new PoisonEventRetryingScheduler(
+        var scheduler = new PoisonEventRetryScheduler(
             database.ConnectionFactory,
             maxFailureCount,
             minIntervalBetweenRetries,
@@ -318,10 +315,10 @@ public class PoisonEventStoreTests
             CreateEvent(irrelevantGroupId, eighthKey, new TopicPartitionOffset(relevantTopic, 80, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null));
 
         
-        var eventsForRetrying = new List<PoisonEvent>();
+        var eventsForRetrying = new List<ConsumeResult<byte[], byte[]>>();
         while (true)
         {
-            var @event = await scheduler.GetEventForRetrying(
+            var @event = await scheduler.GetNextRetryTarget(
                 relevantGroupId,
                 new TopicPartition(relevantTopic, 20),
                 CancellationToken.None);
@@ -341,11 +338,11 @@ public class PoisonEventStoreTests
             .Should()
             .BeEquivalentTo(
                 events
-                    .Where(e => (e.Key.ToArray().SequenceEqual(secondKey) && e.TopicPartitionOffset.Offset == 1)
-                                || (e.Key.ToArray().SequenceEqual(sixthKey) && e.TopicPartitionOffset.Offset == 4)),
-                o => o.AcceptingCloseDateTimes().ComparingByteReadOnlyMemoryAsArrays());
+                    .Where(e => (e.Message.Key.SequenceEqual(secondKey) && e.TopicPartitionOffset.Offset == 1)
+                                || (e.Message.Key.SequenceEqual(sixthKey) && e.TopicPartitionOffset.Offset == 4)),
+                o => o.AcceptingCloseDateTimes().ComparingByteReadOnlyMemoryAsArrays().ComparingByMembers<Timestamp>());
 
-        async Task<PoisonEvent> CreateEvent(
+        async Task<ConsumeResult<byte[], byte[]>> CreateEvent(
             string groupId,
             byte[] key,
             TopicPartitionOffset topicPartitionOffset,
@@ -354,13 +351,19 @@ public class PoisonEventStoreTests
             int totalFailureCount,
             DateTime? lastLockTimestamp)
         {
-            var @event = new PoisonEvent(
-                topicPartitionOffset,
-                key,
-                _fixture.CreateMany<byte>().ToArray(),
-                _fixture.Create<DateTime>(),
-                Array.Empty<PoisonEvent.Header>(),
-                totalFailureCount);
+            var @event = new ConsumeResult<byte[], byte[]>
+            {
+                TopicPartitionOffset = topicPartitionOffset,
+                Message = new Message<byte[], byte[]>
+                {
+                    Key = key,
+                    Value = _fixture.CreateMany<byte>().ToArray(),
+                    Timestamp = new Timestamp(DateTime.SpecifyKind(_fixture.Create<DateTime>(), DateTimeKind.Utc), TimestampType.NotAvailable),
+                    Headers = []
+                },
+                IsPartitionEOF = false
+            };
+            
             await store.AddEvent(groupId, @event, lastFailureTimestamp, lastFailureReason, CancellationToken.None);
 
             await using var connection = database.ConnectionFactory.ReadWrite();
@@ -369,7 +372,8 @@ public class PoisonEventStoreTests
                 @"
 UPDATE eventso_dlq.poison_events pe
 SET
-    lock_timestamp = @lastLockTimestamp
+    lock_timestamp = @lastLockTimestamp,
+    total_failure_count = @totalFailureCount
 WHERE group_id = @groupId AND pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
                 connection)
             {
@@ -379,6 +383,7 @@ WHERE group_id = @groupId AND pe.topic = @topic AND pe.partition = @partition AN
                     new NpgsqlParameter<string>("topic", topicPartitionOffset.Topic),
                     new NpgsqlParameter<int>("partition", topicPartitionOffset.Partition.Value),
                     new NpgsqlParameter<long>("offset", topicPartitionOffset.Offset.Value),
+                    new NpgsqlParameter<int>("totalFailureCount", totalFailureCount),
                     new NpgsqlParameter("lastLockTimestamp", NpgsqlDbType.Timestamp)
                     {
                         NpgsqlValue = lastLockTimestamp != null

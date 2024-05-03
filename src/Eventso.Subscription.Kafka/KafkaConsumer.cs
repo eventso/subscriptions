@@ -164,10 +164,10 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 activity?.SetException(ex);
 
-                var poisonEvent = PoisonEvent.From(ex.ConsumerRecord);
                 if (_poisonEventQueue.IsEnabled)
                 {
-                    await _poisonEventQueue.Blame(poisonEvent, DateTime.UtcNow, ex.Message, token);
+                    // possible offset commit fail will increment retry count as side effect but we can live with it
+                    await _poisonEventQueue.Enqueue(ex.ConsumerRecord, DateTime.UtcNow, ex.Message, token);
                     return null;
                 }
 

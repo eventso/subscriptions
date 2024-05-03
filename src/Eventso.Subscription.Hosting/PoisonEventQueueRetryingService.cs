@@ -1,32 +1,28 @@
 using System.Collections.Frozen;
+using System.Runtime.CompilerServices;
+using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 
-public sealed class PoisonEventRetryingHost : BackgroundService
+public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingService
 {
-    private readonly TimeSpan _reprocessingInterval;
     private readonly ILogger _logger;
-    private readonly IReadOnlyCollection<TopicRetryingService> _topicRetryingServices;
+    private readonly IReadOnlyCollection<Worker> _workers;
 
-    public PoisonEventRetryingHost(
+    public PoisonEventQueueRetryingService(
         IEnumerable<ISubscriptionCollection> subscriptions,
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
-        DeadLetterQueueOptions deadLetterQueueOptions,
         IPoisonEventQueueFactory poisonEventQueueFactory,
         IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
-        if (subscriptions == null)
-            throw new ArgumentNullException(nameof(subscriptions));
-        
-        _reprocessingInterval = deadLetterQueueOptions.ReprocessingJobInterval;
         _logger = loggerFactory.CreateLogger<SubscriptionHost>();
 
-        _topicRetryingServices = subscriptions
+        _workers = subscriptions
             .SelectMany(x => x)
             .SelectMany(x => x.ClonePerConsumerInstance())
             .Select(x => CreateTopicRetryingService(
@@ -39,28 +35,19 @@ public sealed class PoisonEventRetryingHost : BackgroundService
             .ToArray();
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task Run(CancellationToken token)
     {
-        if (_topicRetryingServices.Count == 0)
+        if (_workers.Count == 0)
             return;
-            
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                foreach (var topicRetryingService in _topicRetryingServices)
-                    await topicRetryingService.Retry(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Dead letter queue retrying failed.");
-            }
 
-            await Task.Delay(_reprocessingInterval, stoppingToken);
+        var workerTasks = _workers.Select(r => r.Run(token)).ToArray();
+        await foreach (var _ in AsyncEnumerableEx.Merge(workerTasks).WithCancellation(token))
+        {
+            // do nothing
         }
     }
 
-    private static TopicRetryingService CreateTopicRetryingService(
+    private static Worker CreateTopicRetryingService(
         SubscriptionConfiguration config,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
@@ -79,15 +66,45 @@ public sealed class PoisonEventRetryingHost : BackgroundService
                     handlersRegistry,
                     messagePipelineFactory.Create(c.HandlerConfig)));
 
-        return new TopicRetryingService(
+        var poisonEventQueue = poisonEventQueueFactory.Create(
             config.Settings.Config.GroupId,
-            config.TopicConfigurations.Select(c => c.Topic).ToArray(),
+            config.SubscriptionConfigurationId);
+        var retryingService = new PoisonEventRetryingService(
+            config.Settings.Config.GroupId,
             valueDeserializer,
             eventHandlers,
             deadLetterQueueScopeFactory,
-            poisonEventQueueFactory.Create(
-                config.Settings.Config.GroupId,
-                config.SubscriptionConfigurationId),
-            loggerFactory.CreateLogger<TopicRetryingService>());
+            poisonEventQueue,
+            loggerFactory.CreateLogger<PoisonEventRetryingService>());
+
+        return new Worker(
+            config.TopicConfigurations.Select(c => c.Topic).ToArray(),
+            poisonEventQueue,
+            retryingService,
+            loggerFactory.CreateLogger<Worker>());
+    }
+    
+    private sealed class Worker(
+        string[] topics,
+        IPoisonEventQueue poisonEventQueue,
+        PoisonEventRetryingService poisonEventRetryingService,
+        ILogger<Worker> logger)
+    {
+        public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Run(
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            using var retryScope = logger.BeginScope(
+                new[] { new KeyValuePair<string, string>("eventso_retry_topic", string.Join(",", topics)) });
+
+            logger.LogInformation("Started event retrying");
+
+            await foreach (var toRetry in poisonEventQueue.Peek(token))
+            {
+                await poisonEventRetryingService.Retry(toRetry, token);
+                yield return toRetry;
+            }
+
+            logger.LogInformation("Finished event retrying");
+        }
     }
 }

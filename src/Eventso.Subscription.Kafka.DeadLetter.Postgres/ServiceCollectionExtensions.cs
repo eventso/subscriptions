@@ -40,7 +40,7 @@ public static class ServiceCollectionExtensions
             (provider, options) =>
             {
                 _ = provider.GetRequiredService<PoisonEventSchemaInitializer>();
-                return new PoisonEventRetryingScheduler(
+                return new PoisonEventRetryScheduler(
                     provider.GetRequiredService<IConnectionFactory>(),
                     options.MaxRetryAttemptCount,
                     options.MinHandlingRetryInterval,
