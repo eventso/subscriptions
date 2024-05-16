@@ -14,7 +14,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <PackageVersion Include="Npgsql" Version="7.0.6" />
+    <PackageVersion Include="Npgsql" Version="7.0.7" />
     <PackageVersion Include="NSubstitute" Version="5.1.0" />
     <PackageVersion Include="Polly.Core" Version="8.3.1" />
     <PackageVersion Include="Scrutor" Version="4.2.2" />
