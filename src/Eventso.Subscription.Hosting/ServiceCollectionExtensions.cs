@@ -41,8 +41,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    // make public when ready
-    internal static void AddDeadLetterQueue(
+    public static void AddDevNullDeadLetterQueue(this IServiceCollection services)
+    {
+        services.AddDeadLetterQueue(
+            _ => { },
+            _ => DevNullPoisonEventStore.Instance,
+            (_, _) => DevNullPoisonEventStore.Instance);
+    }
+
+    public static void AddDeadLetterQueue(
         this IServiceCollection services,
         Action<DeadLetterQueueOptions> configureOptions,
         Func<IServiceProvider, IPoisonEventStore> provideStore,
@@ -78,7 +85,11 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<SubscriptionHost>(p => p.GetRequiredService<SubscriptionHost>());
         services.TryAddSingleton<ISubscriptionHost>(p => p.GetRequiredService<SubscriptionHost>());
         services.TryAddSingleton<IMessageHandlerScopeFactory, MessageHandlerScopeFactory>();
-        services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
+        services.TryAddSingleton<IMessagePipelineFactory>(p =>
+            new MessagePipelineFactory(
+                p.GetRequiredService<IMessageHandlerScopeFactory>(),
+                p.GetRequiredService<ILoggerFactory>(),
+                p.GetService<DeadLetterQueueOptions>()?.OverrideHandlerResilience ?? false));
         services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));
         services.TryAddSingleton<IConsumerFactory, KafkaConsumerFactory>();
     }

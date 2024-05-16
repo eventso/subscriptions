@@ -128,11 +128,7 @@ public class Startup
                         {
                             Topic = topic
                         },
-                        new JsonMessageDeserializer<T>(),
-                        new HandlerConfiguration
-                        {
-                            ResiliencePipeline = ResiliencePipeline.Empty
-                        });
+                        new JsonMessageDeserializer<T>());
 
                 void AddBatch<T>(string topic)
                     => subs.AddBatch(new ConsumerSettings(brokers, groupId, autoOffsetReset: AutoOffsetReset.Latest)
@@ -140,11 +136,7 @@ public class Startup
                             Topic = topic
                         },
                         new BatchConfiguration() { MaxBatchSize = 3, MaxBufferSize = 5 },
-                        new JsonMessageDeserializer<T>(),
-                        new HandlerConfiguration
-                        {
-                            ResiliencePipeline = ResiliencePipeline.Empty
-                        });
+                        new JsonMessageDeserializer<T>());
             },
             types => types.FromCallingAssembly());
 

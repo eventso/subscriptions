@@ -1,4 +1,6 @@
-﻿namespace Eventso.Subscription.Hosting;
+﻿using Polly;
+
+namespace Eventso.Subscription.Hosting;
 
 public sealed class DeadLetterQueueOptions
 {
@@ -11,6 +13,11 @@ public sealed class DeadLetterQueueOptions
     /// Max size of DLQ for a topic. When exceeded - exception is thrown.
     /// </summary>
     public int MaxTopicQueueSize { get; set; } = 1000;
+
+    /// <summary>
+    /// Overrided handler resilience configuration. When <see langword="true"/> - <see cref="ResiliencePipeline.Empty">ResiliencePipeline.Empty</see> is used.
+    /// </summary>
+    public bool OverrideHandlerResilience { get; set; } = true;
 
     /// <summary>
     /// Max retry attempts for an event. When exceeded - event is no longer a subject for retry.

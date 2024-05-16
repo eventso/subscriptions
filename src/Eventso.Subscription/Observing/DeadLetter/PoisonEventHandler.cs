@@ -71,6 +71,17 @@ public sealed class PoisonEventHandler<TEvent>(
             poison ??= new PooledList<PoisonEvent<TEvent>>(1);
             poison.Add(new PoisonEvent<TEvent>(healthyEvents[0], exception.ToString()));
         }
+        catch (Exception)
+        {
+            // todo this unwrapping should be executed in some other layer
+            // unwrapping collection
+            foreach (var healthyEvent in healthyEvents)
+            {
+                using var pooledList = new PooledList<TEvent>(1); // expensive, but...
+                pooledList.Add(healthyEvent);
+                await Handle(pooledList, token); // will not be recursive because of catch block above
+            }
+        }
 
         if (poison?.Count > 0)
             foreach (var @event in poison)

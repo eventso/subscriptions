@@ -12,7 +12,7 @@ public class PoisonEventStoreTests
     // comment FactAttribute line to enable tests in class
     // xUnit doesn't have "skip whole class" functionality out of the box
     // this test class requires PostgreSQL database so it is local only for now
-    private class FactAttribute : Attribute { }
+    // private class FactAttribute : Attribute { }
 
     private readonly IFixture _fixture = new Fixture();
 
