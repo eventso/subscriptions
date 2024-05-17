@@ -34,7 +34,7 @@ public sealed class PoisonEventInbox(
 
     private sealed class ThreadSafeConsumer
     {
-        private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
+        private readonly IConsumer<Guid, ConsumedMessage> _deadMessageConsumer;
         private readonly object _lockObject = new();
 
         public ThreadSafeConsumer(
@@ -56,9 +56,9 @@ public sealed class PoisonEventInbox(
                 AllowAutoCreateTopics = false
             };
 
-            _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
-                .SetKeyDeserializer(Deserializers.ByteArray)
-                .SetValueDeserializer(Deserializers.ByteArray)
+            _deadMessageConsumer = settings.CreateBuilder()
+                .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+                .SetValueDeserializer(ByteArrayWrapperDeserializer.Instance)
                 .SetErrorHandler((_, e) => logger.LogError(
                     $"{nameof(PoisonEventInbox)} internal error: Topic: {topic}, {e.Reason}," +
                     $" Fatal={e.IsFatal}, IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
@@ -92,12 +92,36 @@ public sealed class PoisonEventInbox(
                             "Consumed message offset doesn't match requested one.",
                             null);
 
-                    return rawEvent;
+                    return new ConsumeResult<byte[], byte[]>
+                    {
+                        Message = new Message<byte[], byte[]>
+                        {
+                            Key = rawEvent.Message.Key.ToByteArray(), // very very dangerous and depends on guid deserialization
+                            Value = (byte[]?)rawEvent.Message.Value.Message ?? [],
+                            Headers = rawEvent.Message.Headers,
+                            Timestamp = rawEvent.Message.Timestamp
+                        },
+                        TopicPartitionOffset = rawEvent.TopicPartitionOffset,
+                        IsPartitionEOF = rawEvent.IsPartitionEOF
+                    };
                 }
                 finally
                 {
                     _deadMessageConsumer.Unassign();
                 }
+            }
+        }
+
+        public sealed class ByteArrayWrapperDeserializer : IDeserializer<ConsumedMessage>
+        {
+            internal static readonly IDeserializer<ConsumedMessage> Instance = new ByteArrayWrapperDeserializer(); 
+        
+            public ConsumedMessage Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
+            {
+                return new ConsumedMessage(
+                    !isNull ? data.ToArray() : null,
+                    DeserializationStatus.Success,
+                    Array.Empty<KeyValuePair<string, object>>());
             }
         }
     }
