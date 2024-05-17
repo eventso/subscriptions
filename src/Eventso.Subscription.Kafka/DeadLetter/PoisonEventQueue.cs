@@ -21,7 +21,7 @@ public sealed class PoisonEventQueue(
         // no concurrency, same thread as consume
         _partitionPoisonKeys[topicPartition] = GetPoisonKeys();
         
-        logger.PartitionAssigne(groupId, topicPartition.Topic, topicPartition.Partition);
+        logger.PartitionAssign(groupId, topicPartition.Topic, topicPartition.Partition);
 
         async Task<HashSet<Guid>> GetPoisonKeys()
         {
@@ -133,11 +133,13 @@ public sealed class PoisonEventQueue(
     private async ValueTask<HashSet<Guid>> GetTopicPartitionKeys(TopicPartition topicPartition, CancellationToken token)
     {
         if (!_partitionPoisonKeys.TryGetValue(topicPartition, out var keysTask))
-            throw new Exception("Partition disabled");
+            throw new Exception($"{topicPartition} disabled");
 
         if (!keysTask.IsCompleted)
             await keysTask.WaitAsync(token);
 
+        logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);
+        
         return keysTask.Result;
     }
 }

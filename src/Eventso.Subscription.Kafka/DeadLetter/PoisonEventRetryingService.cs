@@ -15,27 +15,18 @@ public sealed class PoisonEventRetryingService(
     public async Task Retry(ConsumeResult<byte[], byte[]> poisonEvent, CancellationToken token)
     {
         var @event = Deserialize(poisonEvent);
-        logger.LogInformation(
-            "Retrying event {TopicPartitionOffset} in group {GroupId} successfully",
-            poisonEvent.TopicPartitionOffset,
-            groupId);
+        logger.RetryStarted(groupId, poisonEvent.TopicPartitionOffset);
 
         try
         {
             await Handle(@event, token);
-            logger.LogInformation(
-                "Retried event {TopicPartitionOffset} in group {GroupId} successfully",
-                poisonEvent.TopicPartitionOffset,
-                groupId);
+            logger.RetrySuccessful(groupId, poisonEvent.TopicPartitionOffset);
         }
         catch (Exception exception)
         {
             await poisonEventQueue.Enqueue(poisonEvent, DateTime.UtcNow, exception.ToString(), token);
             
-            logger.LogInformation(
-                "Retried event {TopicPartitionOffset} in group {GroupId} without success",
-                poisonEvent.TopicPartitionOffset,
-                groupId);
+            logger.RetryFailed(exception, groupId, poisonEvent.TopicPartitionOffset);
             return;
         }
 

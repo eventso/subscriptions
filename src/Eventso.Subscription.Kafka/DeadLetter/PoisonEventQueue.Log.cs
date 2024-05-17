@@ -10,18 +10,25 @@ static partial class PoisonEventQueueLog
         EventId = 1000,
         Level = LogLevel.Information,
         Message = MessagePrefix + "Assigned to {GroupId}-{Topic}-{Partition}")]
-    public static partial void PartitionAssigne(
+    public static partial void PartitionAssign(
         this ILogger<PoisonEventQueue> logger, string groupId, string topic, int partition);
     
     [LoggerMessage(
         EventId = 1001,
+        Level = LogLevel.Information,
+        Message = MessagePrefix + "Acquired poison keys from {GroupId}-{Topic}-{Partition}")]
+    public static partial void PartitionKeysAcquired(
+        this ILogger<PoisonEventQueue> logger, string groupId, string topic, int partition);
+    
+    [LoggerMessage(
+        EventId = 1002,
         Level = LogLevel.Information,
         Message = MessagePrefix + "Revoked from to {GroupId}-{Topic}-{Partition}")]
     public static partial void PartitionRevoke(
         this ILogger<PoisonEventQueue> logger, string groupId, string topic, int partition);
     
     [LoggerMessage(
-        EventId = 1002,
+        EventId = 1003,
         Level = LogLevel.Information,
         Message = MessagePrefix + "Enqueue message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key} because of {Reason}")]
     public static partial void Enqueue(
@@ -34,7 +41,7 @@ static partial class PoisonEventQueueLog
         string reason);
     
     [LoggerMessage(
-        EventId = 1003,
+        EventId = 1004,
         Level = LogLevel.Information,
         Message = MessagePrefix + "Dequeue message from {GroupId}-{Topic}-{Partition} with offset {Offset} and key {Key}")]
     public static partial void Dequeue(
