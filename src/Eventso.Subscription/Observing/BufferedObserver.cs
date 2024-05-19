@@ -2,7 +2,7 @@
 
 namespace Eventso.Subscription.Observing;
 
-public sealed class BufferedObserver<T> : IObserver<T>, IDisposable
+public sealed class BufferedObserver<T> : IObserver<T>
     where T : IEvent
 {
     private readonly IObserver<T> _nextObserver;
@@ -48,7 +48,7 @@ public sealed class BufferedObserver<T> : IObserver<T>, IDisposable
     public void Dispose()
     {
         _channel.Writer.TryComplete();
-        (_nextObserver as IDisposable)?.Dispose();
+        _nextObserver.Dispose();
     }
 
     private async Task BeginReadChannel()

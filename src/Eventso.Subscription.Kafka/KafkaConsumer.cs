@@ -303,9 +303,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         private readonly (string topic, IObserver<Event> observer)[] _items;
 
         public ObserverCollection((string, IObserver<Event>)[] items)
-        {
-            _items = items;
-        }
+            => _items = items;
 
         public IObserver<Event> GetObserver(string topic)
         {
@@ -326,8 +324,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         public void Dispose()
         {
             foreach (var observer in _items.Select(x => x.observer))
-                if (observer is IDisposable disposable)
-                    disposable.Dispose();
+                observer.Dispose();
         }
     }
 }

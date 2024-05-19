@@ -1,6 +1,6 @@
 ﻿namespace Eventso.Subscription.Observing;
 
-public sealed class DelayedEventObserver<TEvent> : IObserver<TEvent>, IDisposable
+public sealed class DelayedEventObserver<TEvent> : IObserver<TEvent>
     where TEvent : IEvent
 {
     private readonly TimeSpan _delay;
@@ -23,7 +23,5 @@ public sealed class DelayedEventObserver<TEvent> : IObserver<TEvent>, IDisposabl
     }
 
     public void Dispose()
-    {
-        (_inner as IDisposable)?.Dispose();
-    }
+        => _inner.Dispose();
 }

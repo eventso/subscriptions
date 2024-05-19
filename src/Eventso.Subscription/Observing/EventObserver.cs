@@ -2,7 +2,7 @@ using Eventso.Subscription.Configurations;
 
 namespace Eventso.Subscription.Observing;
 
-public sealed class EventObserver<TEvent> : IObserver<TEvent>, IDisposable
+public sealed class EventObserver<TEvent> : IObserver<TEvent>
     where TEvent : IEvent
 {
     private readonly IEventHandler<TEvent> _eventHandler;
