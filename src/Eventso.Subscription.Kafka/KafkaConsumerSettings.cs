@@ -107,4 +107,7 @@ public record KafkaConsumerSettings
 
         return this with { Config =  config };
     }
+
+    public KafkaConsumerSettings Duplicate()
+        => this with { Config = new ConsumerConfig(new Dictionary<string, string>(Config)) };
 }

@@ -38,30 +38,28 @@ public sealed class PoisonEventInbox(
         private readonly object _lockObject = new();
 
         public ThreadSafeConsumer(
-            KafkaConsumerSettings settings,
+            KafkaConsumerSettings sourceSettings,
             string topic,
             ILogger logger)
         {
-            if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
-                throw new InvalidOperationException("Brokers are not specified.");
-
-            if (string.IsNullOrEmpty(settings.Config.GroupId))
+            if (string.IsNullOrEmpty(sourceSettings.Config.GroupId))
                 throw new InvalidOperationException("Group Id is not specified.");
 
-            var config = new ConsumerConfig(settings.Config.ToDictionary(e => e.Key, e => e.Value))
-            {
-                EnableAutoCommit = false,
-                EnableAutoOffsetStore = false,
-                AutoOffsetReset = AutoOffsetReset.Error,
-                AllowAutoCreateTopics = false
-            };
+            var settings = sourceSettings.Duplicate();
+            settings.Config.EnableAutoCommit = false;
+            settings.Config.EnableAutoOffsetStore = false;
+            settings.Config.AutoOffsetReset = AutoOffsetReset.Error;
+            settings.Config.AllowAutoCreateTopics = false;
+            settings.Config.GroupId += "_dlq";
 
             _deadMessageConsumer = settings.CreateBuilder()
                 .SetKeyDeserializer(KeyGuidDeserializer.Instance)
                 .SetValueDeserializer(ByteArrayWrapperDeserializer.Instance)
                 .SetErrorHandler((_, e) => logger.LogError(
-                    $"{nameof(PoisonEventInbox)} internal error: Topic: {topic}, {e.Reason}," +
-                    $" Fatal={e.IsFatal}, IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
+                    "{ErrorSource} internal error: Topic={Topic}, Reason={Reason}, " +
+                    "Fatal={IsFatal}, IsLocal= {IsLocalError}, IsBroker={IsBrokerError}",
+                    nameof(PoisonEventInbox), topic, e.Reason,
+                    e.IsFatal, e.IsLocalError, e.IsBrokerError))
                 .Build();
         }
 
