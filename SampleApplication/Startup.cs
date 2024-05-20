@@ -141,7 +141,9 @@ public class Startup
             types => types.FromCallingAssembly());
 
         if (enableDlq)
-            services.AddPostgresDeadLetterQueue<ConnectionFactory>(installSchema: true);
+            services.AddPostgresDeadLetterQueue(
+                connectionFactoryProvider: _ => new ConnectionFactory(),
+                installSchema: true);
     }
 
     private sealed class ConnectionFactory : IConnectionFactory

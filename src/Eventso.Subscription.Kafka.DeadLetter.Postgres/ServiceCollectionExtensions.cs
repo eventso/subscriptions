@@ -6,23 +6,21 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 public static class ServiceCollectionExtensions
 {
-    public static void AddPostgresDeadLetterQueue<TConnectionFactory>(
+    public static void AddPostgresDeadLetterQueue(
         this IServiceCollection services,
+        Func<IServiceProvider, IConnectionFactory> connectionFactoryProvider,
         Action<DeadLetterQueueOptions>? configureOptions = default,
         bool installSchema = false)
-        where TConnectionFactory : class, IConnectionFactory
     {
         services.RemoveAll<IConnectionFactory>();
         services.RemoveAll<PoisonEventSchemaInitializer>();
 
-        services.AddSingleton<IConnectionFactory, TConnectionFactory>();
         services.AddSingleton<PoisonEventSchemaInitializer>(sp =>
         {
             if (installSchema)
             {
-                PoisonEventSchemaInitializer.Initialize(
-                        sp.GetRequiredService<IConnectionFactory>(),
-                        CancellationToken.None)
+                var connectionFactory = connectionFactoryProvider(sp);
+                PoisonEventSchemaInitializer.Initialize(connectionFactory, CancellationToken.None)
                     .GetAwaiter()
                     .GetResult();
             }
