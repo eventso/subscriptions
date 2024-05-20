@@ -8,7 +8,7 @@ namespace Eventso.Subscription.Kafka;
 
 public sealed class KafkaConsumer : ISubscriptionConsumer
 {
-    private readonly FrozenDictionary<string, string> _topics;
+    private readonly string[] _topics;
     private readonly IObserverFactory _observerFactory;
     private readonly IPoisonRecordInbox _poisonRecordInbox;
     private readonly int _maxObserveInterval;
@@ -29,12 +29,10 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     {
         if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
 
-        var topicsSettings = topics.ToFrozenDictionary(x => x);
-
-        if (topicsSettings.Count == 0 || topicsSettings.Keys.Any(string.IsNullOrWhiteSpace))
+        if (topics.Length == 0 || topics.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
-        _topics = topicsSettings;
+        _topics = topics;
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
         _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
@@ -49,7 +47,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
             .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics.Keys)}, {e.Reason}, Fatal={e.IsFatal}," +
+                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
             .Build();
 
@@ -85,8 +83,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
-        using var observers = new ObserverCollection(
-            _topics.Keys.Select(t => (t, _observerFactory.Create(consumer, t))).ToArray());
+        using var observers = new TopicObserverCollection(_topics.Select(t => (t, _observerFactory.Create(consumer, t))));
 
         while (!tokenSource.IsCancellationRequested)
         {
@@ -97,9 +94,13 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             if (result == null)
                 continue;
 
+            var (topic, observer) = observers.GetTopicObserver(result.Topic);
+
+            result.Topic = topic; // topic name interning
+
             try
             {
-                var handleTask = HandleResult(observers, result, tokenSource.Token);
+                var handleTask = HandleResult(observer, result, tokenSource.Token);
 
                 var handleCompletedSynchronously = handleTask.IsCompleted;
 
@@ -137,8 +138,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 var result = _consumer.Consume(token);
 
-                if (!string.IsNullOrEmpty(result.Topic))
-                    result.Topic = _topics[result.Topic]; // topic name interning 
+                if (string.IsNullOrEmpty(result.Topic))
+                    throw new InvalidOperationException("Topic name is not set for consumer result.");
 
                 activity?.SetTags(result);
 
@@ -180,13 +181,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     }
 
     private async Task HandleResult(
-        ObserverCollection observers,
+        IObserver<Event> observer,
         ConsumeResult<Guid, ConsumedMessage> result,
         CancellationToken token)
     {
         await WaitPendingPause(result.Topic);
-
-        var observer = observers.GetObserver(result.Topic);
 
         var observeTask = Observe(result, observer, token);
 
@@ -298,32 +297,19 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         }
     }
 
-    private sealed class ObserverCollection : IDisposable
+    private sealed class TopicObserverCollection : IDisposable
     {
-        private readonly (string topic, IObserver<Event> observer)[] _items;
+        private readonly FrozenDictionary<string, (string topic, IObserver<Event> observer)> _items;
 
-        public ObserverCollection((string, IObserver<Event>)[] items)
-            => _items = items;
+        public TopicObserverCollection(IEnumerable<(string topic, IObserver<Event> observer)> items)
+            => _items = items.ToFrozenDictionary(x => x.topic);
 
-        public IObserver<Event> GetObserver(string topic)
-        {
-            if (_items.Length == 1)
-                return _items[0].observer;
-
-            for (var index = 0; index < _items.Length; index++)
-            {
-                ref readonly var item = ref _items[index];
-
-                if (ReferenceEquals(item.topic, topic))
-                    return item.observer;
-            }
-
-            throw new InvalidOperationException($"Observer not found for topic {topic}");
-        }
+        public (string, IObserver<Event>) GetTopicObserver(string topic)
+            => _items[topic];
 
         public void Dispose()
         {
-            foreach (var observer in _items.Select(x => x.observer))
+            foreach (var observer in _items.Values.Select(x => x.observer))
                 observer.Dispose();
         }
     }
