@@ -3,7 +3,8 @@ namespace Eventso.Subscription.Observing.DeadLetter;
 public sealed class PoisonEventHandler<TEvent>(
     IPoisonEventInbox<TEvent> poisonEventInbox,
     IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
-    IEventHandler<TEvent> inner)
+    IEventHandler<TEvent> inner,
+    ILogger<PoisonEventHandler<TEvent>> logger)
     : IEventHandler<TEvent>
     where TEvent : IEvent
 {
@@ -75,11 +76,15 @@ public sealed class PoisonEventHandler<TEvent>(
         {
             // todo this unwrapping should be executed in some other layer
             // unwrapping collection
+            logger.LogInformation("[{ParentScope}][{Scope}] Unwrapping {HealthyEventsCount} healthy events to find poison one",
+                nameof(Eventso),
+                nameof(PoisonEventHandler<TEvent>),
+                healthyEvents.Count);
             foreach (var healthyEvent in healthyEvents)
             {
                 using var pooledList = new PooledList<TEvent>(1); // expensive, but...
                 pooledList.Add(healthyEvent);
-                await Handle(pooledList, token); // will not be recursive because of catch block above
+                await Handle(pooledList, token); // will not be really recursive because of catch block above
             }
         }
 

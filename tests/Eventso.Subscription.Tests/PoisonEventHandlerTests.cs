@@ -1,4 +1,5 @@
 using Eventso.Subscription.Observing.DeadLetter;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Eventso.Subscription.Tests;
 
@@ -17,7 +18,8 @@ public sealed class PoisonEventHandlerTests
         _underTestHandler = new PoisonEventHandler<TestEvent>(
             CreatePoisonEventInbox(),
             CreateDeadLetterQueueScopeFactory(),
-            CreteInnerHandler());
+            CreteInnerHandler(),
+            NullLogger<PoisonEventHandler<TestEvent>>.Instance);
     }
 
     [Fact]

@@ -136,10 +136,11 @@ public sealed class PoisonEventQueue(
             throw new Exception($"{topicPartition} disabled");
 
         if (!keysTask.IsCompleted)
+        {
             await keysTask.WaitAsync(token);
+            logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);            
+        }
 
-        logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);
-        
         return keysTask.Result;
     }
 }

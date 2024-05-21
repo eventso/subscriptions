@@ -49,7 +49,8 @@ public sealed class ObserverFactory : IObserverFactory<Event>
                     topic,
                     _loggerFactory.CreateLogger<PoisonEventInbox>()),
                 _deadLetterQueueScopeFactory,
-                eventHandler);
+                eventHandler,
+                _loggerFactory.CreateLogger<PoisonEventHandler<Event>>());
         }
 
         var observer = topicConfig.BatchProcessingRequired
