@@ -21,4 +21,7 @@ public sealed class DelayedEventObserver<TEvent> : IObserver<TEvent>
 
         await _inner.OnEventAppeared(@event, token);
     }
+
+    public void Dispose()
+        => _inner.Dispose();
 }

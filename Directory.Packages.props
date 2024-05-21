@@ -6,7 +6,7 @@
   <ItemGroup>
     <PackageVersion Include="AutoFixture" Version="4.18.1" />
     <PackageVersion Include="AutoFixture.AutoNSubstitute" Version="4.18.1" />
-    <PackageVersion Include="Confluent.Kafka" Version="2.3.0" />
+    <PackageVersion Include="Confluent.Kafka" Version="2.4.0" />
     <PackageVersion Include="FluentAssertions" Version="6.12.0" />
     <PackageVersion Include="HashDepot" Version="3.1.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
@@ -16,15 +16,15 @@
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <PackageVersion Include="Npgsql" Version="7.0.7" />
     <PackageVersion Include="NSubstitute" Version="5.1.0" />
-    <PackageVersion Include="Polly.Core" Version="8.3.1" />
+    <PackageVersion Include="Polly.Core" Version="8.4.0" />
     <PackageVersion Include="Scrutor" Version="4.2.2" />
     <PackageVersion Include="SpanJson" Version="4.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="System.Collections.Immutable" Version="8.0.0" />
     <PackageVersion Include="System.Interactive.Async" Version="6.0.1" />
-    <PackageVersion Include="xunit" Version="2.7.0" />
-    <PackageVersion Include="Xunit.DependencyInjection" Version="8.9.1" />
-    <PackageVersion Include="Xunit.DependencyInjection.Logging" Version="8.1.0" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.7" />
+    <PackageVersion Include="xunit" Version="2.8.0" />
+    <PackageVersion Include="Xunit.DependencyInjection" Version="9.3.0" />
+    <PackageVersion Include="Xunit.DependencyInjection.Logging" Version="9.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.0" />
   </ItemGroup>
 </Project>

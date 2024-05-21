@@ -4,7 +4,7 @@ using Eventso.Subscription.Configurations;
 
 namespace Eventso.Subscription.Observing.Batch;
 
-public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>, IDisposable
+public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>
     where TEvent : IEvent
 {
     private readonly IEventHandler<TEvent> _handler;

@@ -89,8 +89,8 @@ public sealed class BufferTests_NotSkipped : IDisposable
     public async Task OnTimeout_BatchCreated()
     {
         const int maxBatchSize = 50;
-        const int batchTimeoutMs = 500;
-        const int singleEventDelayMs = 100;
+        const int batchTimeoutMs = 1000;
+        const int singleEventDelayMs = 200;
 
         using var buffer = new Buffer<RedMessage>(
             maxBatchSize,

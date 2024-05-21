@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
   eventso-kafka:
-    image: 'bitnami/kafka:3.6'
+    image: 'bitnami/kafka:3.6.2'
     ports:
       - '9092:9092'
     environment:

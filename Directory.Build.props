@@ -16,7 +16,7 @@
 		<Copyright>Copyright 2024 © Eventso Team</Copyright>
 		<Company>Eventso</Company>
 		<Authors>Eventso</Authors>
-		<PackageTags>subscription;events;eventso;kafka;messages</PackageTags>
+		<PackageTags>kafka;messaging;batching;batch;subscription;events;</PackageTags>
 		<PackageProjectUrl>https://github.com/eventso/subscriptions</PackageProjectUrl>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
