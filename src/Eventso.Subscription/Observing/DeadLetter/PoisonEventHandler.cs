@@ -76,16 +76,32 @@ public sealed class PoisonEventHandler<TEvent>(
         {
             // todo this unwrapping should be executed in some other layer
             // unwrapping collection
-            logger.LogInformation("[{ParentScope}][{Scope}] Unwrapping {HealthyEventsCount} healthy events to find poison one",
+            logger.LogInformation(
+                "[{ParentScope}][{Scope}] Unwrapping {HealthyEventsCount} healthy events to find poison",
                 nameof(Eventso),
                 nameof(PoisonEventHandler<TEvent>),
                 healthyEvents.Count);
-            foreach (var healthyEvent in healthyEvents)
+
+            for (var i = 1; i <= healthyEvents.Count; i++)
             {
                 using var pooledList = new PooledList<TEvent>(1); // expensive, but...
-                pooledList.Add(healthyEvent);
+                pooledList.Add(healthyEvents[i - 1]);
                 await Handle(pooledList, token); // will not be really recursive because of catch block above
+
+                if (i % 200 == 0)
+                    logger.LogInformation(
+                        "[{ParentScope}][{Scope}] Unwrapped {UnwrappedCount} of {HealthyEventsCount} healthy events to find poison",
+                        nameof(Eventso),
+                        nameof(PoisonEventHandler<TEvent>),
+                        i,
+                        healthyEvents.Count);
             }
+
+            logger.LogInformation(
+                "[{ParentScope}][{Scope}] Unwrapped {HealthyEventsCount} healthy events to find poison",
+                nameof(Eventso),
+                nameof(PoisonEventHandler<TEvent>),
+                healthyEvents.Count);
         }
 
         if (poison?.Count > 0)
