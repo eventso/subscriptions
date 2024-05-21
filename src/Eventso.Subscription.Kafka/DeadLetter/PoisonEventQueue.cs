@@ -122,11 +122,11 @@ public sealed class PoisonEventQueue(
         keys.Remove(key);
     }
 
-    private static Guid DeserializeKey(string topic, Headers headers, byte[] keyBytes)
+    private static Guid DeserializeKey(string topic, Headers headers, byte[]? keyBytes)
     {
         return KeyGuidDeserializer.Instance.Deserialize(
             keyBytes,
-            keyBytes.Length == 0,
+            keyBytes == null,
             new SerializationContext(MessageComponentType.Key, topic, headers));
     }
 
