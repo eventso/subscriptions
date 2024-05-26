@@ -22,11 +22,12 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
     {
         return new KafkaConsumer(
             config.GetTopics(),
-            new ObserverFactory(
+            new ObserverFactory<Event>(
                 config,
                 _messagePipelineFactory,
                 _handlersRegistry,
-                _loggerFactory),
+                _loggerFactory,
+                KafkaGroupedMetadataProvider.Instance),
             new ValueDeserializer(
                 new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),
                 _handlersRegistry),
