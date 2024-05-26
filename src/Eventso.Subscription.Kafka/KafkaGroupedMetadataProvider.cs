@@ -1,17 +1,22 @@
 ﻿using System.Runtime.InteropServices;
+using System.Text;
 using Confluent.Kafka;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Eventso.Subscription.Kafka;
 
 public sealed class KafkaGroupedMetadataProvider : IGroupedMetadataProvider<Event>
 {
+    private static readonly ObjectPool<StringBuilder> StringBuilderPool =
+        new DefaultObjectPool<StringBuilder>(new StringBuilderPooledObjectPolicy());
+
     public static KafkaGroupedMetadataProvider Instance { get; } = new();
 
     private KafkaGroupedMetadataProvider()
     {
     }
 
-    public List<Dictionary<string, object>> GetFor(IEnumerable<Event> items)
+    public KeyValuePair<string, object>[] GetFor(IEnumerable<Event> items)
     {
         var dict = new Dictionary<(string topic, Partition partition), PrettyOffsetRange>();
 
@@ -22,19 +27,23 @@ public sealed class KafkaGroupedMetadataProvider : IGroupedMetadataProvider<Even
             range.Add(@event.Offset);
         }
 
-        var result = new List<Dictionary<string, object>>(capacity: dict.Count);
+        var sb = StringBuilderPool.Get();
 
         foreach (var (key, range) in dict)
         {
             range.Compact();
 
-            result.Add(new Dictionary<string, object>(capacity: 3)
-            {
-                ["kafka.topic"] = key.topic,
-                ["kafka.partition"] = key.partition.Value.ToString(),
-                ["kafka.offsets"] = range.ToString()
-            });
+            if (sb.Length > 0) sb.Append(',');
+
+            // rely on StringBuilder.AppendInterpolatedStringHandler.AppendFormatted + ISpanFormattable for PrettyOffsetRange
+            sb.Append($"{key.topic}@{key.partition.Value}[{range}]");
         }
+
+        KeyValuePair<string, object>[] result =
+        [
+            KeyValuePair.Create<string, object>("eventso.kafka.events", sb.ToString())
+        ];
+        StringBuilderPool.Return(sb);
 
         return result;
     }

@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace Eventso.Subscription.Hosting;
+﻿namespace Eventso.Subscription.Hosting;
 
 internal class ObservabilityEventHandler<TEvent> : IEventHandler<TEvent>
     where TEvent : IEvent
@@ -71,26 +69,18 @@ internal class ObservabilityEventHandler<TEvent> : IEventHandler<TEvent>
         }
     }
 
-    private IDisposable? CreateBatchLoggingScope(List<Dictionary<string, object>> groupedMetadata)
+    private IDisposable? CreateBatchLoggingScope(KeyValuePair<string, object>[] groupedMetadata)
     {
-        KeyValuePair<string, object>[] loggingScopeState = [KeyValuePair.Create("@eventso_batch", (object)groupedMetadata)];
-
-        return _logger.BeginScope(loggingScopeState);
+        return _logger.BeginScope(groupedMetadata);
     }
 
-    private static Diagnostic.RootActivityScope CreateBatchActivity(List<Dictionary<string, object>> groupedMetadata)
+    private static Diagnostic.RootActivityScope CreateBatchActivity(KeyValuePair<string, object>[] groupedMetadata)
     {
         var scope = Diagnostic.StartRooted("batch.handle");
         if (scope.Activity is { } activity)
         {
-            var ts = DateTimeOffset.UtcNow;
-            foreach (var metadataGroup in groupedMetadata)
-            {
-                activity.AddEvent(new ActivityEvent(
-                    name: "batch.metadata",
-                    timestamp: ts,
-                    tags: new ActivityTagsCollection(metadataGroup!)));
-            }
+            foreach (var (key, value) in groupedMetadata)
+                activity.AddTag(key, value);
         }
 
         return scope;

@@ -1,15 +1,10 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using Confluent.Kafka;
-using Microsoft.Extensions.ObjectPool;
 
 namespace Eventso.Subscription.Kafka;
 
-internal readonly struct PrettyOffsetRange
+internal readonly struct PrettyOffsetRange : ISpanFormattable
 {
-    private static readonly ObjectPool<StringBuilder> StringBuilderPool =
-        new DefaultObjectPool<StringBuilder>(new StringBuilderPooledObjectPolicy());
-
     private readonly List<Range> _result;
 
     public PrettyOffsetRange()
@@ -50,7 +45,7 @@ internal readonly struct PrettyOffsetRange
     public void Compact()
     {
         // single contiguous range
-        if (_result.Count < 2) return;
+        if (_result is null || _result.Count < 2) return;
 
         _result.Sort();
 
@@ -72,29 +67,41 @@ internal readonly struct PrettyOffsetRange
         }
     }
 
-    public override string ToString()
+    public override string ToString() => ToString(default, default);
+
+    public string ToString(string? format, IFormatProvider? formatProvider)
     {
-        if (_result is null || _result.Count == 0) return "Empty";
+        // rely on DefaultInterpolatedStringHandler.AppendFormatted<T> + ISpanFormattable.TryFormat
+        return string.Create(formatProvider, $"{this}");
+    }
+
+    public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+    {
+        if (_result is null || _result.Count == 0)
+            return destination.TryWrite(provider, $"Empty", out charsWritten);
 
         if (_result.Count == 1)
         {
             var single = _result[0];
-            return single.ToString();
+            return destination.TryWrite(provider, $"{single}", out charsWritten);
         }
 
-        var sb = StringBuilderPool.Get();
+        charsWritten = 0;
         foreach (var range in _result)
         {
-            if (sb.Length > 0) sb.Append(',');
+            if (destination.Length <= charsWritten)
+                return false;
 
-            // rely on StringBuilder.AppendInterpolatedStringHandler.AppendFormatted + ISpanFormattable
-            sb.Append($"{range}");
+            if (charsWritten > 0)
+                destination[charsWritten++] = ',';
+
+            if (!range.TryFormat(destination.Slice(charsWritten), out var rangeWritten, format, provider))
+                return false;
+
+            charsWritten += rangeWritten;
         }
 
-        var result = sb.ToString();
-        StringBuilderPool.Return(sb);
-
-        return result;
+        return true;
     }
 
     private readonly struct Range : IComparable<Range>, ISpanFormattable

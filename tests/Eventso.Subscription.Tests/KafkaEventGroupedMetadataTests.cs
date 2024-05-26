@@ -27,24 +27,7 @@ public class KafkaEventGroupedMetadataTests
 
         res.Should().BeEquivalentTo(new[]
         {
-            new[]
-            {
-                new KeyValuePair<string, object>("kafka.topic", "topic1"),
-                new KeyValuePair<string, object>("kafka.partition", "1"),
-                new KeyValuePair<string, object>("kafka.offsets", "1-3"),
-            },
-            new[]
-            {
-                new KeyValuePair<string, object>("kafka.topic", "topic1"),
-                new KeyValuePair<string, object>("kafka.partition", "2"),
-                new KeyValuePair<string, object>("kafka.offsets", "3-5,7"),
-            },
-            new[]
-            {
-                new KeyValuePair<string, object>("kafka.topic", "topic2"),
-                new KeyValuePair<string, object>("kafka.partition", "53"),
-                new KeyValuePair<string, object>("kafka.offsets", "107-108,379-380"),
-            }
+            new KeyValuePair<string, object>("eventso.kafka.events", "topic1@1[1-3],topic1@2[3-5,7],topic2@53[107-108,379-380]"),
         });
     }
 }
