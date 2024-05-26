@@ -47,7 +47,7 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>
         }
 
         await Task.Yield();
-        
+
         AckDeferredMessages();
 
         if ((handlerKind & HandlerKind.Single) == 0)
