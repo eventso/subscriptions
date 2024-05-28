@@ -12,7 +12,6 @@ public static class ServiceCollectionExtensions
         Action<DeadLetterQueueOptions>? configureOptions = default,
         bool installSchema = false)
     {
-        services.RemoveAll<IConnectionFactory>();
         services.RemoveAll<PoisonEventSchemaInitializer>();
 
         services.AddSingleton<PoisonEventSchemaInitializer>(sp =>
@@ -33,13 +32,13 @@ public static class ServiceCollectionExtensions
             provider =>
             {
                 _ = provider.GetRequiredService<PoisonEventSchemaInitializer>();
-                return new PoisonEventStore(provider.GetRequiredService<IConnectionFactory>());
+                return new PoisonEventStore(connectionFactoryProvider(provider));
             },
             (provider, options) =>
             {
                 _ = provider.GetRequiredService<PoisonEventSchemaInitializer>();
                 return new PoisonEventRetryScheduler(
-                    provider.GetRequiredService<IConnectionFactory>(),
+                    connectionFactoryProvider(provider),
                     options.MaxRetryAttemptCount,
                     options.MinHandlingRetryInterval,
                     options.MaxRetryDuration);
