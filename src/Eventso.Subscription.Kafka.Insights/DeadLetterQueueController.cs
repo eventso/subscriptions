@@ -36,9 +36,10 @@ public sealed class DeadLetterQueueController(
             configuration.GetByTopic(offset.Topic).Serializer,
             AllHandlingMessageHandlerRegistry.Instance);
 
-        using var consumer = KafkaConsumerFactory.Create(
-            configuration.Settings.Config.BootstrapServers,
-            valueObjectDeserializer);
+        using var consumer = configuration.Settings
+            .CreateBuilder()
+            .SetValueDeserializer(valueObjectDeserializer)
+            .Build();
         
         var @event = await eventStore.GetEvent(
             offset.GroupId,

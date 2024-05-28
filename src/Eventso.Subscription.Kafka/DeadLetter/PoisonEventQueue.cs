@@ -63,7 +63,7 @@ public sealed class PoisonEventQueue(
         if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
             throw new EventHandlingException(
                 @event.TopicPartitionOffset.Topic,
-                $"Dead letter queue exceeds {maxNumberOfPoisonedEventsInTopic} size. " +
+                $"Dead letter queue size ({alreadyPoisoned}) exceeds threshold ({maxNumberOfPoisonedEventsInTopic}). " +
                 $"Poison event: {@event.TopicPartitionOffset}. " +
                 $"Error: {failureReason}",
                 null);
