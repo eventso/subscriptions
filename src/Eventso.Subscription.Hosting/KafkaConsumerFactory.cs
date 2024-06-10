@@ -8,20 +8,17 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
     private readonly IMessagePipelineFactory _messagePipelineFactory;
     private readonly IMessageHandlersRegistry _handlersRegistry;
     private readonly IPoisonEventQueueFactory _poisonEventQueueFactory;
-    private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
     private readonly ILoggerFactory _loggerFactory;
 
     public KafkaConsumerFactory(
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         IPoisonEventQueueFactory poisonEventQueueFactory,
-        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
         _messagePipelineFactory = messagePipelineFactory;
         _handlersRegistry = handlersRegistry;
         _poisonEventQueueFactory = poisonEventQueueFactory;
-        _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
         _loggerFactory = loggerFactory;
     }
 
@@ -37,7 +34,6 @@ public sealed class KafkaConsumerFactory : IConsumerFactory
                 _messagePipelineFactory,
                 _handlersRegistry,
                 poisonEventQueue,
-                _deadLetterQueueScopeFactory,
                 _loggerFactory),
             new ValueDeserializer(
                 new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),

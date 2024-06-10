@@ -79,10 +79,8 @@ public class Startup
                     {
                         new TopicSpecification { Name = "no-error-single", ReplicationFactor = 1, NumPartitions = 1 },
                         new TopicSpecification { Name = "exception-single", ReplicationFactor = 1, NumPartitions = 1 },
-                        new TopicSpecification { Name = "poison-single", ReplicationFactor = 1, NumPartitions = 1 },
                         new TopicSpecification { Name = "no-error-batch", ReplicationFactor = 1, NumPartitions = 1 },
                         new TopicSpecification { Name = "exception-batch", ReplicationFactor = 1, NumPartitions = 1 },
-                        new TopicSpecification { Name = "poison-batch", ReplicationFactor = 1, NumPartitions = 1 },
                     },
                     options: new CreateTopicsOptions()
                     {
@@ -119,10 +117,8 @@ public class Startup
             {
                 Add<NoErrorSingleMessageHandler.NoErrorSingleMessage>(NoErrorSingleMessageHandler.Topic);
                 Add<ExceptionSingleMessageHandler.ExceptionSingleMessage>(ExceptionSingleMessageHandler.Topic);
-                Add<PoisonSingleMessageHandler.PoisonSingleMessage>(PoisonSingleMessageHandler.Topic);
                 AddBatch<NoErrorBatchMessageHandler.NoErrorBatchMessage>(NoErrorBatchMessageHandler.Topic);
                 AddBatch<ExceptionBatchMessageHandler.ExceptionBatchMessage>(ExceptionBatchMessageHandler.Topic);
-                AddBatch<PoisonBatchMessageHandler.PoisonBatchMessage>(PoisonBatchMessageHandler.Topic);
                 void Add<T>(string topic)
                     => subs.Add(new ConsumerSettings(brokers, groupId, autoOffsetReset: AutoOffsetReset.Latest)
                         {

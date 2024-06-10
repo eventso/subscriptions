@@ -8,7 +8,6 @@ public sealed class PoisonEventRetryingService(
     string groupId,
     IDeserializer<ConsumedMessage> deserializer,
     IReadOnlyDictionary<string, Observing.EventHandler<Event>> eventHandlers,
-    IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
     IPoisonEventQueue poisonEventQueue,
     ILogger<PoisonEventRetryingService> logger)
 {
@@ -19,7 +18,7 @@ public sealed class PoisonEventRetryingService(
 
         try
         {
-            await Handle(@event, token);
+            await eventHandlers[@event.Topic].Handle(@event, token);
             logger.RetrySuccessful(groupId, poisonEvent.TopicPartitionOffset);
         }
         catch (Exception exception)
@@ -55,16 +54,5 @@ public sealed class PoisonEventRetryingService(
         };
 
         return new Event(consumeResult);
-    }
-
-    private async Task Handle(Event @event, CancellationToken cancellationToken)
-    {
-        using var dlqScope = deadLetterQueueScopeFactory.Create(@event);
-
-        await eventHandlers[@event.Topic].Handle(@event, cancellationToken);
-
-        var poisonEvents = dlqScope.GetPoisonEvents();
-        if (poisonEvents.Count > 0)
-            throw new Exception(poisonEvents.Single().Reason);
     }
 }

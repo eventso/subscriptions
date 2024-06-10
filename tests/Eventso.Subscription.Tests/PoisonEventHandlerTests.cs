@@ -17,7 +17,6 @@ public sealed class PoisonEventHandlerTests
     {
         _underTestHandler = new PoisonEventHandler<TestEvent>(
             CreatePoisonEventInbox(),
-            CreateDeadLetterQueueScopeFactory(),
             CreteInnerHandler(),
             NullLogger<PoisonEventHandler<TestEvent>>.Instance);
     }
@@ -157,24 +156,6 @@ public sealed class PoisonEventHandlerTests
             .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
 
         return poisonEventInbox;
-    }
-
-    private IDeadLetterQueueScopeFactory CreateDeadLetterQueueScopeFactory()
-    {
-        var deadLetterQueueScopeFactory = Substitute.For<IDeadLetterQueueScopeFactory>();
-        deadLetterQueueScopeFactory.Create(default(TestEvent))
-            .ReturnsForAnyArgs(_ => CreateScope());
-        deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<TestEvent>)!)
-            .ReturnsForAnyArgs(_ => CreateScope());
-
-        return deadLetterQueueScopeFactory;
-
-        IDeadLetterQueueScope<TestEvent> CreateScope()
-        {
-            var scope = Substitute.For<IDeadLetterQueueScope<TestEvent>>();
-            scope.GetPoisonEvents().ReturnsForAnyArgs(_scopePoisonEvents);
-            return scope;
-        }
     }
 
     private IEventHandler<TestEvent> CreteInnerHandler()

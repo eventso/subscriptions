@@ -3,13 +3,11 @@ using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 
 public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingService
 {
-    private readonly ILogger _logger;
     private readonly IReadOnlyCollection<Worker> _workers;
 
     public PoisonEventQueueRetryingService(
@@ -17,11 +15,8 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
         IMessagePipelineFactory pipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         IPoisonEventQueueFactory poisonEventQueueFactory,
-        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
-        _logger = loggerFactory.CreateLogger<SubscriptionHost>();
-
         _workers = subscriptions
             .SelectMany(x => x)
             .SelectMany(x => x.ClonePerConsumerInstance())
@@ -30,7 +25,6 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
                 pipelineFactory,
                 handlersRegistry,
                 poisonEventQueueFactory,
-                deadLetterQueueScopeFactory,
                 loggerFactory))
             .ToArray();
     }
@@ -52,7 +46,6 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry handlersRegistry,
         IPoisonEventQueueFactory poisonEventQueueFactory,
-        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
         var valueDeserializer = new ValueDeserializer(
@@ -73,7 +66,6 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
             config.Settings.Config.GroupId,
             valueDeserializer,
             eventHandlers,
-            deadLetterQueueScopeFactory,
             poisonEventQueue,
             loggerFactory.CreateLogger<PoisonEventRetryingService>());
 

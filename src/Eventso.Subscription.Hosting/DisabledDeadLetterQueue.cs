@@ -5,18 +5,12 @@ using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 
-public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory, IDeadLetterQueueScopeFactory
+public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
 {
     public static DisabledDeadLetterQueue Instance { get; } = new();
     
     public IPoisonEventQueue Create(string groupId, string subscriptionId)
         => DisabledPoisonEventQueue.Instance;
-
-    public IDeadLetterQueueScope<TEvent> Create<TEvent>(TEvent @event) where TEvent : IEvent
-        => DisabledDeadLetterQueueScopeFactory<TEvent>.Instance;
-
-    public IDeadLetterQueueScope<TEvent> Create<TEvent>(IReadOnlyCollection<TEvent> events) where TEvent : IEvent
-        => DisabledDeadLetterQueueScopeFactory<TEvent>.Instance;
 
     private sealed class DisabledPoisonEventQueue : IPoisonEventQueue
     {
@@ -45,19 +39,6 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory, IDeadLet
         {
             await Task.CompletedTask;
             yield break;
-        }
-    }
-    
-    private sealed class DisabledDeadLetterQueueScopeFactory<TEvent> : IDeadLetterQueueScope<TEvent>
-        where TEvent : IEvent
-    {
-        public static IDeadLetterQueueScope<TEvent> Instance { get; } = new DisabledDeadLetterQueueScopeFactory<TEvent>();
-
-        public IReadOnlyCollection<PoisonEvent<TEvent>> GetPoisonEvents()
-            => Array.Empty<PoisonEvent<TEvent>>();
-
-        public void Dispose()
-        {
         }
     }
 }

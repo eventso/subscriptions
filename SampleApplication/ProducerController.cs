@@ -32,18 +32,7 @@ public sealed class ProducerController : ControllerBase
     public void Produce(ExceptionBatchMessageHandler.ExceptionBatchMessage[] messages)
     {
         foreach (var message in messages)
-            Produce(NoErrorBatchMessageHandler.Topic, message);
-    }
-
-    [HttpPost(PoisonSingleMessageHandler.Topic)]
-    public void Produce(PoisonSingleMessageHandler.PoisonSingleMessage message)
-        => Produce(PoisonSingleMessageHandler.Topic, message);
-
-    [HttpPost(PoisonBatchMessageHandler.Topic)]
-    public void Produce(PoisonBatchMessageHandler.PoisonBatchMessage[] messages)
-    {
-        foreach (var message in messages)
-            Produce(NoErrorBatchMessageHandler.Topic, message);
+            Produce(ExceptionBatchMessageHandler.Topic, message);
     }
 
     private void Produce<T>(string topic, T sampleMessage)

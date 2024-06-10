@@ -10,7 +10,6 @@ public sealed class ObserverFactory : IObserverFactory<Event>
     private readonly IMessagePipelineFactory _messagePipelineFactory;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
     private readonly IPoisonEventQueue _poisonEventQueue;
-    private readonly IDeadLetterQueueScopeFactory _deadLetterQueueScopeFactory;
     private readonly ILoggerFactory _loggerFactory;
 
     public ObserverFactory(
@@ -18,14 +17,12 @@ public sealed class ObserverFactory : IObserverFactory<Event>
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry messageHandlersRegistry,
         IPoisonEventQueue poisonEventQueue,
-        IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
         ILoggerFactory loggerFactory)
     {
         _configuration = configuration;
         _messagePipelineFactory = messagePipelineFactory;
         _messageHandlersRegistry = messageHandlersRegistry;
         _poisonEventQueue = poisonEventQueue;
-        _deadLetterQueueScopeFactory = deadLetterQueueScopeFactory;
         _loggerFactory = loggerFactory;
     }
 
@@ -48,7 +45,6 @@ public sealed class ObserverFactory : IObserverFactory<Event>
                     _configuration.Settings,
                     topic,
                     _loggerFactory.CreateLogger<PoisonEventInbox>()),
-                _deadLetterQueueScopeFactory,
                 eventHandler,
                 _loggerFactory.CreateLogger<PoisonEventHandler<Event>>());
         }

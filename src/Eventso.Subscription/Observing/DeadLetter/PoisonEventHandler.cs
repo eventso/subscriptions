@@ -2,7 +2,6 @@ namespace Eventso.Subscription.Observing.DeadLetter;
 
 public sealed class PoisonEventHandler<TEvent>(
     IPoisonEventInbox<TEvent> poisonEventInbox,
-    IDeadLetterQueueScopeFactory deadLetterQueueScopeFactory,
     IEventHandler<TEvent> inner,
     ILogger<PoisonEventHandler<TEvent>> logger)
     : IEventHandler<TEvent>
@@ -18,8 +17,6 @@ public sealed class PoisonEventHandler<TEvent>(
             return;
         }
 
-        using var dlqScope = deadLetterQueueScopeFactory.Create(@event);
-
         PoisonEvent<TEvent>? poisonEvent = null;
         try
         {
@@ -30,20 +27,10 @@ public sealed class PoisonEventHandler<TEvent>(
             poisonEvent = new PoisonEvent<TEvent>(@event, exception.ToString());
         }
 
-        poisonEvent = Coalesce(poisonEvent, dlqScope);
         if (poisonEvent == null)
             return;
 
         await poisonEventInbox.Add(poisonEvent.Value.Event, poisonEvent.Value.Reason, cancellationToken);
-
-        static PoisonEvent<TEvent>? Coalesce(PoisonEvent<TEvent>? @event, IDeadLetterQueueScope<TEvent> dlqScope)
-        {
-            if (@event != null)
-                return @event;
-
-            var dlqPoisonEvents = dlqScope.GetPoisonEvents();
-            return dlqPoisonEvents.Count != 0 ? dlqPoisonEvents.Single() : null;
-        }
     }
 
     public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
@@ -53,19 +40,10 @@ public sealed class PoisonEventHandler<TEvent>(
         FilterPoisonEvents(events, poisonStreamCollection, out var withoutPoison, out var poison);
 
         var healthyEvents = withoutPoison ?? events;
-        using var dlqScope = deadLetterQueueScopeFactory.Create(healthyEvents);
 
         try
         {
             await inner.Handle(healthyEvents, token);
-
-            var userDefinedPoison = dlqScope.GetPoisonEvents();
-            if (userDefinedPoison.Count > 0)
-            {
-                poison ??= new PooledList<PoisonEvent<TEvent>>(userDefinedPoison.Count);
-                foreach (var poisonEvent in userDefinedPoison)
-                    poison.Add(poisonEvent);
-            }
         }
         catch (Exception exception) when (healthyEvents.Count == 1)
         {
