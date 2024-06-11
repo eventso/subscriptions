@@ -17,14 +17,14 @@ public sealed class PoisonEventHandler<TEvent>(
             return;
         }
 
-        PoisonEvent<TEvent>? poisonEvent = null;
+        PoisonEvent? poisonEvent = null;
         try
         {
             await inner.Handle(@event, cancellationToken);
         }
         catch (Exception exception)
         {
-            poisonEvent = new PoisonEvent<TEvent>(@event, exception.ToString());
+            poisonEvent = new PoisonEvent(@event, exception.ToString());
         }
 
         if (poisonEvent == null)
@@ -47,12 +47,12 @@ public sealed class PoisonEventHandler<TEvent>(
         }
         catch (Exception exception) when (healthyEvents.Count == 1)
         {
-            poison ??= new PooledList<PoisonEvent<TEvent>>(1);
-            poison.Add(new PoisonEvent<TEvent>(healthyEvents[0], exception.ToString()));
+            poison ??= new PooledList<PoisonEvent>(1);
+            poison.Add(new PoisonEvent(healthyEvents[0], exception.ToString()));
         }
         catch (Exception)
         {
-            // todo this unwrapping should be executed in some other layer
+            // todo this unwrapping should be binary search like
             // unwrapping collection
             logger.LogInformation(
                 "[{ParentScope}][{Scope}] Unwrapping {HealthyEventsCount} healthy events to find poison",
@@ -111,7 +111,7 @@ public sealed class PoisonEventHandler<TEvent>(
         IConvertibleCollection<TEvent> events,
         HashSet<TEvent>? poisonStreamCollection,
         out PooledList<TEvent>? withoutPoison,
-        out PooledList<PoisonEvent<TEvent>>? poison)
+        out PooledList<PoisonEvent>? poison)
     {
         poison = null;
         withoutPoison = null;
@@ -120,7 +120,7 @@ public sealed class PoisonEventHandler<TEvent>(
             return;
 
         withoutPoison = new PooledList<TEvent>(events.Count - 1);
-        poison = new PooledList<PoisonEvent<TEvent>>(1);
+        poison = new PooledList<PoisonEvent>(1);
         foreach (var @event in events)
         {
             if (!poisonStreamCollection.Contains(@event))
@@ -129,7 +129,20 @@ public sealed class PoisonEventHandler<TEvent>(
                 continue;
             }
 
-            poison.Add(new PoisonEvent<TEvent>(@event, StreamIsPoisonReason));
+            poison.Add(new PoisonEvent(@event, StreamIsPoisonReason));
         }
+    }
+
+    private readonly record struct PoisonEvent
+    {
+        internal PoisonEvent(TEvent @event, string reason)
+        {
+            Event = @event;
+            Reason = reason;
+        }
+
+        public TEvent Event { get; }
+
+        public string Reason { get; }
     }
 }

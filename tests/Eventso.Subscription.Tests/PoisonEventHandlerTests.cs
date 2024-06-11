@@ -7,8 +7,8 @@ public sealed class PoisonEventHandlerTests
 {
     private readonly Fixture _fixture = new();
 
-    private readonly List<PoisonEvent<TestEvent>> _inboxPoisonEvents = new();
-    private readonly List<PoisonEvent<TestEvent>> _scopePoisonEvents = new();
+    private readonly List<TestEvent> _inboxPoisonEvents = new();
+    private readonly List<TestEvent> _scopePoisonEvents = new();
     private readonly List<TestEvent> _innerHandlerEvents = new();
 
     private readonly PoisonEventHandler<TestEvent> _underTestHandler;
@@ -24,7 +24,7 @@ public sealed class PoisonEventHandlerTests
     [Fact]
     public async Task SingleNotDeadPredecessorAndNotDeadInScope_HandledSuccessfully()
     {
-        var @event = TestEvent();
+        var @event = HealthyEvent();
 
         await _underTestHandler.Handle(@event, CancellationToken.None);
 
@@ -36,7 +36,7 @@ public sealed class PoisonEventHandlerTests
     [Fact]
     public async Task BatchNotDeadPredecessorAndNotDeadInScope_HandledSuccessfully()
     {
-        var events = Enumerable.Range(0, 9).Select(_ => TestEvent()).ToConvertibleCollection();
+        var events = Enumerable.Range(0, 9).Select(_ => HealthyEvent()).ToConvertibleCollection();
 
         await _underTestHandler.Handle(events, CancellationToken.None);
 
@@ -53,11 +53,10 @@ public sealed class PoisonEventHandlerTests
         var predecessorInInbox = PoisonEvent(key);
         _inboxPoisonEvents.Add(predecessorInInbox);
 
-        var @event = TestEvent(key);
+        var @event = HealthyEvent(key);
         await _underTestHandler.Handle(@event, CancellationToken.None);
 
-        _inboxPoisonEvents.Should().BeEquivalentTo(
-            new[] { predecessorInInbox, PoisonEvent(@event, PoisonEventHandler<TestEvent>.StreamIsPoisonReason) });
+        _inboxPoisonEvents.Should().BeEquivalentTo(new[] { predecessorInInbox, @event });
         _scopePoisonEvents.Should().BeEmpty();
         _innerHandlerEvents.Should().BeEmpty();
     }
@@ -72,14 +71,13 @@ public sealed class PoisonEventHandlerTests
         var predecessors = new[] { PoisonEvent(key1), PoisonEvent(key2), PoisonEvent(key3), PoisonEvent(key1) };
         _inboxPoisonEvents.AddRange(predecessors);
 
-        var healthyEvents = Enumerable.Range(0, 5).Select(_ => TestEvent()).ToArray();
-        var toPoisonEvents = new[] { TestEvent(key1), TestEvent(key2), TestEvent(key3), TestEvent(key2) };
+        var healthyEvents = Enumerable.Range(0, 5).Select(_ => HealthyEvent()).ToArray();
+        var toPoisonEvents = new[] { HealthyEvent(key1), HealthyEvent(key2), HealthyEvent(key3), HealthyEvent(key2) };
         var events = healthyEvents.Concat(toPoisonEvents).OrderBy(_ => Guid.NewGuid()).ToConvertibleCollection();
 
         await _underTestHandler.Handle(events, CancellationToken.None);
 
-        _inboxPoisonEvents.Should().BeEquivalentTo(
-            predecessors.Concat(toPoisonEvents.Select(e => PoisonEvent(e, PoisonEventHandler<TestEvent>.StreamIsPoisonReason))));
+        _inboxPoisonEvents.Should().BeEquivalentTo(predecessors.Concat(toPoisonEvents));
         _scopePoisonEvents.Should().BeEmpty();
         _innerHandlerEvents.Should().BeEquivalentTo(healthyEvents);
     }
@@ -88,23 +86,21 @@ public sealed class PoisonEventHandlerTests
     public async Task SingleNotDeadPredecessorAndDeadInScope_PutToInboxAndNotHandled()
     {
         var poisonEvent = PoisonEvent();
-        _scopePoisonEvents.Add(poisonEvent);
 
-        await _underTestHandler.Handle(poisonEvent.Event, CancellationToken.None);
+        await _underTestHandler.Handle(poisonEvent, CancellationToken.None);
 
         _inboxPoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
         _scopePoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
-        _innerHandlerEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent.Event);
+        _innerHandlerEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
     }
 
     [Fact]
     public async Task BatchNotDeadPredecessorAndDeadInScope_HandledSuccessfully()
     {
         var poisonEvents = new[] { PoisonEvent(), PoisonEvent(), PoisonEvent() };
-        _scopePoisonEvents.AddRange(poisonEvents);
 
-        var healthyEvents = Enumerable.Range(0, 6).Select(_ => TestEvent()).ToArray();
-        var events = healthyEvents.Concat(poisonEvents.Select(e => e.Event))
+        var healthyEvents = Enumerable.Range(0, 6).Select(_ => HealthyEvent()).ToArray();
+        var events = healthyEvents.Concat(poisonEvents)
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
@@ -126,13 +122,12 @@ public sealed class PoisonEventHandlerTests
         _inboxPoisonEvents.AddRange(poisonPredecessors);
 
         var scopePoisonEvents = new[] { PoisonEvent(), PoisonEvent(), PoisonEvent() };
-        _scopePoisonEvents.AddRange(scopePoisonEvents);
 
-        var healthyEvents = Enumerable.Range(0, 10).Select(_ => TestEvent()).ToArray();
-        var predecessorPoisonEvents = new[] { TestEvent(key1), TestEvent(key2), TestEvent(key3), TestEvent(key2) };
+        var healthyEvents = Enumerable.Range(0, 10).Select(_ => HealthyEvent()).ToArray();
+        var predecessorPoisonEvents = new[] { HealthyEvent(key1), HealthyEvent(key2), HealthyEvent(key3), HealthyEvent(key2) };
         var events = healthyEvents
             .Concat(predecessorPoisonEvents)
-            .Concat(scopePoisonEvents.Select(p => p.Event))
+            .Concat(scopePoisonEvents)
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
@@ -140,10 +135,10 @@ public sealed class PoisonEventHandlerTests
 
         _inboxPoisonEvents.Should().BeEquivalentTo(
             poisonPredecessors
-                .Concat(predecessorPoisonEvents.Select(e => PoisonEvent(e, PoisonEventHandler<TestEvent>.StreamIsPoisonReason)))
+                .Concat(predecessorPoisonEvents)
                 .Concat(scopePoisonEvents));
         _scopePoisonEvents.Should().BeEquivalentTo(scopePoisonEvents);
-        _innerHandlerEvents.Should().BeEquivalentTo(healthyEvents.Concat(scopePoisonEvents.Select(p => p.Event)));
+        _innerHandlerEvents.Should().BeEquivalentTo(healthyEvents.Concat(scopePoisonEvents));
     }
 
     private IPoisonEventInbox<TestEvent> CreatePoisonEventInbox()
@@ -151,35 +146,68 @@ public sealed class PoisonEventHandlerTests
         var poisonEventInbox = Substitute.For<IPoisonEventInbox<TestEvent>>();
         poisonEventInbox.Add(default(TestEvent), default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
-            .AndDoes(c => _inboxPoisonEvents.Add(new PoisonEvent<TestEvent>(c.Arg<TestEvent>(), c.Arg<string>())));
+            .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<TestEvent>()));
         poisonEventInbox.IsPartOfPoisonStream(default, default)
-            .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Event.Key == c.Arg<TestEvent>().Key)));
+            .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Key == c.Arg<TestEvent>().Key)));
 
         return poisonEventInbox;
     }
 
+    // private IDeadLetterQueueScopeFactory CreateDeadLetterQueueScopeFactory()
+    // {
+    //     var deadLetterQueueScopeFactory = Substitute.For<IDeadLetterQueueScopeFactory>();
+    //     deadLetterQueueScopeFactory.Create(default(TestEvent))
+    //         .ReturnsForAnyArgs(_ => CreateScope());
+    //     deadLetterQueueScopeFactory.Create(default(IReadOnlyCollection<TestEvent>)!)
+    //         .ReturnsForAnyArgs(_ => CreateScope());
+    //
+    //     return deadLetterQueueScopeFactory;
+    //
+    //     IDeadLetterQueueScope<TestEvent> CreateScope()
+    //     {
+    //         var scope = Substitute.For<IDeadLetterQueueScope<TestEvent>>();
+    //         scope.GetPoisonEvents().ReturnsForAnyArgs(_scopePoisonEvents);
+    //         return scope;
+    //     }
+    // }
+
     private IEventHandler<TestEvent> CreteInnerHandler()
     {
         var innerHandler = Substitute.For<IEventHandler<TestEvent>>();
-        innerHandler.Handle(default(TestEvent), default)
-            .ReturnsForAnyArgs(Task.CompletedTask)
+
+        innerHandler.Handle(Arg.Is<TestEvent>(e => !(bool)e.GetMessage()), default)
+            .Returns(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()));
-        innerHandler.Handle(default(IConvertibleCollection<TestEvent>)!, default)
-            .ReturnsForAnyArgs(Task.CompletedTask)
+
+        innerHandler.Handle(Arg.Is<TestEvent>(e => (bool)e.GetMessage()), default)
+            .Throws<Exception>()
+            .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()))
+            .AndDoes(c => _scopePoisonEvents.Add(c.Arg<TestEvent>()));
+        
+        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.All(ee => !(bool)ee.GetMessage())), default)
+            .Returns(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.AddRange(c.Arg<IConvertibleCollection<TestEvent>>()));
+        
+        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.Any(ee => (bool)ee.GetMessage())), default)
+            .Throws<Exception>()
+            .AndDoes(c =>
+            {
+                var events = c.Arg<IConvertibleCollection<TestEvent>>();
+                if (events.Count > 1)
+                    return;
+                _innerHandlerEvents.AddRange(events);
+                _scopePoisonEvents.AddRange(events);
+            });
 
         return innerHandler;
     }
 
-    private TestEvent TestEvent(Guid key = default)
-        => new(key != default ? key : _fixture.Create<Guid>(), _fixture.Create<RedMessage>());
+    private TestEvent PoisonEvent(Guid key = default)
+        => new(key != default ? key : _fixture.Create<Guid>(), true);
 
-    private PoisonEvent<TestEvent> PoisonEvent(Guid key = default, string? reason = null)
-        => new(TestEvent(key), reason ?? _fixture.Create<string>());
+    private TestEvent HealthyEvent(Guid key = default)
+        => new(key != default ? key : _fixture.Create<Guid>(), false);
 
-    private PoisonEvent<TestEvent> PoisonEvent(TestEvent @event, string? reason = null)
-        => new(@event, reason ?? _fixture.Create<string>());
-        
     // private sealed class PoisonStreamCollection : IPoisonStreamCollection<TestEvent>
     // {
     //     private readonly List<PoisonEvent<TestEvent>> _poisonEvents;
