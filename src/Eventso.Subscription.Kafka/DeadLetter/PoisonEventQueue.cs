@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
@@ -12,33 +13,45 @@ public sealed class PoisonEventQueue(
     ILogger<PoisonEventQueue> logger)
     : IPoisonEventQueue
 {
-    private readonly Dictionary<TopicPartition, Task<HashSet<Guid>>> _partitionPoisonKeys = new();
+    private readonly ConcurrentDictionary<TopicPartition, TopicPartitionKeysTask> _partitionPoisonKeys =
+        new ConcurrentDictionary<TopicPartition, TopicPartitionKeysTask>(concurrencyLevel: 1, capacity: 1);
 
     public bool IsEnabled => true;
 
     public void Assign(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
-        _partitionPoisonKeys[topicPartition] = GetPoisonKeys();
+        var tokenSource = new CancellationTokenSource();
+        _partitionPoisonKeys[topicPartition] = new TopicPartitionKeysTask(
+            GetPoisonKeys(tokenSource.Token),
+            tokenSource);
         
         logger.PartitionAssign(groupId, topicPartition.Topic, topicPartition.Partition);
 
-        async Task<HashSet<Guid>> GetPoisonKeys()
+        async Task<HashSet<Guid>> GetPoisonKeys(CancellationToken token)
         {
             var poisonedKeys = new HashSet<Guid>();
 
-            var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, CancellationToken.None);
+            var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, token);
             await foreach (var key in keysSource)
                 poisonedKeys.Add(DeserializeKey(topicPartition.Topic, [], key)); // note: empty headers here
             return poisonedKeys;
+            
         }
     }
 
     public void Revoke(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
-        _partitionPoisonKeys.Remove(topicPartition);
-        
+        if (_partitionPoisonKeys.TryRemove(topicPartition, out var keysTask))
+        {
+            keysTask.CancellationTokenSource.Cancel();
+            keysTask.CancellationTokenSource.Dispose();
+
+            if (keysTask.Task.IsFaulted)
+                _ = keysTask.Task.Exception;
+        }
+
         logger.PartitionRevoke(groupId, topicPartition.Topic, topicPartition.Partition);
     }
 
@@ -135,12 +148,19 @@ public sealed class PoisonEventQueue(
         if (!_partitionPoisonKeys.TryGetValue(topicPartition, out var keysTask))
             throw new Exception($"{topicPartition} disabled");
 
-        if (!keysTask.IsCompleted)
+        if (!keysTask.Task.IsCompleted)
         {
-            await keysTask.WaitAsync(token);
+            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                keysTask.CancellationTokenSource.Token,
+                token);
+            await keysTask.Task.WaitAsync(linkedTokenSource.Token);
             logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);            
         }
 
-        return keysTask.Result;
+        return keysTask.Task.Result;
     }
+
+    private sealed record TopicPartitionKeysTask(
+        Task<HashSet<Guid>> Task,
+        CancellationTokenSource CancellationTokenSource);
 }

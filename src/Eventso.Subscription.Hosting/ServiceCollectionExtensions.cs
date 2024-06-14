@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
             (_, _) => DevNullPoisonEventStore.Instance);
     }
 
+    // TODO make more like MvcBuilder or smth
     public static void AddDeadLetterQueue(
         this IServiceCollection services,
         Action<DeadLetterQueueOptions> configureOptions,

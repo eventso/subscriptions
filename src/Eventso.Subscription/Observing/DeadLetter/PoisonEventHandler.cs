@@ -8,79 +8,84 @@ public sealed class PoisonEventHandler<TEvent>(
     where TEvent : IEvent
 {
     internal const string StreamIsPoisonReason = "Event stream is poisoned.";
-
+    
     public async Task Handle(TEvent @event, CancellationToken cancellationToken)
     {
-        if (await poisonEventInbox.IsPartOfPoisonStream(@event, cancellationToken))
+        await HandleSingle(@event, e => e, inner.Handle, cancellationToken);
+    }
+
+    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
+    {
+        if (events.Count == 0)
+            return;
+        
+        try
         {
-            await poisonEventInbox.Add(@event, StreamIsPoisonReason, cancellationToken);
+            await HandleBatch(events, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception) when (events.Count > 1)
+        {
+            // todo this unwrapping should be binary search like
+            logger.UnwrapStarted(events.Count);
+
+            for (var i = 1; i <= events.Count; i++)
+            {
+                using var pooledList = new PooledList<TEvent>(1); // expensive, but...
+                pooledList.Add(events[i - 1]);
+                await HandleSingle(pooledList, e => e[0], inner.Handle, cancellationToken);
+
+                if (i % 200 == 0)
+                    logger.UnwrapInProgress(i, events.Count);
+            }
+
+            logger.UnwrapCompleted(events.Count);
+        }
+    }
+
+    private async Task HandleSingle<THandleParam>(
+        THandleParam singleEventContainer, // bit weird but its private
+        Func<THandleParam, TEvent> getEvent,
+        Func<THandleParam, CancellationToken, Task> handle,
+        CancellationToken token)
+    {
+        var @event = getEvent(singleEventContainer);
+        
+        if (await poisonEventInbox.IsPartOfPoisonStream(@event, token))
+        {
+            await poisonEventInbox.Add(@event, StreamIsPoisonReason, token);
             return;
         }
 
-        PoisonEvent? poisonEvent = null;
         try
         {
-            await inner.Handle(@event, cancellationToken);
+            await handle(singleEventContainer, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
-            poisonEvent = new PoisonEvent(@event, exception.ToString());
+            await poisonEventInbox.Add(@event, exception.ToString(), token);
         }
-
-        if (poisonEvent == null)
-            return;
-
-        await poisonEventInbox.Add(poisonEvent.Value.Event, poisonEvent.Value.Reason, cancellationToken);
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
+    private async Task HandleBatch(IConvertibleCollection<TEvent> events, CancellationToken token)
     {
+        if (events.Count <= 1)
+            throw new ArgumentException("Expected more than 1 element in events collection", nameof(events));
+        
         var poisonStreamCollection = await GetPoisonStreams(events, token);
 
         FilterPoisonEvents(events, poisonStreamCollection, out var withoutPoison, out var poison);
 
         var healthyEvents = withoutPoison ?? events;
 
-        try
-        {
-            await inner.Handle(healthyEvents, token);
-        }
-        catch (Exception exception) when (healthyEvents.Count == 1)
-        {
-            poison ??= new PooledList<PoisonEvent>(1);
-            poison.Add(new PoisonEvent(healthyEvents[0], exception.ToString()));
-        }
-        catch (Exception)
-        {
-            // todo this unwrapping should be binary search like
-            // unwrapping collection
-            logger.LogInformation(
-                "[{ParentScope}][{Scope}] Unwrapping {HealthyEventsCount} healthy events to find poison",
-                nameof(Eventso),
-                nameof(PoisonEventHandler<TEvent>),
-                healthyEvents.Count);
-
-            for (var i = 1; i <= healthyEvents.Count; i++)
-            {
-                using var pooledList = new PooledList<TEvent>(1); // expensive, but...
-                pooledList.Add(healthyEvents[i - 1]);
-                await Handle(pooledList, token); // will not be really recursive because of catch block above
-
-                if (i % 200 == 0)
-                    logger.LogInformation(
-                        "[{ParentScope}][{Scope}] Unwrapped {UnwrappedCount} of {HealthyEventsCount} healthy events to find poison",
-                        nameof(Eventso),
-                        nameof(PoisonEventHandler<TEvent>),
-                        i,
-                        healthyEvents.Count);
-            }
-
-            logger.LogInformation(
-                "[{ParentScope}][{Scope}] Unwrapped {HealthyEventsCount} healthy events to find poison",
-                nameof(Eventso),
-                nameof(PoisonEventHandler<TEvent>),
-                healthyEvents.Count);
-        }
+        await inner.Handle(healthyEvents, token);
 
         if (poison?.Count > 0)
             foreach (var @event in poison)

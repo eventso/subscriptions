@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Confluent.Kafka;
 using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
@@ -12,7 +11,9 @@ public sealed class PoisonEventInbox(
     ILogger<PoisonEventInbox> logger)
     : IPoisonEventInbox<Event>, IDisposable
 {
-    private readonly ThreadSafeConsumer _deadMessageConsumer = new(settings, topic, logger);
+    private readonly Lazy<ThreadSafeConsumer> _deadMessageConsumer = new(
+        () => new ThreadSafeConsumer(settings, topic, logger),
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
     public ValueTask<bool> IsPartOfPoisonStream(Event @event, CancellationToken token)
     {
@@ -25,12 +26,15 @@ public sealed class PoisonEventInbox(
     public Task Add(Event @event, string reason, CancellationToken token)
     {
         var topicPartitionOffset = @event.GetTopicPartitionOffset();
-        var rawEvent = _deadMessageConsumer.Consume(topicPartitionOffset, token);
+        var rawEvent = _deadMessageConsumer.Value.Consume(topicPartitionOffset, token);
         return poisonEventQueue.Enqueue(rawEvent, DateTime.UtcNow, reason, token);
     }
 
     public void Dispose()
-        => _deadMessageConsumer.Close();
+    {
+        if (_deadMessageConsumer.IsValueCreated)
+            _deadMessageConsumer.Value.Close();
+    }
 
     private sealed class ThreadSafeConsumer
     {
@@ -55,7 +59,7 @@ public sealed class PoisonEventInbox(
             _deadMessageConsumer = settings.CreateBuilder()
                 .SetKeyDeserializer(KeyGuidDeserializer.Instance)
                 .SetValueDeserializer(ByteArrayWrapperDeserializer.Instance)
-                .SetErrorHandler((_, e) => logger.LogError(
+                .SetErrorHandler((a, e) => logger.LogError(
                     "{ErrorSource} internal error: Topic={Topic}, Reason={Reason}, " +
                     "Fatal={IsFatal}, IsLocal= {IsLocalError}, IsBroker={IsBrokerError}",
                     nameof(PoisonEventInbox), topic, e.Reason,
