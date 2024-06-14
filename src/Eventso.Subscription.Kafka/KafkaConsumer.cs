@@ -66,6 +66,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                 foreach (var topicPartitionOffset in revoked)
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
+            .SetPartitionsLostHandler((_, lost) =>
+            {
+                foreach (var topicPartitionOffset in lost)
+                    _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
+            })
             .SetErrorHandler((_, e) => _logger.LogError(
                 $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
                 $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
