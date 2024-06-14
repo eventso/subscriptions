@@ -7,7 +7,6 @@ public sealed class TopicSubscriptionConfiguration
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig,
         bool skipUnknownMessages,
-        bool enableDeadLetterQueue,
         int bufferSize)
     {
         if (string.IsNullOrWhiteSpace(topic))
@@ -19,7 +18,6 @@ public sealed class TopicSubscriptionConfiguration
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         SkipUnknownMessages = skipUnknownMessages;
         HandlerConfig = handlerConfig ?? new HandlerConfiguration();
-        EnableDeadLetterQueue = enableDeadLetterQueue;
         BufferSize = bufferSize;
     }
 
@@ -29,14 +27,12 @@ public sealed class TopicSubscriptionConfiguration
         HandlerConfiguration? handlerConfig = default,
         DeferredAckConfiguration? deferredAckConfiguration = default,
         bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false,
         int bufferSize = 0)
         : this(
             topic,
             serializer,
             handlerConfig,
             skipUnknownMessages,
-            enableDeadLetterQueue,
             bufferSize)
     {
         DeferredAckConfiguration = deferredAckConfiguration ?? DeferredAckConfiguration.Disabled;
@@ -48,14 +44,12 @@ public sealed class TopicSubscriptionConfiguration
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false,
         int bufferSize = 0)
         : this(
             topic,
             serializer,
             handlerConfig,
             skipUnknownMessages,
-            enableDeadLetterQueue,
             bufferSize)
     {
         batchConfiguration.Validate();
@@ -79,8 +73,6 @@ public sealed class TopicSubscriptionConfiguration
     public BatchConfiguration? BatchConfiguration { get; }
 
     public DeferredAckConfiguration? DeferredAckConfiguration { get; }
-
-    public bool EnableDeadLetterQueue { get; }
 
     public int BufferSize { get; }
 }

@@ -1,7 +1,10 @@
 ﻿using Confluent.Kafka;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Eventso.Subscription.Kafka.Insights;
 
+[Route("insights/kafka")]
+[ApiController]
 internal sealed class KafkaConsumer<T> : IDisposable
 {
     private readonly IConsumer<string, T> _consumer;

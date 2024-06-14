@@ -9,8 +9,8 @@ namespace Eventso.Subscription.Kafka;
 public sealed class KafkaConsumer : ISubscriptionConsumer
 {
     private readonly string[] _topics;
-    private readonly IObserverFactory _observerFactory;
-    private readonly IPoisonRecordInbox _poisonRecordInbox;
+    private readonly IObserverFactory<Event> _observerFactory;
+    private readonly IPoisonEventQueue _poisonEventQueue;
     private readonly int _maxObserveInterval;
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
@@ -19,11 +19,12 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
     private readonly List<TopicPartition> _pausedTopicPartitions = new();
 
+
     public KafkaConsumer(
         string[] topics,
-        IObserverFactory observerFactory,
+        IObserverFactory<Event> observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
-        IPoisonRecordInbox poisonRecordInbox,
+        IPoisonEventQueue poisonEventQueue,
         KafkaConsumerSettings settings,
         ILogger<KafkaConsumer> logger)
     {
@@ -35,7 +36,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _topics = topics;
 
         _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
-        _poisonRecordInbox = poisonRecordInbox; // can be null in case of disabled DLQ
+        _poisonEventQueue = poisonEventQueue ?? throw new ArgumentNullException(nameof(poisonEventQueue));
 
         _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
         _observeMaxDelay = settings.PauseAfterObserveDelay
@@ -43,17 +44,39 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         _logger = logger;
 
-        _consumer = settings.CreateBuilder()
-            .SetKeyDeserializer(KeyGuidDeserializer.Instance)
-            .SetValueDeserializer(deserializer)
-            .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
-                $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
-            .Build();
+        _consumer = BuildConsumer(settings, deserializer);
 
         _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
         _consumer.Subscribe(topics);
+    }
+
+    private IConsumer<Guid, ConsumedMessage> BuildConsumer(KafkaConsumerSettings settings, IDeserializer<ConsumedMessage> deserializer)
+    {
+        return settings.CreateBuilder()
+            .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+            .SetValueDeserializer(deserializer)
+            .SetPartitionsAssignedHandler((_, assigned) =>
+            {
+                _logger.RebalancePartitionsAssigned(string.Join(',', assigned.Select(x => x.ToString())));
+                foreach (var topicPartition in assigned)
+                    _poisonEventQueue.Assign(topicPartition);
+            })
+            .SetPartitionsRevokedHandler((_, revoked) =>
+            {
+                _logger.RebalancePartitionsRevoked(string.Join(',', revoked.Select(x => x.ToString())));
+                foreach (var topicPartitionOffset in revoked)
+                    _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
+            })
+            .SetPartitionsLostHandler((_, lost) =>
+            {
+                _logger.RebalancePartitionsLost(string.Join(',', lost.Select(x => x.ToString())));
+                foreach (var topicPartitionOffset in lost)
+                    _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
+            })
+            .SetErrorHandler((_, e) =>
+                _logger.ConsumeError(string.Join(",", _topics), e.Reason, e.IsFatal,e.IsLocalError,e.IsBrokerError))
+            .Build();
     }
 
     public void Close()
@@ -98,9 +121,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
             result.Topic = topic; // topic name interning
 
+            var @event = new Event(result);
+
             try
             {
-                var handleTask = HandleResult(observer, result, tokenSource.Token);
+                var handleTask = HandleResult(observer, @event, tokenSource.Token);
 
                 var handleCompletedSynchronously = handleTask.IsCompleted;
 
@@ -118,7 +143,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 if (timeoutTokenSource.IsCancellationRequested)
                     throw new TimeoutException(
-                        $"Observing time is out. Topic: {result.Topic}, timeout: {_maxObserveInterval}ms. " +
+                        $"Observing time is out. Topic: {@event.Topic}, timeout: {_maxObserveInterval}ms. " +
                         "Consider to increase MaxPollInterval.");
 
                 tokenSource.Cancel();
@@ -147,14 +172,16 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             }
             catch (ConsumeException ex) when (ex.Error.Code == ErrorCode.Local_ValueDeserialization)
             {
-                //await _poisonRecordInbox?.Add(
-                //    ex.ConsumerRecord,
-                //    $"Deserialization failed: {ex.Message}.",
-                //    token);
                 activity?.SetException(ex);
 
-                _logger.LogError(ex,
-                    $"Serialization exception for message {ex.ConsumerRecord?.TopicPartitionOffset}, consuming paused");
+                if (_poisonEventQueue.IsEnabled)
+                {
+                    // possible offset commit fail will increment retry count as side effect but we can live with it
+                    await _poisonEventQueue.Enqueue(ex.ConsumerRecord, DateTime.UtcNow, ex.Message, token);
+                    return null;
+                }
+
+                _logger.SerializationError(ex, ex.ConsumerRecord?.TopicPartitionOffset);
 
                 if (ex.ConsumerRecord != null)
                 {
@@ -182,7 +209,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
     private async Task HandleResult(
         IObserver<Event> observer,
-        ConsumeResult<Guid, ConsumedMessage> result,
+        Event result,
         CancellationToken token)
     {
         await WaitPendingPause(result.Topic);
@@ -212,7 +239,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         if (_pausedTopicsObservers.Count > 0 &&
             _pausedTopicsObservers.Remove(topic, out var pausedTask))
         {
-            _logger.LogInformation("Waiting paused task for topic {Topic}", topic);
+            _logger.WaitingPaused(topic);
             return pausedTask;
         }
 
@@ -257,8 +284,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         lock (_pausedTopicPartitions)
             _pausedTopicPartitions.AddRange(assignments);
 
-        _logger.LogInformation($"Topic '{topic}' consuming paused. Partitions: " +
-            string.Join(',', assignments.Select(x => x.Partition.Value)));
+        _logger.ConsumePaused(topic, string.Join(',', assignments.Select(x => x.Partition.Value)));
     }
 
     private void ResumeAssignments(string topic)
@@ -273,17 +299,14 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         _consumer.Resume(resumed);
 
-        _logger.LogInformation($"Topic '{topic}' consuming resumed. Partitions: " +
-            string.Join(',', resumed.Select(x => x.Partition.Value)));
+        _logger.ConsumeResumed(topic, string.Join(',', resumed.Select(x => x.Partition.Value)));
     }
 
     private async Task Observe(
-        ConsumeResult<Guid, ConsumedMessage> result,
+        Event @event,
         IObserver<Event> observer,
         CancellationToken token)
     {
-        var @event = new Event(result);
-
         try
         {
             await observer.OnEventAppeared(@event, token);
@@ -291,7 +314,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new EventHandlingException(
-                result.TopicPartitionOffset.ToString()!,
+                @event.GetTopicPartitionOffset().ToString()!,
                 "Event observing failed",
                 ex);
         }
