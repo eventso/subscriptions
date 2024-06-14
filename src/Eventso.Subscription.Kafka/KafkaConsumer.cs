@@ -58,22 +58,24 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetValueDeserializer(deserializer)
             .SetPartitionsAssignedHandler((_, assigned) =>
             {
+                _logger.RebalancePartitionsAssigned(string.Join(',', assigned.Select(x => x.ToString())));
                 foreach (var topicPartition in assigned)
                     _poisonEventQueue.Assign(topicPartition);
             })
             .SetPartitionsRevokedHandler((_, revoked) =>
             {
+                _logger.RebalancePartitionsRevoked(string.Join(',', revoked.Select(x => x.ToString())));
                 foreach (var topicPartitionOffset in revoked)
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
             .SetPartitionsLostHandler((_, lost) =>
             {
+                _logger.RebalancePartitionsLost(string.Join(',', lost.Select(x => x.ToString())));
                 foreach (var topicPartitionOffset in lost)
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
-            .SetErrorHandler((_, e) => _logger.LogError(
-                $"KafkaConsumer internal error: Topics: {string.Join(",", _topics)}, {e.Reason}, Fatal={e.IsFatal}," +
-                $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
+            .SetErrorHandler((_, e) =>
+                _logger.ConsumeError(string.Join(",", _topics), e.Reason, e.IsFatal,e.IsLocalError,e.IsBrokerError))
             .Build();
     }
 
@@ -179,8 +181,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                     return null;
                 }
 
-                _logger.LogError(ex,
-                    $"Serialization exception for message {ex.ConsumerRecord?.TopicPartitionOffset}, consuming paused");
+                _logger.SerializationError(ex, ex.ConsumerRecord?.TopicPartitionOffset);
 
                 if (ex.ConsumerRecord != null)
                 {
@@ -238,7 +239,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         if (_pausedTopicsObservers.Count > 0 &&
             _pausedTopicsObservers.Remove(topic, out var pausedTask))
         {
-            _logger.LogInformation("Waiting paused task for topic {Topic}", topic);
+            _logger.WaitingPaused(topic);
             return pausedTask;
         }
 
@@ -283,8 +284,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         lock (_pausedTopicPartitions)
             _pausedTopicPartitions.AddRange(assignments);
 
-        _logger.LogInformation($"Topic '{topic}' consuming paused. Partitions: " +
-            string.Join(',', assignments.Select(x => x.Partition.Value)));
+        _logger.ConsumePaused(topic, string.Join(',', assignments.Select(x => x.Partition.Value)));
     }
 
     private void ResumeAssignments(string topic)
@@ -299,8 +299,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
         _consumer.Resume(resumed);
 
-        _logger.LogInformation($"Topic '{topic}' consuming resumed. Partitions: " +
-            string.Join(',', resumed.Select(x => x.Partition.Value)));
+        _logger.ConsumeResumed(topic, string.Join(',', resumed.Select(x => x.Partition.Value)));
     }
 
     private async Task Observe(

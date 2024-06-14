@@ -34,5 +34,8 @@
 	  <Compile Update="DeadLetter\PoisonEventRetryingService.Log.cs">
 	    <DependentUpon>PoisonEventRetryingService.cs</DependentUpon>
 	  </Compile>
+	  <Compile Update="KafkaConsumerLog.cs">
+	    <DependentUpon>KafkaConsumer.cs</DependentUpon>
+	  </Compile>
 	</ItemGroup>
 </Project>
