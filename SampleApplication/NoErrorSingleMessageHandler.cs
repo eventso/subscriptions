@@ -6,10 +6,10 @@ public class NoErrorSingleMessageHandler : IMessageHandler<NoErrorSingleMessageH
 {
     public const string Topic = "no-error-single";
 
-    public Task Handle(NoErrorSingleMessage message, CancellationToken token)
+    public async Task Handle(NoErrorSingleMessage message, CancellationToken token)
     {
         Console.WriteLine($"[{Topic}] Message received: [{message}]");
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 
     public record NoErrorSingleMessage(Guid Guid, string String) : ISampleMessage

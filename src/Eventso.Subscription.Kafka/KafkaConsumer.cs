@@ -19,7 +19,6 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     private readonly Dictionary<string, Task> _pausedTopicsObservers = new(1);
     private readonly List<TopicPartition> _pausedTopicPartitions = new();
 
-
     public KafkaConsumer(
         string[] topics,
         IObserverFactory<Event> observerFactory,
@@ -58,24 +57,24 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             .SetValueDeserializer(deserializer)
             .SetPartitionsAssignedHandler((_, assigned) =>
             {
-                _logger.RebalancePartitionsAssigned(string.Join(',', assigned.Select(x => x.ToString())));
+                _logger.RebalancePartitionsAssigned(assigned);
                 foreach (var topicPartition in assigned)
                     _poisonEventQueue.Assign(topicPartition);
             })
             .SetPartitionsRevokedHandler((_, revoked) =>
             {
-                _logger.RebalancePartitionsRevoked(string.Join(',', revoked.Select(x => x.ToString())));
+                _logger.RebalancePartitionsRevoked(revoked);
                 foreach (var topicPartitionOffset in revoked)
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
             .SetPartitionsLostHandler((_, lost) =>
             {
-                _logger.RebalancePartitionsLost(string.Join(',', lost.Select(x => x.ToString())));
+                _logger.RebalancePartitionsLost(lost);
                 foreach (var topicPartitionOffset in lost)
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
             .SetErrorHandler((_, e) =>
-                _logger.ConsumeError(string.Join(",", _topics), e.Reason, e.IsFatal,e.IsLocalError,e.IsBrokerError))
+                _logger.ConsumeError(_topics, e.Reason, e.IsFatal,e.IsLocalError,e.IsBrokerError))
             .Build();
     }
 

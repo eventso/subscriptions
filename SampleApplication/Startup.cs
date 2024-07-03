@@ -77,10 +77,10 @@ public class Startup
             adminClient.CreateTopicsAsync(
                     new[]
                     {
-                        new TopicSpecification { Name = "no-error-single", ReplicationFactor = 1, NumPartitions = 1 },
-                        new TopicSpecification { Name = "exception-single", ReplicationFactor = 1, NumPartitions = 1 },
-                        new TopicSpecification { Name = "no-error-batch", ReplicationFactor = 1, NumPartitions = 1 },
-                        new TopicSpecification { Name = "exception-batch", ReplicationFactor = 1, NumPartitions = 1 },
+                        new TopicSpecification { Name = "no-error-single", ReplicationFactor = 1, NumPartitions = 3 },
+                        new TopicSpecification { Name = "exception-single", ReplicationFactor = 1, NumPartitions = 3 },
+                        new TopicSpecification { Name = "no-error-batch", ReplicationFactor = 1, NumPartitions = 3 },
+                        new TopicSpecification { Name = "exception-batch", ReplicationFactor = 1, NumPartitions = 3 },
                     },
                     options: new CreateTopicsOptions()
                     {

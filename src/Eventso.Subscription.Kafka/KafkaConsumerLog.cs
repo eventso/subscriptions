@@ -11,7 +11,7 @@ public static partial class KafkaConsumerLog
         Message = "KafkaConsumer internal error: Topics: {Topics}, {Reason}, Fatal={IsFatal}, IsLocal= {IsLocal}, IsBroker={IsBroker}")]
     public static partial void ConsumeError(
         this ILogger<KafkaConsumer> logger,
-        string topics,
+        IReadOnlyCollection<string> topics,
         string reason,
         bool isFatal,
         bool isLocal,
@@ -50,21 +50,21 @@ public static partial class KafkaConsumerLog
         Message = "Consumer rebalance. Assigned: {TopicPartitions}")]
     public static partial void RebalancePartitionsAssigned(
         this ILogger<KafkaConsumer> logger,
-        string topicPartitions);
+        IReadOnlyCollection<TopicPartition> topicPartitions);
     
     [LoggerMessage(
         EventId = 4006,
         Level = LogLevel.Information,
-        Message = "Consumer rebalance. Revoked: {TopicPartitions}")]
+        Message = "Consumer rebalance. Revoked: {TopicPartitionOffsets}")]
     public static partial void RebalancePartitionsRevoked(
         this ILogger<KafkaConsumer> logger,
-        string topicPartitions);
+        IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets);
     
     [LoggerMessage(
         EventId = 4007,
         Level = LogLevel.Information,
-        Message = "Consumer rebalance. Lost: {TopicPartitions}")]
+        Message = "Consumer rebalance. Lost: {TopicPartitionOffsets}")]
     public static partial void RebalancePartitionsLost(
         this ILogger<KafkaConsumer> logger,
-        string topicPartitions);
+        IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets);
 }
