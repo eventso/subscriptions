@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
+using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.Hosting;
 
 public sealed class SubscriptionHost : BackgroundService, ISubscriptionHost
 {
+    private static readonly TimeSpan CriticalErrorDelay = TimeSpan.FromSeconds(30); 
+    
     private readonly IConsumerFactory _consumerFactory;
     private readonly IReadOnlyCollection<SubscriptionConfiguration> _subscriptions;
     private readonly ILogger _logger;
@@ -63,6 +66,21 @@ public sealed class SubscriptionHost : BackgroundService, ISubscriptionHost
             catch (OperationCanceledException)
             {
                 _logger.LogInformation($"Subscription stopped. Topic: {topics}.");
+            }
+            catch (ConsumeException consumeException)
+            {
+                _logger.LogError(consumeException, $"Consumer failed. Topic: {topics}. Pausing for {CriticalErrorDelay}");
+                activity?.SetException(consumeException);
+                
+                if (consumeException.Error.Code is
+                    ErrorCode.InconsistentGroupProtocol or ErrorCode.InvalidGroupId
+                    or ErrorCode.BrokerNotAvailable
+                    or ErrorCode.InvalidPartitions or ErrorCode.UnknownTopicOrPart or ErrorCode.TopicException
+                    or ErrorCode.TopicAuthorizationFailed
+                    or ErrorCode.ClusterAuthorizationFailed or ErrorCode.GroupAuthorizationFailed)
+                {
+                    await Task.Delay(CriticalErrorDelay, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
