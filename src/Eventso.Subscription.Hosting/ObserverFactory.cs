@@ -1,28 +1,27 @@
-using Microsoft.Extensions.Configuration;
-
 namespace Eventso.Subscription.Hosting;
 
-public sealed class ObserverFactory : IObserverFactory
+public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent> where TEvent : IEvent
 {
     private readonly SubscriptionConfiguration _configuration;
     private readonly IMessagePipelineFactory _messagePipelineFactory;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IGroupedMetadataProvider<TEvent> _groupedMetadataProvider;
 
-    public ObserverFactory(
-        SubscriptionConfiguration configuration,
+    public ObserverFactory(SubscriptionConfiguration configuration,
         IMessagePipelineFactory messagePipelineFactory,
         IMessageHandlersRegistry messageHandlersRegistry,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IGroupedMetadataProvider<TEvent> groupedMetadataProvider)
     {
         _configuration = configuration;
         _messagePipelineFactory = messagePipelineFactory;
         _messageHandlersRegistry = messageHandlersRegistry;
         _loggerFactory = loggerFactory;
+        _groupedMetadataProvider = groupedMetadataProvider;
     }
 
-    public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
-        where TEvent : IEvent
+    public IObserver<TEvent> Create(IConsumer<TEvent> consumer, string topic)
     {
         var topicConfig = _configuration.GetByTopic(topic);
 
@@ -30,7 +29,10 @@ public sealed class ObserverFactory : IObserverFactory
             _messageHandlersRegistry,
             _messagePipelineFactory.Create(topicConfig.HandlerConfig));
 
-        eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
+        eventHandler = new ObservabilityEventHandler<TEvent>(
+            eventHandler,
+            _loggerFactory.CreateLogger("EventHandler"),
+            _groupedMetadataProvider);
 
         var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
@@ -45,11 +47,10 @@ public sealed class ObserverFactory : IObserverFactory
         return observer;
     }
 
-    private BatchEventObserver<TEvent> CreateBatchEventObserver<TEvent>(
+    private BatchEventObserver<TEvent> CreateBatchEventObserver(
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
         TopicSubscriptionConfiguration configuration)
-        where TEvent : IEvent
     {
         return new BatchEventObserver<TEvent>(
             configuration.BatchConfiguration!,
@@ -69,11 +70,10 @@ public sealed class ObserverFactory : IObserverFactory
             configuration.SkipUnknownMessages);
     }
 
-    private IObserver<TEvent> CreateSingleEventObserver<TEvent>(
+    private IObserver<TEvent> CreateSingleEventObserver(
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
         TopicSubscriptionConfiguration configuration)
-        where TEvent : IEvent
     {
         return new EventObserver<TEvent>(
             eventHandler,

@@ -1,30 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Description>Processing single or batch messages</Description>
-	</PropertyGroup>
+    <PropertyGroup>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Description>Processing single or batch messages</Description>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Polly.Core" />
-	</ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <PackageReference Include="Polly.Core"/>
+    </ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\Eventso.Subscription.Abstractions\Eventso.Subscription.Abstractions.csproj" />
-	</ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Eventso.Subscription.Abstractions\Eventso.Subscription.Abstractions.csproj"/>
+    </ItemGroup>
 
-	<ItemGroup>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-			<_Parameter1>Eventso.Subscription.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-			<_Parameter1>Eventso.Subscription.Kafka</_Parameter1>
-		</AssemblyAttribute>
-	</ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Eventso.Subscription.Tests"/>
+        <InternalsVisibleTo Include="Eventso.Subscription.Hosting"/>
+        <InternalsVisibleTo Include="Eventso.Subscription.Kafka"/>
+    </ItemGroup>
 
-	<ItemGroup>
-		<Using Include="Microsoft.Extensions.Logging" />
-	</ItemGroup>
+    <ItemGroup>
+        <Using Include="Microsoft.Extensions.Logging"/>
+    </ItemGroup>
 
 </Project>
