@@ -1,5 +1,4 @@
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
 using Eventso.Subscription.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Scrutor;

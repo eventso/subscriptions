@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 
