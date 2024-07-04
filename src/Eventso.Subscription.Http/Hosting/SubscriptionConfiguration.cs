@@ -4,22 +4,13 @@ namespace Eventso.Subscription.Http.Hosting;
 
 public sealed class SubscriptionConfiguration
 {
-    private SubscriptionConfiguration(string topic, IMessageDeserializer deserializer)
+    public SubscriptionConfiguration(string topic, IMessageDeserializer deserializer)
     {
         Topic = string.IsNullOrWhiteSpace(topic)
             ? throw new ArgumentException("Topic name is not specified.")
             : topic;
 
         Deserializer = deserializer ?? throw new ArgumentNullException(nameof(deserializer));
-    }
-        
-    public SubscriptionConfiguration(
-        string topic,
-        IMessageDeserializer deserializer,
-        DeferredAckConfiguration? deferredAckConfiguration)
-        : this(topic, deserializer)
-    {
-        DeferredAckConfiguration = deferredAckConfiguration ?? new DeferredAckConfiguration();
     }
 
     public SubscriptionConfiguration(
@@ -37,9 +28,7 @@ public sealed class SubscriptionConfiguration
     public string Topic { get; }
 
     public IMessageDeserializer Deserializer { get; }
-
-    public DeferredAckConfiguration? DeferredAckConfiguration { get; }
-
+    
     public BatchConfiguration? BatchConfiguration { get; }
 
     public bool BatchProcessingRequired { get; }

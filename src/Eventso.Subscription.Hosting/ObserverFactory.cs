@@ -94,7 +94,6 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
             eventHandler,
             consumer,
             _messageHandlersRegistry,
-            configuration.SkipUnknownMessages,
-            configuration.DeferredAckConfiguration!);
+            configuration.SkipUnknownMessages);
     }
 }
