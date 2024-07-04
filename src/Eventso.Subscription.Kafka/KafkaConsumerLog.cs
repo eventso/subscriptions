@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka;
 
-public static partial class KafkaConsumerLog
+internal static partial class KafkaConsumerLog
 {
     [LoggerMessage(
         EventId = 4000,
