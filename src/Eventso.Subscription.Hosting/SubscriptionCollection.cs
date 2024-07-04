@@ -1,5 +1,6 @@
 using System.Collections;
 using Eventso.Subscription.Kafka;
+using Scrutor;
 
 namespace Eventso.Subscription.Hosting;
 

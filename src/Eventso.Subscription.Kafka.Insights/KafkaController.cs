@@ -26,7 +26,7 @@ public sealed class KafkaController : ControllerBase
 
         var valueObjectDeserializer = new ValueDeserializer(
             configuration.GetByTopic(topic).Serializer,
-            MessageHandlerRegistry.Instance);
+            AllHandlingMessageHandlerRegistry.Instance);
 
         using var consumer = KafkaConsumerFactory.Create(
             configuration.Settings.Config.BootstrapServers,
@@ -102,15 +102,4 @@ public sealed class KafkaController : ControllerBase
         {
         }
     };
-
-    private sealed class MessageHandlerRegistry : IMessageHandlersRegistry
-    {
-        public static readonly IMessageHandlersRegistry Instance = new MessageHandlerRegistry();
-
-        public bool ContainsHandlersFor(Type messageType, out HandlerKind kind)
-        {
-            kind = default;
-            return true;
-        }
-    }
 }

@@ -1,6 +1,6 @@
 namespace Eventso.Subscription;
 
-public interface IObserverFactory
+public interface IObserverFactory<T> where T : IEvent
 {
-    IObserver<T> Create<T>(IConsumer<T> consumer, string topic) where T : IEvent;
+    IObserver<T> Create(IConsumer<T> consumer, string topic);
 }
