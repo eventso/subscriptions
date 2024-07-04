@@ -28,15 +28,19 @@ public sealed class PoisonEventQueue(
         
         logger.PartitionAssign(groupId, topicPartition.Topic, topicPartition.Partition);
 
-        async Task<HashSet<Guid>> GetPoisonKeys(CancellationToken token)
+        async Task<ConcurrentDictionary<Guid, ValueTuple>> GetPoisonKeys(CancellationToken token)
         {
-            var poisonedKeys = new HashSet<Guid>();
+            await Task.Yield();
+            
+            var poisonedKeys = new ConcurrentDictionary<Guid, ValueTuple>();
 
             var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, token);
             await foreach (var key in keysSource)
-                poisonedKeys.Add(DeserializeKey(topicPartition.Topic, [], key)); // note: empty headers here
+                poisonedKeys[DeserializeKey(topicPartition.Topic, [], key)] = default; // note: empty headers here
+
+            logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);     
+
             return poisonedKeys;
-            
         }
     }
 
@@ -58,7 +62,7 @@ public sealed class PoisonEventQueue(
     public async ValueTask<bool> Contains(TopicPartition topicPartition, Guid key, CancellationToken token)
     {
         var keys = await GetTopicPartitionKeys(topicPartition, token);
-        return keys.Contains(key);
+        return keys.ContainsKey(key);
     }
 
     public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
@@ -84,7 +88,7 @@ public sealed class PoisonEventQueue(
         await poisonEventStore.AddEvent(groupId, @event, failureTimestamp, failureReason, token);
         
         var keys = await GetTopicPartitionKeys(@event.TopicPartitionOffset.TopicPartition, token);
-        keys.Add(key);
+        keys[key] = default;
     }
 
     public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek([EnumeratorCancellation] CancellationToken token)
@@ -132,7 +136,7 @@ public sealed class PoisonEventQueue(
             return;
 
         var keys = await GetTopicPartitionKeys(@event.TopicPartitionOffset.TopicPartition, token);
-        keys.Remove(key);
+        keys.TryRemove(key, out _);
     }
 
     private static Guid DeserializeKey(string topic, Headers headers, byte[]? keyBytes)
@@ -143,24 +147,16 @@ public sealed class PoisonEventQueue(
             new SerializationContext(MessageComponentType.Key, topic, headers));
     }
 
-    private async ValueTask<HashSet<Guid>> GetTopicPartitionKeys(TopicPartition topicPartition, CancellationToken token)
+    private Task<ConcurrentDictionary<Guid, ValueTuple>> GetTopicPartitionKeys(
+        TopicPartition topicPartition,
+        CancellationToken token)
     {
-        if (!_partitionPoisonKeys.TryGetValue(topicPartition, out var keysTask))
-            throw new Exception($"{topicPartition} disabled");
-
-        if (!keysTask.Task.IsCompleted)
-        {
-            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                keysTask.CancellationTokenSource.Token,
-                token);
-            await keysTask.Task.WaitAsync(linkedTokenSource.Token);
-            logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);            
-        }
-
-        return keysTask.Task.Result;
+        return _partitionPoisonKeys.TryGetValue(topicPartition, out var keysTask)
+            ? keysTask.Task.WaitAsync(token)
+            : throw new Exception($"{topicPartition} disabled");
     }
 
     private sealed record TopicPartitionKeysTask(
-        Task<HashSet<Guid>> Task,
+        Task<ConcurrentDictionary<Guid, ValueTuple>> Task,
         CancellationTokenSource CancellationTokenSource);
 }
