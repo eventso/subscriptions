@@ -10,17 +10,17 @@ public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent
         _nextHandler = nextHandler;
     }
 
-    public Task Handle(TEvent @event, CancellationToken cancellationToken)
-        => _nextHandler.Handle(@event, cancellationToken);
+    public Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
+        => _nextHandler.Handle(@event, context, cancellationToken);
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count == 0)
             return;
 
         if (events.OnlyContainsSame(m => m.GetMessage().GetType()))
         {
-            await _nextHandler.Handle(events, token);
+            await _nextHandler.Handle(events, context, token);
 
             return;
         }
@@ -28,7 +28,7 @@ public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent
         using var batches = OrderWithinType(events);
         foreach (var batch in batches)
             using (batch)
-                await _nextHandler.Handle(batch.Events, token);
+                await _nextHandler.Handle(batch.Events, context, token);
     }
 
     private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IEnumerable<TEvent> events)

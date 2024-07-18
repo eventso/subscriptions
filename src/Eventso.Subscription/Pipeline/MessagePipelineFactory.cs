@@ -7,29 +7,29 @@ public sealed class MessagePipelineFactory : IMessagePipelineFactory
 {
     private readonly IMessageHandlerScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly bool _overrideResiliencePipeline;
     private readonly ResiliencePipeline _defaultPipeline;
+    private readonly ResiliencePipeline _defaultShortRetryPipeline;
 
     public MessagePipelineFactory(
         IMessageHandlerScopeFactory scopeFactory,
-        ILoggerFactory loggerFactory,
-        bool overrideResiliencePipeline)
+        ILoggerFactory loggerFactory)
     {
         _scopeFactory = scopeFactory;
         _loggerFactory = loggerFactory;
-        _overrideResiliencePipeline = overrideResiliencePipeline;
 
         var logger = _loggerFactory.CreateLogger<RetryingAction>();
         _defaultPipeline = DefaultRetryingStrategy.GetDefaultBuilder(logger).Build();
+        _defaultShortRetryPipeline = DefaultRetryingStrategy.GetDefaultShortRetryBuilder(logger).Build();
     }
 
-    public IMessagePipelineAction Create(HandlerConfiguration config)
+    public IMessagePipelineAction Create(HandlerConfiguration config, bool withDlq)
     {
-        IMessagePipelineAction action = new MessageHandlingAction(_scopeFactory,
-            config.RunHandlersInParallel);
+        var splitRetryingPipeline = (withDlq ? _defaultShortRetryPipeline : _defaultPipeline);
 
-        if (!_overrideResiliencePipeline)
-            action = new RetryingAction(config.ResiliencePipeline ?? _defaultPipeline, action);
+        IMessagePipelineAction action = new RetryingAction(
+            config.ResiliencePipeline ?? _defaultPipeline,
+            config.BatchSplitPartResiliencePipeline ?? splitRetryingPipeline,
+            new MessageHandlingAction(_scopeFactory, config.RunHandlersInParallel));
 
         if (config.LoggingEnabled)
             action = new LoggingAction(_loggerFactory, action);

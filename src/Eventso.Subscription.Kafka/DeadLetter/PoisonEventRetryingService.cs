@@ -17,7 +17,7 @@ public sealed class PoisonEventRetryingService(
 
         try
         {
-            await eventHandlers[@event.Topic].Handle(@event, token);
+            await eventHandlers[@event.Topic].Handle(@event, new HandlingContext(), token);
             logger.RetrySuccessful(groupId, poisonEvent.TopicPartitionOffset);
         }
         catch (Exception exception)

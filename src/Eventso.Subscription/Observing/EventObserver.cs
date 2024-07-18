@@ -23,30 +23,28 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>
 
     public async Task OnEventAppeared(TEvent @event, CancellationToken token)
     {
+        await Handle(@event, token);
+
+        _consumer.Acknowledge(@event);
+    }
+
+    private Task Handle(TEvent @event, CancellationToken token)
+    {
         if (@event.CanSkip(_skipUnknown))
-        {
-            _consumer.Acknowledge(@event);
-            return;
-        }
+            return Task.CompletedTask;
 
         var hasHandler = _messageHandlersRegistry.ContainsHandlersFor(
             @event.GetMessage().GetType(), out var handlerKind);
 
         if (!hasHandler)
-        {
-            _consumer.Acknowledge(@event);
-            return;
-        }
+            return Task.CompletedTask;
 
         if ((handlerKind & HandlerKind.Single) == 0)
             throw new InvalidOperationException(
                 $"There is no single message handler for subscription {_consumer.Subscription}");
 
-        await _eventHandler.Handle(@event, token);
-
-        _consumer.Acknowledge(@event);
+        return _eventHandler.Handle(@event, new HandlingContext(), token);
     }
-
 
     public void Dispose()
     {

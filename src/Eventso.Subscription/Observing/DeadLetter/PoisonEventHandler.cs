@@ -9,19 +9,19 @@ public sealed class PoisonEventHandler<TEvent>(
 {
     internal const string StreamIsPoisonReason = "Event stream is poisoned.";
     
-    public async Task Handle(TEvent @event, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
     {
-        await HandleSingle(@event, e => e, inner.Handle, cancellationToken);
+        await HandleSingle(@event, e => e, inner.Handle, context, cancellationToken);
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken cancellationToken)
     {
         if (events.Count == 0)
             return;
         
         try
         {
-            await HandleBatch(events, cancellationToken);
+            await HandleBatch(events, context, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -36,7 +36,7 @@ public sealed class PoisonEventHandler<TEvent>(
             {
                 using var pooledList = new PooledList<TEvent>(1); // expensive, but...
                 pooledList.Add(events[i - 1]);
-                await HandleSingle(pooledList, e => e[0], inner.Handle, cancellationToken);
+                await HandleSingle(pooledList, e => e[0], inner.Handle, context, cancellationToken);
 
                 if (i % 200 == 0)
                     logger.UnwrapInProgress(i, events.Count);
@@ -49,7 +49,8 @@ public sealed class PoisonEventHandler<TEvent>(
     private async Task HandleSingle<THandleParam>(
         THandleParam singleEventContainer, // bit weird but its private
         Func<THandleParam, TEvent> getEvent,
-        Func<THandleParam, CancellationToken, Task> handle,
+        Func<THandleParam, HandlingContext, CancellationToken, Task> handle,
+        HandlingContext context,
         CancellationToken token)
     {
         var @event = getEvent(singleEventContainer);
@@ -62,7 +63,7 @@ public sealed class PoisonEventHandler<TEvent>(
 
         try
         {
-            await handle(singleEventContainer, token);
+            await handle(singleEventContainer, context, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -74,7 +75,7 @@ public sealed class PoisonEventHandler<TEvent>(
         }
     }
 
-    private async Task HandleBatch(IConvertibleCollection<TEvent> events, CancellationToken token)
+    private async Task HandleBatch(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count <= 1)
             throw new ArgumentException("Expected more than 1 element in events collection", nameof(events));
@@ -85,7 +86,7 @@ public sealed class PoisonEventHandler<TEvent>(
 
         var healthyEvents = withoutPoison ?? events;
 
-        await inner.Handle(healthyEvents, token);
+        await inner.Handle(healthyEvents, context, token);
 
         if (poison?.Count > 0)
             foreach (var @event in poison)

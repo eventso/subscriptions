@@ -11,7 +11,7 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
         _executeInParallel = executeInParallel;
     }
 
-    public async Task Invoke<T>(T message, CancellationToken token) where T : notnull
+    public async Task Invoke<T>(T message, HandlingContext context, CancellationToken token) where T : notnull
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
 

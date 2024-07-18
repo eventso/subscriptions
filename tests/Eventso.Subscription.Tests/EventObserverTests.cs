@@ -23,7 +23,7 @@ public sealed class EventObserverTests
 
         var pipelineAction = Substitute.For<IMessagePipelineAction>();
         pipelineAction
-            .Invoke<TestEvent>(default!, default)
+            .Invoke<TestEvent>(default!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _handledEvents.Add(c.Arg<TestEvent>()));
 
