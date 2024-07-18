@@ -14,7 +14,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         _pipelineAction = pipelineAction;
     }
 
-    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
         using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.EventHandlerHandle)?
             .AddTag("type", @event.GetMessage().GetType())
@@ -24,7 +24,10 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         try
         {
-            await _pipelineAction.Invoke(message, context, cancellationToken);
+            if (context.IsBatchSplitPart)
+                await HandleTypedSplit(message, context, token);
+            else
+                await _pipelineAction.Invoke(message, context, token);
         }
         catch (Exception exception)
         {
@@ -33,7 +36,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         }
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count == 0)
             return;
@@ -46,7 +49,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         try
         {
-            await HandleTyped((dynamic)firstMessage, events, context, cancellationToken);
+            await HandleTyped((dynamic)firstMessage, events, context, token);
         }
         catch (Exception exception)
         {
@@ -71,5 +74,21 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         if ((kind & HandlerKind.Single) != 0)
             foreach (var @event in events)
                 await _pipelineAction.Invoke((TMessage)@event.GetMessage(), context, token);
+    }
+
+    private async Task HandleTypedSplit<TMessage>(
+        TMessage message,
+        HandlingContext context,
+        CancellationToken token)
+        where TMessage : class
+    {
+        if (!_handlersRegistry.ContainsHandlersFor(typeof(TMessage), out var kind))
+            return;
+
+        if ((kind & HandlerKind.Batch) != 0)
+            await _pipelineAction.Invoke<IReadOnlyCollection<TMessage>>([message], context, token);
+
+        if ((kind & HandlerKind.Single) != 0)
+            await _pipelineAction.Invoke(message, context, token);
     }
 }

@@ -13,19 +13,19 @@ public sealed class LoggingScopeEventHandler<TEvent> : IEventHandler<TEvent> whe
         _metadata = [new KeyValuePair<string, object>("eventso_topic", topic)];
     }
 
-    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
         var metadata = @event.GetMetadata();
 
         using var scope = metadata.Count > 0 ? _logger.BeginScope(metadata) : null;
 
-        await _inner.Handle(@event, context, cancellationToken);
+        await _inner.Handle(@event, context, token);
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         using var scope = _logger.BeginScope(_metadata);
 
-        await _inner.Handle(events, context, cancellationToken);
+        await _inner.Handle(events, context, token);
     }
 }

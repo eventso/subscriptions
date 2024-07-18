@@ -9,21 +9,21 @@ public sealed class PoisonEventHandler<TEvent>(
 {
     internal const string StreamIsPoisonReason = "Event stream is poisoned.";
     
-    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
-        await HandleSingle(@event, e => e, inner.Handle, context, cancellationToken);
+        await HandleSingle(@event, e => e, inner.Handle, context, token);
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count == 0)
             return;
         
         try
         {
-            await HandleBatch(events, context, cancellationToken);
+            await HandleBatch(events, context, token);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             throw;
         }
@@ -36,7 +36,7 @@ public sealed class PoisonEventHandler<TEvent>(
             {
                 using var pooledList = new PooledList<TEvent>(1); // expensive, but...
                 pooledList.Add(events[i - 1]);
-                await HandleSingle(pooledList, e => e[0], inner.Handle, context, cancellationToken);
+                await HandleSingle(pooledList, e => e[0], inner.Handle, context, token);
 
                 if (i % 200 == 0)
                     logger.UnwrapInProgress(i, events.Count);

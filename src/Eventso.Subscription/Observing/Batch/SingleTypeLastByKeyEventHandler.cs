@@ -8,8 +8,8 @@ public sealed class SingleTypeLastByKeyEventHandler<TEvent> : IEventHandler<TEve
     public SingleTypeLastByKeyEventHandler(IEventHandler<TEvent> nextHandler)
         => _nextHandler = nextHandler;
 
-    public Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
-        => _nextHandler.Handle(@event, context, cancellationToken);
+    public Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
+        => _nextHandler.Handle(@event, context, token);
 
     public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {

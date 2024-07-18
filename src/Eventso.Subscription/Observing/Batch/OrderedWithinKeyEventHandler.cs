@@ -10,8 +10,8 @@ public sealed class OrderedWithinKeyEventHandler<TEvent> : IEventHandler<TEvent>
         _nextHandler = nextHandler;
     }
 
-    public Task Handle(TEvent @event, HandlingContext context, CancellationToken cancellationToken)
-        => _nextHandler.Handle(@event, context, cancellationToken);
+    public Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
+        => _nextHandler.Handle(@event, context, token);
 
     public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
