@@ -1,27 +1,14 @@
+using System;
 using System.Collections;
 
 namespace Eventso.Subscription.Observing.Batch;
 
-internal sealed class BatchHandler<TEvent> where TEvent : IEvent
+internal sealed class BatchHandler<TEvent>(
+    IEventHandler<TEvent> eventHandler,
+    IConsumer<TEvent> consumer,
+    ILogger<BatchEventObserver<TEvent>> logger) where TEvent : IEvent
 {
-    private readonly IEventHandler<TEvent> _eventHandler;
-    private readonly IConsumer<TEvent> _consumer;
-    private readonly ILogger<BatchEventObserver<TEvent>> _logger;
-
-    public BatchHandler(
-        IEventHandler<TEvent> eventHandler,
-        IConsumer<TEvent> consumer,
-        ILogger<BatchEventObserver<TEvent>> logger)
-    {
-        _eventHandler = eventHandler;
-        _consumer = consumer;
-        _logger = logger;
-    }
-
-    public async Task HandleBatch(
-        PooledList<Buffer<TEvent>.BufferedEvent> events,
-        int toBeHandledEventCount,
-        CancellationToken token)
+    public async Task HandleBatch(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount, CancellationToken token)
     {
         if (events.Count == 0)
             return;
@@ -32,50 +19,48 @@ internal sealed class BatchHandler<TEvent> where TEvent : IEvent
         {
             if (events.Count == toBeHandledEventCount)
             {
-                await _eventHandler.Handle(allEvents, new HandlingContext(), token);
+                await eventHandler.Handle(allEvents, new HandlingContext(), token);
             }
             else if (toBeHandledEventCount > 0)
             {
                 using var eventsToHandle = GetEventsToHandle(events.Span, toBeHandledEventCount);
 
-                await _eventHandler.Handle(eventsToHandle, new HandlingContext(), token);
+                await eventHandler.Handle(eventsToHandle, new HandlingContext(), token);
             }
 
-            _consumer.Acknowledge(allEvents);
+            consumer.Acknowledge(allEvents);
         }
         catch (OperationCanceledException ex)
         {
-            _logger.LogError(ex, "Handling batch cancelled.");
+            logger.LogError(ex, "Handling batch cancelled.");
 
-            _consumer.Cancel();
+            consumer.Cancel();
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Handling batch exception. Start splitting batch by one.");
+            logger.LogError(ex, "Handling batch exception. Start slicing batch by one.");
 
-            await SplitBatch(events, token);
+            await SliceBatch(events, token);
 
-            _logger.LogInformation("Handling split batch completed successfully.");
+            logger.LogInformation("Handling sliced batch completed successfully.");
         }
     }
 
-    private async Task SplitBatch(PooledList<Buffer<TEvent>.BufferedEvent> messages, CancellationToken token)
+    private async Task SliceBatch(PooledList<Buffer<TEvent>.BufferedEvent> messages, CancellationToken token)
     {
         foreach (var message in messages)
         {
             if (message.Skipped)
                 continue;
 
-            await _eventHandler.Handle(message.Event, new HandlingContext(IsBatchSplitPart: true), token);
+            await eventHandler.Handle(message.Event, new HandlingContext(IsBatchSlice: true), token);
 
-            _consumer.Acknowledge(message.Event);
+            consumer.Acknowledge(message.Event);
         }
     }
 
-    private static PooledList<TEvent> GetEventsToHandle(
-        ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages,
-        int handleMessageCount)
+    private static PooledList<TEvent> GetEventsToHandle(ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages, int handleMessageCount)
     {
         var list = new PooledList<TEvent>(handleMessageCount);
 
@@ -88,20 +73,16 @@ internal sealed class BatchHandler<TEvent> where TEvent : IEvent
         return list;
     }
 
-    private sealed class EventsCollection : IConvertibleCollection<TEvent>
+    private sealed class EventsCollection(PooledList<Buffer<TEvent>.BufferedEvent> messages)
+        : IConvertibleCollection<TEvent>
     {
-        private readonly PooledList<Buffer<TEvent>.BufferedEvent> _messages;
-
-        public EventsCollection(PooledList<Buffer<TEvent>.BufferedEvent> messages)
-            => _messages = messages;
-
-        public int Count => _messages.Count;
+        public int Count => messages.Count;
 
         public TEvent this[int index]
-            => _messages[index].Event;
+            => messages[index].Event;
 
         public IReadOnlyCollection<TOut> Convert<TOut>(Converter<TEvent, TOut> converter)
-            => _messages.Convert(i => converter(i.Event));
+            => messages.Convert(i => converter(i.Event));
 
         public bool OnlyContainsSame<TValue>(Func<TEvent, TValue> valueConverter)
         {
@@ -109,9 +90,9 @@ internal sealed class BatchHandler<TEvent> where TEvent : IEvent
                 return true;
 
             var comparer = EqualityComparer<TValue>.Default;
-            var sample = valueConverter(_messages[0].Event);
+            var sample = valueConverter(messages[0].Event);
 
-            foreach (ref readonly var item in _messages.Span)
+            foreach (ref readonly var item in messages.Span)
             {
                 if (!comparer.Equals(valueConverter(item.Event), sample))
                     return false;
@@ -120,9 +101,30 @@ internal sealed class BatchHandler<TEvent> where TEvent : IEvent
             return true;
         }
 
+        public int FindFirstIndexIn(IKeySet<TEvent> set)
+        {
+            if (!set.IsEmpty())
+            {
+                var items = messages.Span;
+                for (var index = 0; index < items.Length; index++)
+                {
+                    if (set.Contains(items[index].Event))
+                        return index;
+                }
+            }
+
+            return -1;
+        }
+
+        public void CopyTo(PooledList<TEvent> target, int start, int length)
+        {
+            foreach (ref readonly var item in messages.Span.Slice(start, length))
+                target.Add(item.Event);
+        }
+
         public IEnumerator<TEvent> GetEnumerator()
         {
-            foreach (var item in _messages.Segment)
+            foreach (var item in messages.Segment)
                 yield return item.Event;
         }
 

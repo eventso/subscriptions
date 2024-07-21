@@ -1,6 +1,6 @@
 namespace Eventso.Subscription;
 
-public interface IEventHandler<in TEvent>
+public interface IEventHandler<TEvent>
     where TEvent : IEvent
 {
     Task Handle(TEvent @event, HandlingContext context, CancellationToken token);

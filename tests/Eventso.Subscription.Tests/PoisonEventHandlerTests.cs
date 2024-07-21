@@ -16,9 +16,9 @@ public sealed class PoisonEventHandlerTests
     public PoisonEventHandlerTests()
     {
         _underTestHandler = new PoisonEventHandler<TestEvent>(
+            "topic",
             CreatePoisonEventInbox(),
-            CreteInnerHandler(),
-            NullLogger<PoisonEventHandler<TestEvent>>.Instance);
+            CreteInnerHandler());
     }
 
     [Fact]
@@ -147,8 +147,6 @@ public sealed class PoisonEventHandlerTests
         poisonEventInbox.Add(default(TestEvent), default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<TestEvent>()));
-        poisonEventInbox.IsPartOfPoisonStream(default, default)
-            .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Key == c.Arg<TestEvent>().Key)));
 
         return poisonEventInbox;
     }

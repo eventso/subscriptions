@@ -31,7 +31,7 @@ public sealed class OrderedWithinTypeEventHandler<TEvent> : IEventHandler<TEvent
                 await _nextHandler.Handle(batch.Events, context, token);
     }
 
-    private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IEnumerable<TEvent> events)
+    private static PooledList<BatchWithSameMessageType<TEvent>> OrderWithinType(IConvertibleCollection<TEvent> events)
     {
         var batches = new PooledList<BatchWithSameMessageType<TEvent>>(4);
 

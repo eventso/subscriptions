@@ -15,12 +15,10 @@ public sealed class PoisonEventInbox(
         () => new ThreadSafeConsumer(settings, topic, logger),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
-    public ValueTask<bool> IsPartOfPoisonStream(Event @event, CancellationToken token)
+    public ValueTask<IKeySet<Event>> GetEventKeys(string topic)
     {
-        return poisonEventQueue.Contains(
-            @event.GetTopicPartitionOffset().TopicPartition,
-            @event.GetKey(),
-            token);
+        //TODO: implement me
+        throw new NotImplementedException();
     }
 
     public Task Add(Event @event, string reason, CancellationToken token)
@@ -94,6 +92,7 @@ public sealed class PoisonEventInbox(
                             "Consumed message offset doesn't match requested one.",
                             null);
 
+                    //TODO: Ask why? just return original one
                     return new ConsumeResult<byte[], byte[]>
                     {
                         Message = new Message<byte[], byte[]>

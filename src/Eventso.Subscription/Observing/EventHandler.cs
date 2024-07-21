@@ -24,8 +24,8 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         try
         {
-            if (context.IsBatchSplitPart)
-                await HandleTypedSplit(message, context, token);
+            if (context.IsBatchSlice)
+                await HandleTypedSlice(message, context, token);
             else
                 await _pipelineAction.Invoke(message, context, token);
         }
@@ -76,7 +76,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
                 await _pipelineAction.Invoke((TMessage)@event.GetMessage(), context, token);
     }
 
-    private async Task HandleTypedSplit<TMessage>(
+    private async Task HandleTypedSlice<TMessage>(
         TMessage message,
         HandlingContext context,
         CancellationToken token)

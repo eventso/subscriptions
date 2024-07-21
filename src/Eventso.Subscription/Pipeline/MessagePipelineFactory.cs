@@ -28,7 +28,7 @@ public sealed class MessagePipelineFactory : IMessagePipelineFactory
 
         IMessagePipelineAction action = new RetryingAction(
             config.ResiliencePipeline ?? _defaultPipeline,
-            config.BatchSplitPartResiliencePipeline ?? splitRetryingPipeline,
+            config.BatchSliceResiliencePipeline ?? splitRetryingPipeline,
             new MessageHandlingAction(_scopeFactory, config.RunHandlersInParallel));
 
         if (config.LoggingEnabled)

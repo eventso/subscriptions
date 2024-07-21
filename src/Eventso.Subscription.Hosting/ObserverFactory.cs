@@ -41,9 +41,9 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
         if (_poisonEventQueue.IsEnabled)
         {
             eventHandler = new PoisonEventHandler<TEvent>(
+                topic,
                 _poisonEventInboxFactory.Create(topic),
-                eventHandler,
-                _loggerFactory.CreateLogger<PoisonEventHandler<TEvent>>());
+                eventHandler);
         }
 
         eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));

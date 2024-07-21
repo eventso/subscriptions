@@ -74,7 +74,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
                     _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
             })
             .SetErrorHandler((_, e) =>
-                _logger.ConsumeError(_topics, e.Reason, e.IsFatal,e.IsLocalError,e.IsBrokerError))
+                _logger.ConsumeError(_topics, e.Reason, e.IsFatal, e.IsLocalError, e.IsBrokerError))
             .Build();
     }
 
@@ -99,9 +99,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
     public async Task Consume(CancellationToken stoppingToken)
     {
         using var timeoutTokenSource = new CancellationTokenSource();
-        using var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-            stoppingToken,
-            timeoutTokenSource.Token);
+        using var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, timeoutTokenSource.Token);
 
         var consumer = new ConsumerAdapter(tokenSource, _consumer, _autoCommitMode);
 
@@ -206,10 +204,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         }
     }
 
-    private async Task HandleResult(
-        IObserver<Event> observer,
-        Event result,
-        CancellationToken token)
+    private async Task HandleResult(IObserver<Event> observer, Event result, CancellationToken token)
     {
         await WaitPendingPause(result.Topic);
 

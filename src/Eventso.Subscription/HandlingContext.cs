@@ -1,3 +1,3 @@
 namespace Eventso.Subscription;
 
-public readonly record struct HandlingContext(bool IsBatchSplitPart);
+public readonly record struct HandlingContext(bool IsBatchSlice);
