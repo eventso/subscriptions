@@ -11,10 +11,10 @@ public sealed class LoggingAction : IMessagePipelineAction
         _logger = factory.CreateLogger<LoggingAction>();
     }
 
-    public Task Invoke<T>(T message, CancellationToken token) where T: notnull
+    public Task Invoke<T>(T message, HandlingContext context, CancellationToken token) where T : notnull
     {
         _logger.LogInformation($"Message received: {message.GetType().Name}.");
 
-        return _next.Invoke(message, token);
+        return _next.Invoke(message, context, token);
     }
 }

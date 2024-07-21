@@ -27,10 +27,4 @@
 		<Using Include="Microsoft.Extensions.Logging" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Compile Update="Observing\DeadLetter\PoisonEventHandlerLog.cs">
-	    <DependentUpon>PoisonEventHandler.cs</DependentUpon>
-	  </Compile>
-	</ItemGroup>
-
 </Project>

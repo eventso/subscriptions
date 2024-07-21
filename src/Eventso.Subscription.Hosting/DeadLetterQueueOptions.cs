@@ -15,11 +15,6 @@ public sealed class DeadLetterQueueOptions
     public int MaxTopicQueueSize { get; set; } = 1000;
 
     /// <summary>
-    /// Overrided handler resilience configuration. When <see langword="true"/> - <see cref="ResiliencePipeline.Empty">ResiliencePipeline.Empty</see> is used.
-    /// </summary>
-    public bool OverrideHandlerResilience { get; set; } = true;
-
-    /// <summary>
     /// Max retry attempts for an event. When exceeded - event is no longer a subject for retry.
     /// </summary>
     public int MaxRetryAttemptCount { get; set; } = 10;

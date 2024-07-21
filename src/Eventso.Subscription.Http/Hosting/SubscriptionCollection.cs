@@ -9,12 +9,8 @@ public sealed class SubscriptionCollection : ISubscriptionCollection, ISubscript
 
     public ISubscriptionCollection Add(string topic, IMessageDeserializer deserializer)
     {
-        var deferredAckConfiguration = new DeferredAckConfiguration
-        {
-            Timeout = TimeSpan.Zero
-        };
 
-        var configuration = new SubscriptionConfiguration(topic, deserializer, deferredAckConfiguration);
+        var configuration = new SubscriptionConfiguration(topic, deserializer);
         Add(configuration);
 
         return this;

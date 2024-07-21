@@ -18,7 +18,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             });
 
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -26,7 +26,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<BlueMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<BlueMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -34,7 +34,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<GreenMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<GreenMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -53,7 +53,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             .Select(x => new TestEvent(x.k, x.e))
             .ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events.Select(x => x.GetMessage()),
@@ -76,7 +76,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             Create<GreenMessage>(k, 2)
         }).ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events.OrderBy(x => x.BatchNumber)
@@ -112,7 +112,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             Create<GreenMessage>(keys[1], 2)
         }.ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events.OrderBy(x => x.BatchNumber)
@@ -156,7 +156,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             Create<GreenMessage>(keys[0], 3),
         }.ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         Assert(events, keys);
     }
@@ -185,7 +185,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
         }.ToConvertibleCollection();
 
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         Assert(events, keys);
     }
@@ -213,7 +213,7 @@ public sealed class OrderedWithinKeyEventHandlerTests
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         var lookup = _handledEvents
             .Select(ev => (ev, events.Single(e => ReferenceEquals(e.GetMessage(), ev))))

@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace Eventso.Subscription;
 
 [DebuggerDisplay("Count = {Count}")]
-public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
+public class PooledList<T> : IConvertibleCollection<T>, IDisposable
 {
     private const int MaxArrayLength = 0x7FEFFFFF;
     private const int DefaultCapacity = 4;
@@ -71,9 +71,7 @@ public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
         }
     }
 
-    public Span<T> Span => _items.AsSpan(0, _size);
-
-    public Memory<T> Memory => _items.AsMemory(0, _size);
+    public ReadOnlySpan<T> Span => _items.AsSpan(0, _size);
 
     public ArraySegment<T> Segment => new(_items, 0, _size);
 
@@ -122,6 +120,27 @@ public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
         }
 
         return true;
+    }
+
+    public int FindFirstIndexIn(IKeySet<T> set)
+    {
+        if (!set.IsEmpty())
+        {
+            var items = Span;
+            for (var index = 0; index < items.Length; index++)
+            {
+                if (set.Contains(items[index]))
+                    return index;
+            }
+        }
+
+        return -1;
+    }
+
+    public void CopyTo(PooledList<T> target, int start, int length)
+    {
+        foreach (ref readonly var item in Span.Slice(start, length))
+            target.Add(item);
     }
 
     public void Dispose()
@@ -185,7 +204,7 @@ public class PooledList<T> : IMemoryOwner<T>, IConvertibleCollection<T>
     private static bool ShouldClear(ClearMode mode)
     {
         return mode == ClearMode.Always ||
-               (mode == ClearMode.Auto &&
+            (mode == ClearMode.Auto &&
                 RuntimeHelpers.IsReferenceOrContainsReferences<T>());
     }
 

@@ -1,6 +1,4 @@
 using Eventso.Subscription.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
 

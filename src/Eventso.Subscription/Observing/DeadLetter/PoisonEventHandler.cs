@@ -1,60 +1,17 @@
 namespace Eventso.Subscription.Observing.DeadLetter;
 
 public sealed class PoisonEventHandler<TEvent>(
+    string topic,
     IPoisonEventInbox<TEvent> poisonEventInbox,
-    IEventHandler<TEvent> inner,
-    ILogger<PoisonEventHandler<TEvent>> logger)
-    : IEventHandler<TEvent>
-    where TEvent : IEvent
+    IEventHandler<TEvent> inner) : IEventHandler<TEvent> where TEvent : IEvent
 {
     internal const string StreamIsPoisonReason = "Event stream is poisoned.";
-    
-    public async Task Handle(TEvent @event, CancellationToken cancellationToken)
+
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
-        await HandleSingle(@event, e => e, inner.Handle, cancellationToken);
-    }
+        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic);
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
-    {
-        if (events.Count == 0)
-            return;
-        
-        try
-        {
-            await HandleBatch(events, cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception) when (events.Count > 1)
-        {
-            // todo this unwrapping should be binary search like
-            logger.UnwrapStarted(events.Count);
-
-            for (var i = 1; i <= events.Count; i++)
-            {
-                using var pooledList = new PooledList<TEvent>(1); // expensive, but...
-                pooledList.Add(events[i - 1]);
-                await HandleSingle(pooledList, e => e[0], inner.Handle, cancellationToken);
-
-                if (i % 200 == 0)
-                    logger.UnwrapInProgress(i, events.Count);
-            }
-
-            logger.UnwrapCompleted(events.Count);
-        }
-    }
-
-    private async Task HandleSingle<THandleParam>(
-        THandleParam singleEventContainer, // bit weird but its private
-        Func<THandleParam, TEvent> getEvent,
-        Func<THandleParam, CancellationToken, Task> handle,
-        CancellationToken token)
-    {
-        var @event = getEvent(singleEventContainer);
-        
-        if (await poisonEventInbox.IsPartOfPoisonStream(@event, token))
+        if (poisonEventKeys.Contains(@event))
         {
             await poisonEventInbox.Add(@event, StreamIsPoisonReason, token);
             return;
@@ -62,92 +19,41 @@ public sealed class PoisonEventHandler<TEvent>(
 
         try
         {
-            await handle(singleEventContainer, token);
+            await inner.Handle(@event, context, token);
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await poisonEventInbox.Add(@event, exception.ToString(), token);
         }
     }
 
-    private async Task HandleBatch(IConvertibleCollection<TEvent> events, CancellationToken token)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
-        if (events.Count <= 1)
-            throw new ArgumentException("Expected more than 1 element in events collection", nameof(events));
-        
-        var poisonStreamCollection = await GetPoisonStreams(events, token);
+        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic);
 
-        FilterPoisonEvents(events, poisonStreamCollection, out var withoutPoison, out var poison);
+        var firstPoisonEventIndex = events.FindFirstIndexIn(poisonEventKeys);
 
-        var healthyEvents = withoutPoison ?? events;
-
-        await inner.Handle(healthyEvents, token);
-
-        if (poison?.Count > 0)
-            foreach (var @event in poison)
-                await poisonEventInbox.Add(@event.Event, @event.Reason, token);
-
-        withoutPoison?.Dispose();
-        poison?.Dispose();
-    }
-
-    private async ValueTask<HashSet<TEvent>?> GetPoisonStreams(
-        IConvertibleCollection<TEvent> events,
-        CancellationToken token)
-    {
-        HashSet<TEvent>? poisonEvents = null;
-        foreach (var @event in events)
+        if (firstPoisonEventIndex == -1)
         {
-            if (!await poisonEventInbox.IsPartOfPoisonStream(@event, token))
-                continue;
-
-            poisonEvents ??= new HashSet<TEvent>();
-            poisonEvents.Add(@event);
-        }
-
-        return poisonEvents;
-    }
-
-    private static void FilterPoisonEvents(
-        IConvertibleCollection<TEvent> events,
-        HashSet<TEvent>? poisonStreamCollection,
-        out PooledList<TEvent>? withoutPoison,
-        out PooledList<PoisonEvent>? poison)
-    {
-        poison = null;
-        withoutPoison = null;
-
-        if (poisonStreamCollection == null)
+            await inner.Handle(events, context, token);
             return;
-
-        withoutPoison = new PooledList<TEvent>(events.Count - 1);
-        poison = new PooledList<PoisonEvent>(1);
-        foreach (var @event in events)
-        {
-            if (!poisonStreamCollection.Contains(@event))
-            {
-                withoutPoison.Add(@event);
-                continue;
-            }
-
-            poison.Add(new PoisonEvent(@event, StreamIsPoisonReason));
-        }
-    }
-
-    private readonly record struct PoisonEvent
-    {
-        internal PoisonEvent(TEvent @event, string reason)
-        {
-            Event = @event;
-            Reason = reason;
         }
 
-        public TEvent Event { get; }
+        await poisonEventInbox.Add(events[firstPoisonEventIndex], StreamIsPoisonReason, token);
 
-        public string Reason { get; }
+        var clearedEvents = new PooledList<TEvent>(events.Count - 1);
+        events.CopyTo(clearedEvents, start: 0, length: firstPoisonEventIndex);
+
+        for (var index = firstPoisonEventIndex + 1; index < events.Count; index++)
+        {
+            var @event = events[index];
+
+            if (poisonEventKeys.Contains(@event))
+                await poisonEventInbox.Add(@event, StreamIsPoisonReason, token);
+            else
+                clearedEvents.Add(@event);
+        }
+
+        await inner.Handle(clearedEvents, context, token);
     }
 }

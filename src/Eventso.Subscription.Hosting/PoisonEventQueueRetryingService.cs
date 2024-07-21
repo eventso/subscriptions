@@ -51,13 +51,14 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
         var valueDeserializer = new ValueDeserializer(
             new CompositeDeserializer(config.TopicConfigurations.Select(c => KeyValuePair.Create(c.Topic, c.Serializer))),
             handlersRegistry);
+
         var eventHandlers = config.TopicConfigurations
             .ToFrozenDictionary(
                 c => c.Topic,
                 // this event handler is crucial to work with both batch and single processing
                 c => new Observing.EventHandler<Event>(
                     handlersRegistry,
-                    messagePipelineFactory.Create(c.HandlerConfig)));
+                    messagePipelineFactory.Create(c.HandlerConfig, withDlq: false)));
 
         var poisonEventQueue = poisonEventQueueFactory.Create(
             config.Settings.Config.GroupId,

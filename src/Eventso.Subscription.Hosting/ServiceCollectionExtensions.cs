@@ -1,5 +1,4 @@
 using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
 using Eventso.Subscription.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Scrutor;
@@ -57,7 +56,7 @@ public static class ServiceCollectionExtensions
         services.RemoveAll<IPoisonEventStore>();
         services.RemoveAll<IPoisonEventRetryScheduler>();
         services.RemoveAll<IPoisonEventQueueRetryingService>();
-        
+
         var options = new DeadLetterQueueOptions();
         configureOptions(options);
         services.TryAddSingleton(options);
@@ -81,8 +80,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IMessagePipelineFactory>(p =>
             new MessagePipelineFactory(
                 p.GetRequiredService<IMessageHandlerScopeFactory>(),
-                p.GetRequiredService<ILoggerFactory>(),
-                p.GetService<DeadLetterQueueOptions>()?.OverrideHandlerResilience ?? false));
+                p.GetRequiredService<ILoggerFactory>()));
         services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));
         services.TryAddSingleton<IConsumerFactory, KafkaConsumerFactory>();
     }

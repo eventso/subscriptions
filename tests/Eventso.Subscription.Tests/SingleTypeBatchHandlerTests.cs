@@ -17,7 +17,7 @@ public sealed class EventHandlerTests
             });
 
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -35,7 +35,7 @@ public sealed class EventHandlerTests
             .Select(x => new TestEvent(x.k, x.e))
             .ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events.Select(x => x.GetMessage()),
@@ -48,8 +48,7 @@ public sealed class EventHandlerTests
     [Fact]
     public async Task EmptyMessages_NoBatches()
     {
-        await _handler.Handle(Array.Empty<TestEvent>().ToConvertibleCollection(),
-            CancellationToken.None);
+        await _handler.Handle(Array.Empty<TestEvent>().ToConvertibleCollection(), default, CancellationToken.None);
 
         _handledEvents.Should().BeEmpty();
 
@@ -65,7 +64,7 @@ public sealed class EventHandlerTests
                 .Select(x => new TestEvent(x.k, x.e)))
             .ToConvertibleCollection();
 
-        Func<Task> act = () => _handler.Handle(events, CancellationToken.None);
+        Func<Task> act = () => _handler.Handle(events, default, CancellationToken.None);
 
         await act.Should().ThrowAsync<Exception>();
     }

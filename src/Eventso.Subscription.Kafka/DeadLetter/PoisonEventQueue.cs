@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
@@ -59,10 +60,10 @@ public sealed class PoisonEventQueue(
         logger.PartitionRevoke(groupId, topicPartition.Topic, topicPartition.Partition);
     }
 
-    public async ValueTask<bool> Contains(TopicPartition topicPartition, Guid key, CancellationToken token)
+    public ValueTask<FrozenDictionary<Partition, Guid>> GetKeys(string topic, CancellationToken token)
     {
-        var keys = await GetTopicPartitionKeys(topicPartition, token);
-        return keys.ContainsKey(key);
+        //TODO: Implement me
+        throw new NotImplementedException();
     }
 
     public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)

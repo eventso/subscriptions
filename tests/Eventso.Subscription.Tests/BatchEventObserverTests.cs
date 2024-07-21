@@ -18,7 +18,7 @@ public sealed class BatchEventObserverTests
         _handlersRegistry = _fixture.Create<IMessageHandlersRegistry>();
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _handledBatches.Add(c.Arg<IReadOnlyList<IEvent>>().ToArray()));
 
@@ -191,7 +191,7 @@ public sealed class BatchEventObserverTests
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -252,7 +252,7 @@ public sealed class BatchEventObserverTests
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -288,7 +288,7 @@ public sealed class BatchEventObserverTests
         using var semaphore = new SemaphoreSlim(0);
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
-        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default)
+        batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 

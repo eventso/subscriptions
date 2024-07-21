@@ -16,9 +16,9 @@ public sealed class PoisonEventHandlerTests
     public PoisonEventHandlerTests()
     {
         _underTestHandler = new PoisonEventHandler<TestEvent>(
+            "topic",
             CreatePoisonEventInbox(),
-            CreteInnerHandler(),
-            NullLogger<PoisonEventHandler<TestEvent>>.Instance);
+            CreteInnerHandler());
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class PoisonEventHandlerTests
     {
         var @event = HealthyEvent();
 
-        await _underTestHandler.Handle(@event, CancellationToken.None);
+        await _underTestHandler.Handle(@event, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEmpty();
         _scopePoisonEvents.Should().BeEmpty();
@@ -38,7 +38,7 @@ public sealed class PoisonEventHandlerTests
     {
         var events = Enumerable.Range(0, 9).Select(_ => HealthyEvent()).ToConvertibleCollection();
 
-        await _underTestHandler.Handle(events, CancellationToken.None);
+        await _underTestHandler.Handle(events, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEmpty();
         _scopePoisonEvents.Should().BeEmpty();
@@ -54,7 +54,7 @@ public sealed class PoisonEventHandlerTests
         _inboxPoisonEvents.Add(predecessorInInbox);
 
         var @event = HealthyEvent(key);
-        await _underTestHandler.Handle(@event, CancellationToken.None);
+        await _underTestHandler.Handle(@event, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEquivalentTo(new[] { predecessorInInbox, @event });
         _scopePoisonEvents.Should().BeEmpty();
@@ -75,7 +75,7 @@ public sealed class PoisonEventHandlerTests
         var toPoisonEvents = new[] { HealthyEvent(key1), HealthyEvent(key2), HealthyEvent(key3), HealthyEvent(key2) };
         var events = healthyEvents.Concat(toPoisonEvents).OrderBy(_ => Guid.NewGuid()).ToConvertibleCollection();
 
-        await _underTestHandler.Handle(events, CancellationToken.None);
+        await _underTestHandler.Handle(events, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEquivalentTo(predecessors.Concat(toPoisonEvents));
         _scopePoisonEvents.Should().BeEmpty();
@@ -87,7 +87,7 @@ public sealed class PoisonEventHandlerTests
     {
         var poisonEvent = PoisonEvent();
 
-        await _underTestHandler.Handle(poisonEvent, CancellationToken.None);
+        await _underTestHandler.Handle(poisonEvent, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
         _scopePoisonEvents.Should().ContainSingle().Subject.Should().Be(poisonEvent);
@@ -104,7 +104,7 @@ public sealed class PoisonEventHandlerTests
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
-        await _underTestHandler.Handle(events, CancellationToken.None);
+        await _underTestHandler.Handle(events, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEquivalentTo(poisonEvents);
         _scopePoisonEvents.Should().BeEquivalentTo(poisonEvents);
@@ -131,7 +131,7 @@ public sealed class PoisonEventHandlerTests
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
-        await _underTestHandler.Handle(events, CancellationToken.None);
+        await _underTestHandler.Handle(events, default, CancellationToken.None);
 
         _inboxPoisonEvents.Should().BeEquivalentTo(
             poisonPredecessors
@@ -147,8 +147,6 @@ public sealed class PoisonEventHandlerTests
         poisonEventInbox.Add(default(TestEvent), default!, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _inboxPoisonEvents.Add(c.Arg<TestEvent>()));
-        poisonEventInbox.IsPartOfPoisonStream(default, default)
-            .ReturnsForAnyArgs(c => ValueTask.FromResult(_inboxPoisonEvents.Any(e => e.Key == c.Arg<TestEvent>().Key)));
 
         return poisonEventInbox;
     }
@@ -175,20 +173,20 @@ public sealed class PoisonEventHandlerTests
     {
         var innerHandler = Substitute.For<IEventHandler<TestEvent>>();
 
-        innerHandler.Handle(Arg.Is<TestEvent>(e => !(bool)e.GetMessage()), default)
+        innerHandler.Handle(Arg.Is<TestEvent>(e => !(bool)e.GetMessage()), default, default)
             .Returns(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()));
 
-        innerHandler.Handle(Arg.Is<TestEvent>(e => (bool)e.GetMessage()), default)
+        innerHandler.Handle(Arg.Is<TestEvent>(e => (bool)e.GetMessage()), default, default)
             .Throws<Exception>()
             .AndDoes(c => _innerHandlerEvents.Add(c.Arg<TestEvent>()))
             .AndDoes(c => _scopePoisonEvents.Add(c.Arg<TestEvent>()));
         
-        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.All(ee => !(bool)ee.GetMessage())), default)
+        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.All(ee => !(bool)ee.GetMessage())), default, default)
             .Returns(Task.CompletedTask)
             .AndDoes(c => _innerHandlerEvents.AddRange(c.Arg<IConvertibleCollection<TestEvent>>()));
         
-        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.Any(ee => (bool)ee.GetMessage())), default)
+        innerHandler.Handle(Arg.Is<IConvertibleCollection<TestEvent>>(e => e.Any(ee => (bool)ee.GetMessage())), default, default)
             .Throws<Exception>()
             .AndDoes(c =>
             {

@@ -1,5 +1,4 @@
 ﻿using Confluent.Kafka;
-using Eventso.Subscription.Hosting;
 using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.Tests;
