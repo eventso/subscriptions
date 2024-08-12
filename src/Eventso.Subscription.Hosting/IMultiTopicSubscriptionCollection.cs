@@ -6,7 +6,6 @@ public interface IMultiTopicSubscriptionCollection
         string topic,
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
-        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int bufferSize = 10,
         TimeSpan? messageObservingDelay = default);

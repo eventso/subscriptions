@@ -1,34 +1,23 @@
 namespace Eventso.Subscription.Pipeline;
 
-public sealed class MessageHandlingAction : IMessagePipelineAction
+public sealed class MessageHandlingAction(IMessageHandlerScopeFactory scopeFactory, bool executeInParallel)
+    : IMessagePipelineAction
 {
-    private readonly IMessageHandlerScopeFactory _scopeFactory;
-    private readonly bool _executeInParallel;
-
-    public MessageHandlingAction(IMessageHandlerScopeFactory scopeFactory, bool executeInParallel)
-    {
-        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        _executeInParallel = executeInParallel;
-    }
-
-    public async Task Invoke<T>(T message, CancellationToken token) where T : notnull
+    public async Task Invoke<T>(T message, HandlingContext context, CancellationToken token) where T : notnull
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
 
-        using var scope = _scopeFactory.BeginScope();
+        using var scope = scopeFactory.BeginScope();
 
         var handlers = scope.Resolve<T>();
 
-        if (_executeInParallel)
+        if (executeInParallel)
             await ExecuteInParallel(message, handlers, token);
         else
             await ExecuteSequentially(message, handlers, token);
     }
 
-    private static async Task ExecuteSequentially<T>(
-        T message,
-        IEnumerable<IMessageHandler<T>> handlers,
-        CancellationToken token)
+    private static async Task ExecuteSequentially<T>(T message, IEnumerable<IMessageHandler<T>> handlers, CancellationToken token)
     {
         foreach (var handler in handlers)
         {
@@ -38,10 +27,7 @@ public sealed class MessageHandlingAction : IMessagePipelineAction
         }
     }
 
-    private static Task ExecuteInParallel<T>(
-        T message,
-        IEnumerable<IMessageHandler<T>> handlers,
-        CancellationToken token)
+    private static Task ExecuteInParallel<T>(T message, IEnumerable<IMessageHandler<T>> handlers, CancellationToken token)
     {
         var tasks = new List<Task>();
 

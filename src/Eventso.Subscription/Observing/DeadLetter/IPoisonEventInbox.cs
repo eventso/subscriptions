@@ -1,8 +1,7 @@
 namespace Eventso.Subscription.Observing.DeadLetter;
 
-public interface IPoisonEventInbox<in TEvent>
-    where TEvent : IEvent
+public interface IPoisonEventInbox<TEvent> where TEvent : IEvent
 {
-    ValueTask<bool> IsPartOfPoisonStream(TEvent @event, CancellationToken token);
+    ValueTask<IKeySet<TEvent>> GetEventKeys(string topic);  
     Task Add(TEvent @event, string reason, CancellationToken token);
 }

@@ -8,10 +8,10 @@ public sealed class SingleTypeLastByKeyEventHandler<TEvent> : IEventHandler<TEve
     public SingleTypeLastByKeyEventHandler(IEventHandler<TEvent> nextHandler)
         => _nextHandler = nextHandler;
 
-    public Task Handle(TEvent @event, CancellationToken cancellationToken)
-        => _nextHandler.Handle(@event, cancellationToken);
+    public Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
+        => _nextHandler.Handle(@event, context, token);
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken token)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count == 0)
             return;
@@ -28,6 +28,6 @@ public sealed class SingleTypeLastByKeyEventHandler<TEvent> : IEventHandler<TEve
         foreach (var (_, @event) in dictionary)
             lastEvents.Add(@event);
 
-        await _nextHandler.Handle(lastEvents, token);
+        await _nextHandler.Handle(lastEvents, context, token);
     }
 }

@@ -51,4 +51,37 @@ public static class DefaultRetryingStrategy
                 }
             });
     }
+
+    public static ResiliencePipelineBuilder GetDefaultShortRetryBuilder(ILogger logger)
+    {
+        return new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromMilliseconds(300),
+                OnRetry = arg =>
+                {
+                    logger.LogError(arg.Outcome.Exception,
+                        $"Message processing failed and will be retried for split part. Attempt #{arg.AttemptNumber}, timeout: {arg.RetryDelay}, duration: {arg.Duration}. ");
+
+                    return ValueTask.CompletedTask;
+                }
+            });
+    }
+
+    public static ResiliencePipelineBuilder GetDefaultShortRetryBuilder(ILogger logger, TimeSpan pipelineTimeout)
+    {
+        return GetDefaultShortRetryBuilder(logger)
+            .AddTimeout(new TimeoutStrategyOptions
+            {
+                Timeout = pipelineTimeout,
+                OnTimeout = arg =>
+                {
+                    logger.LogWarning(
+                        $"Message processing timed out and will be cancelled for split part. Timeout: {arg.Timeout}");
+
+                    return ValueTask.CompletedTask;
+                }
+            });
+    }
 }

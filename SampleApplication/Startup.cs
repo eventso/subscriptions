@@ -7,7 +7,6 @@ using Eventso.Subscription.Kafka.DeadLetter.Postgres;
 using Eventso.Subscription.Kafka.Insights;
 using Eventso.Subscription.SpanJson;
 using Npgsql;
-using Polly;
 
 namespace SampleApplication;
 

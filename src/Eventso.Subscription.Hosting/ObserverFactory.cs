@@ -1,4 +1,3 @@
-using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Observing.DeadLetter;
 
@@ -37,17 +36,17 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
 
         IEventHandler<TEvent> eventHandler = new Observing.EventHandler<TEvent>(
             _messageHandlersRegistry,
-            _messagePipelineFactory.Create(topicConfig.HandlerConfig));
-
-        eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
+            _messagePipelineFactory.Create(topicConfig.HandlerConfig, withDlq: _poisonEventQueue.IsEnabled));
 
         if (_poisonEventQueue.IsEnabled)
         {
             eventHandler = new PoisonEventHandler<TEvent>(
+                topic,
                 _poisonEventInboxFactory.Create(topic),
-                eventHandler,
-                _loggerFactory.CreateLogger<PoisonEventHandler<TEvent>>());
+                eventHandler);
         }
+
+        eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
 
         var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
@@ -72,12 +71,10 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
             configuration.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType => eventHandler,
-                BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<TEvent>(
-                    eventHandler),
+                BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinKey => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinType => new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
-                _ => throw new InvalidOperationException(
-                    $"Unknown handling strategy: {configuration.BatchConfiguration.HandlingStrategy}")
+                _ => throw new InvalidOperationException($"Unknown handling strategy: {configuration.BatchConfiguration.HandlingStrategy}")
             },
             consumer,
             _messageHandlersRegistry,
@@ -94,7 +91,6 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
             eventHandler,
             consumer,
             _messageHandlersRegistry,
-            configuration.SkipUnknownMessages,
-            configuration.DeferredAckConfiguration!);
+            configuration.SkipUnknownMessages);
     }
 }

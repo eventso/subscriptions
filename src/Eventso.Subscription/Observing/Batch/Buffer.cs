@@ -22,12 +22,7 @@ internal sealed class Buffer<TEvent> : IDisposable
 
     private bool _disposed;
 
-    public Buffer(
-        int maxBatchSize,
-        TimeSpan timeout,
-        Channel<Batch> target,
-        int maxBufferSize,
-        CancellationToken token)
+    public Buffer(int maxBatchSize, TimeSpan timeout, Channel<Batch> target, int maxBufferSize, CancellationToken token)
     {
         if (maxBatchSize < 1)
             throw new ArgumentException("Buffer size should not be less than 1.");

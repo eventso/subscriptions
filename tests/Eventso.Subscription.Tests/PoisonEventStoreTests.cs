@@ -1,6 +1,5 @@
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Kafka.DeadLetter.Postgres;
 using Npgsql;
 using NpgsqlTypes;

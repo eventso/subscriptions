@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Threading.Channels;
 using Eventso.Subscription.Configurations;
 
@@ -7,12 +6,10 @@ namespace Eventso.Subscription.Observing.Batch;
 public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>
     where TEvent : IEvent
 {
-    private readonly IEventHandler<TEvent> _handler;
     private readonly Channel<Buffer<TEvent>.Batch> _batchChannel;
     private readonly CancellationTokenSource _cancellationTokenSource;
-    private readonly IConsumer<TEvent> _consumer;
+    private readonly BatchHandler<TEvent> _handler;
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
-    private readonly ILogger<BatchEventObserver<TEvent>> _logger;
     private readonly bool _skipUnknown;
     private readonly Buffer<TEvent> _buffer;
 
@@ -28,10 +25,8 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>
         ILogger<BatchEventObserver<TEvent>> logger,
         bool skipUnknown = true)
     {
-        _handler = handler;
-        _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
+        _handler = new BatchHandler<TEvent>(handler, consumer, logger);
         _messageHandlersRegistry = messageHandlersRegistry;
-        _logger = logger;
         _skipUnknown = skipUnknown;
 
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
@@ -117,7 +112,7 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>
                 while (_batchChannel.Reader.TryPeek(out var batch))
                 {
                     using (batch.Events)
-                        await HandleBatch(batch.Events, batch.ToBeHandledEventCount);
+                        await _handler.HandleBatch(batch.Events, batch.ToBeHandledEventCount, _cancellationTokenSource.Token);
 
                     _batchChannel.Reader.TryRead(out _);
                 }
@@ -134,96 +129,8 @@ public sealed class BatchEventObserver<TEvent> : IObserver<TEvent>
         }
     }
 
-    private async Task HandleBatch(PooledList<Buffer<TEvent>.BufferedEvent> events, int toBeHandledEventCount)
-    {
-        if (events.Count == 0)
-            return;
-
-        var allEvents = new EventsCollection(events);
-
-        try
-        {
-            if (events.Count == toBeHandledEventCount)
-            {
-                await _handler.Handle(allEvents, _cancellationTokenSource.Token);
-            }
-            else if (toBeHandledEventCount > 0)
-            {
-                using var eventsToHandle = GetEventsToHandle(events.Span, toBeHandledEventCount);
-
-                await _handler.Handle(eventsToHandle, _cancellationTokenSource.Token);
-            }
-
-            _consumer.Acknowledge(allEvents);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Handling batch failed.");
-
-            _consumer.Cancel();
-            throw;
-        }
-    }
-
-    private static PooledList<TEvent> GetEventsToHandle(
-        ReadOnlySpan<Buffer<TEvent>.BufferedEvent> messages,
-        int handleMessageCount)
-    {
-        var list = new PooledList<TEvent>(handleMessageCount);
-
-        foreach (ref readonly var message in messages)
-        {
-            if (!message.Skipped)
-                list.Add(message.Event);
-        }
-
-        return list;
-    }
-
     private void CheckDisposed()
     {
         if (_disposed) throw new ObjectDisposedException("Batch observer is disposed");
-    }
-
-    private sealed class EventsCollection : IConvertibleCollection<TEvent>
-    {
-        private readonly PooledList<Buffer<TEvent>.BufferedEvent> _messages;
-
-        public EventsCollection(PooledList<Buffer<TEvent>.BufferedEvent> messages)
-            => _messages = messages;
-
-        public int Count => _messages.Count;
-
-        public TEvent this[int index]
-            => _messages[index].Event;
-
-        public IReadOnlyCollection<TOut> Convert<TOut>(Converter<TEvent, TOut> converter)
-            => _messages.Convert(i => converter(i.Event));
-
-        public bool OnlyContainsSame<TValue>(Func<TEvent, TValue> valueConverter)
-        {
-            if (Count == 0)
-                return true;
-
-            var comparer = EqualityComparer<TValue>.Default;
-            var sample = valueConverter(_messages[0].Event);
-
-            foreach (ref readonly var item in _messages.Span)
-            {
-                if (!comparer.Equals(valueConverter(item.Event), sample))
-                    return false;
-            }
-
-            return true;
-        }
-
-        public IEnumerator<TEvent> GetEnumerator()
-        {
-            foreach (var item in _messages.Segment)
-                yield return item.Event;
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-            => GetEnumerator();
     }
 }

@@ -27,7 +27,7 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
     {
         var eventHandler = new Observing.EventHandler<TEvent>(
             _messageHandlersRegistry,
-            _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
+            _messagePipelineFactory.Create(_configuration.HandlerConfiguration, withDlq: false));
 
         if (_configuration.BatchProcessingRequired)
         {
@@ -44,8 +44,7 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
             eventHandler,
             consumer,
             _messageHandlersRegistry,
-            skipUnknown: true,
-            _configuration.DeferredAckConfiguration!);
+            skipUnknown: true);
 
         IEventHandler<TEvent> GetBatchHandler()
         {

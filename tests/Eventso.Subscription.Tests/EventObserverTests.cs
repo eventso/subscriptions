@@ -23,7 +23,7 @@ public sealed class EventObserverTests
 
         var pipelineAction = Substitute.For<IMessagePipelineAction>();
         pipelineAction
-            .Invoke<TestEvent>(default!, default)
+            .Invoke<TestEvent>(default!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c => _handledEvents.Add(c.Arg<TestEvent>()));
 
@@ -41,8 +41,7 @@ public sealed class EventObserverTests
             _eventHandler,
             _consumer,
             _handlersRegistry,
-            true,
-            DeferredAckConfiguration.Disabled);
+            true);
 
         var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
@@ -66,8 +65,7 @@ public sealed class EventObserverTests
             _eventHandler,
             _consumer,
             _handlersRegistry,
-            true,
-            DeferredAckConfiguration.Disabled);
+            true);
 
         var events = _fixture.CreateMany<TestEvent>(56).ToArray();
 
@@ -106,8 +104,7 @@ public sealed class EventObserverTests
             _eventHandler,
             _consumer,
             _handlersRegistry,
-            true,
-            DeferredAckConfiguration.Disabled);
+            true);
 
         var events = skippedEvents.Concat(successEvents)
             .OrderBy(_ => Guid.NewGuid())
@@ -125,71 +122,6 @@ public sealed class EventObserverTests
             .BeEquivalentTo(
                 successEvents,
                 c => c.WithStrictOrdering());
-    }
-
-    [Fact]
-    public async Task ObservingSkipped_DeferredAckTimeout_AllAcknowledged()
-    {
-        _fixture.Inject(DeserializationStatus.Skipped);
-
-        const int deferredAckTimeoutMs = 300;
-        const int eventsCount = 26;
-
-        var observer = new EventObserver<TestEvent>(
-            _eventHandler,
-            _consumer,
-            _handlersRegistry,
-            true,
-            new DeferredAckConfiguration
-            {
-                Timeout = TimeSpan.FromMilliseconds(deferredAckTimeoutMs),
-                MaxBufferSize = eventsCount * 2
-            });
-
-        var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
-
-        foreach (var @event in events)
-            await observer.OnEventAppeared(@event, CancellationToken.None);
-
-        await Task.Delay(deferredAckTimeoutMs + 50);
-
-        _consumer.Acks.Should()
-            .BeEquivalentTo(
-                events,
-                c => c.WithStrictOrdering());
-
-        _handledEvents.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task ObservingSkipped_DeferredAckBufferExceeded_AllAcknowledged()
-    {
-        _fixture.Inject(DeserializationStatus.Skipped);
-
-        const int eventsCount = 26;
-
-        var observer = new EventObserver<TestEvent>(
-            _eventHandler,
-            _consumer,
-            _handlersRegistry,
-            true,
-            new DeferredAckConfiguration
-            {
-                Timeout = Timeout.InfiniteTimeSpan,
-                MaxBufferSize = eventsCount - 10
-            });
-
-        var events = _fixture.CreateMany<TestEvent>(eventsCount).ToArray();
-
-        foreach (var @event in events)
-            await observer.OnEventAppeared(@event, CancellationToken.None);
-
-        _consumer.Acks.Should()
-            .BeEquivalentTo(
-                events.SkipLast(10),
-                c => c.WithStrictOrdering());
-
-        _handledEvents.Should().BeEmpty();
     }
 
     private sealed class TestConsumer : IConsumer<TestEvent>
