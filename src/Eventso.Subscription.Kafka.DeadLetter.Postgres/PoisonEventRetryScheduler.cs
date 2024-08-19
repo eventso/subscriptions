@@ -10,7 +10,7 @@ internal sealed class PoisonEventRetryScheduler(
     TimeSpan maxLockHandleInterval)
     : IPoisonEventRetryScheduler
 {
-    public async Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, string topic, CancellationToken token)
+    public async Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, TopicPartition topicPartition, CancellationToken token)
     {
         await using var connection = connectionFactory.ReadOnly();
 
@@ -47,7 +47,6 @@ internal sealed class PoisonEventRetryScheduler(
             FROM locked_events le
             WHERE pe.topic = le.topic AND pe.partition = le.partition AND pe."offset" = le."offset" AND pe.group_id = le.group_id
             RETURNING
-                pe.partition,
                 pe."offset",
                 pe.key,
                 pe.value,
@@ -57,7 +56,8 @@ internal sealed class PoisonEventRetryScheduler(
             """,
             connection);
 
-        command.Parameters.Add(new NpgsqlParameter<string>("topic", topic));
+        command.Parameters.Add(new NpgsqlParameter<string>("topic", topicPartition.Topic));
+        command.Parameters.Add(new NpgsqlParameter<int>("partition", topicPartition.Partition));
         command.Parameters.Add(new NpgsqlParameter<string>("groupId", groupId));
         command.Parameters.Add(new NpgsqlParameter<int>("maxFailureCount", maxAllowedFailureCount));
         command.Parameters.Add(new NpgsqlParameter<DateTime>("maxLastFailureTimestamp", DateTime.UtcNow - minIntervalBetweenRetries));
@@ -69,16 +69,13 @@ internal sealed class PoisonEventRetryScheduler(
 
         var consumeResult = new ConsumeResult<byte[], byte[]>
         {
-            TopicPartitionOffset = new TopicPartitionOffset(
-                topic,
-                reader.GetFieldValue<int>(0),
-                reader.GetFieldValue<long>(1)),
+            TopicPartitionOffset = new TopicPartitionOffset(topicPartition, reader.GetFieldValue<long>(0)),
             Message = new Message<byte[], byte[]>
             {
-                Key = reader.GetFieldValue<byte[]>(2),
-                Value = reader.GetFieldValue<byte[]>(3),
+                Key = reader.GetFieldValue<byte[]>(1),
+                Value = reader.GetFieldValue<byte[]>(2),
                 Timestamp = new Timestamp(
-                    DateTime.SpecifyKind(reader.GetDateTime(4), DateTimeKind.Utc),
+                    DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc),
                     TimestampType.NotAvailable),
                 Headers = []
             },

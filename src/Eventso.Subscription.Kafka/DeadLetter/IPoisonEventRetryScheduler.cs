@@ -6,6 +6,6 @@ public interface IPoisonEventRetryScheduler
 {
     Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(
         string groupId,
-        string topic,
+        TopicPartition topicPartition,
         CancellationToken token);
 }

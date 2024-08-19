@@ -15,7 +15,7 @@ public sealed class PoisonEventQueue(
     ILogger<PoisonEventQueue> logger)
     : IPoisonEventQueue
 {
-    private readonly ConcurrentDictionary<string, TopicPoisonKeysCollection> _partitionPoisonKeys =
+    private readonly ConcurrentDictionary<string, TopicPoisonKeysCollection> _topicPoisonKeys =
         new ConcurrentDictionary<string, TopicPoisonKeysCollection>(concurrencyLevel: 1, capacity: 1);
 
     public bool IsEnabled => true;
@@ -23,7 +23,7 @@ public sealed class PoisonEventQueue(
     public void Assign(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
-        var concurrentKeysCollections = _partitionPoisonKeys.GetOrAdd(
+        var concurrentKeysCollections = _topicPoisonKeys.GetOrAdd(
             topicPartition.Topic,
             static topic => new TopicPoisonKeysCollection(topic));
         
@@ -50,15 +50,16 @@ public sealed class PoisonEventQueue(
     public void Revoke(TopicPartition topicPartition)
     {
         // no concurrency, same thread as consume
-        if (_partitionPoisonKeys.TryGetValue(topicPartition.Topic, out var topicKeys))
+        if (_topicPoisonKeys.TryGetValue(topicPartition.Topic, out var topicKeys))
             topicKeys.Unregister(topicPartition.Partition);
 
         logger.PartitionRevoke(groupId, topicPartition.Topic, topicPartition.Partition);
     }
 
-    public Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token)
+    public async Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token)
     {
-        return GetTopicKeys(topic).GetKeys(token);
+        var keySet = await GetTopicKeys(topic).GetKeys(token);
+        return keySet;
     }
 
     public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
@@ -80,11 +81,11 @@ public sealed class PoisonEventQueue(
                 $"Poison event: {@event.TopicPartitionOffset}. " +
                 $"Error: {failureReason}",
                 null);
-        
+
+        var topicKeys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
+
         await poisonEventStore.AddEvent(groupId, @event, failureTimestamp, failureReason, token);
-        
-        var keys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
-        keys.Add(@event.TopicPartitionOffset.TopicPartition.Partition, key);
+        await topicKeys.Add(@event.TopicPartitionOffset.TopicPartition.Partition, key, token);
     }
 
     public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek([EnumeratorCancellation] CancellationToken token)
@@ -94,12 +95,13 @@ public sealed class PoisonEventQueue(
         while (needToProcess)
         {
             needToProcess = false;
-            var topics = _partitionPoisonKeys.Keys.ToArray();
+            var topics = _topicPoisonKeys.Keys.ToArray();
             foreach (var topic in topics)
             {
+                TopicPoisonKeysCollection.KeySet topicKeys;
                 try
                 {
-                    var topicKeys = await GetTopicKeys(topic).GetKeys(token);
+                    topicKeys = await GetTopicKeys(topic).GetKeys(token);
                     if (topicKeys.IsEmpty())
                         continue;
                 }
@@ -108,12 +110,19 @@ public sealed class PoisonEventQueue(
                     continue;
                 }
 
-                var eventForRetrying = await retryScheduler.GetNextRetryTarget(groupId, topic, token);
-                if (eventForRetrying == null)
-                    continue;
+                foreach (var partition in topicKeys.GetPartitions())
+                {
+                    var eventForRetrying = await retryScheduler.GetNextRetryTarget(
+                        groupId,
+                        new TopicPartition(topic, partition),
+                        token);
 
-                needToProcess = true;
-                yield return eventForRetrying;
+                    if (eventForRetrying == null)
+                        continue;
+
+                    needToProcess = true;
+                    yield return eventForRetrying;
+                }
             }
         }
     }
@@ -127,12 +136,14 @@ public sealed class PoisonEventQueue(
             @event.TopicPartitionOffset.Partition,
             @event.TopicPartitionOffset.Offset,
             key);
+
+        var topicKeys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
+        
         await poisonEventStore.RemoveEvent(groupId, @event.TopicPartitionOffset, token);
         if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, token))
             return;
 
-        var keys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
-        keys.Remove(@event.TopicPartitionOffset.TopicPartition.Partition, key);
+        await topicKeys.Remove(@event.TopicPartitionOffset.TopicPartition.Partition, key, token);
     }
 
     private static Guid DeserializeKey(string topic, Headers headers, byte[]? keyBytes)
@@ -145,7 +156,7 @@ public sealed class PoisonEventQueue(
 
     private TopicPoisonKeysCollection GetTopicKeys(string topic)
     {
-        return _partitionPoisonKeys.TryGetValue(topic, out var topicKeys)
+        return _topicPoisonKeys.TryGetValue(topic, out var topicKeys)
             ? topicKeys
             : throw new Exception($"{topic} disabled");
     }

@@ -32,6 +32,6 @@ internal sealed class DevNullPoisonEventStore : IPoisonEventStore, IPoisonEventR
     public Task RemoveEvent(string groupId, TopicPartitionOffset partitionOffset, CancellationToken token)
         => Task.CompletedTask;
 
-    public Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, string topic, CancellationToken token)
+    public Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, TopicPartition topicPartition, CancellationToken token)
         => Task.FromResult<ConsumeResult<byte[], byte[]>?>(default);
 }
