@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
+using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 
 namespace Eventso.Subscription.Hosting;
@@ -26,10 +27,9 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
         {
         }
 
-        public ValueTask<FrozenDictionary<Partition, Guid>> GetKeys(string topic, CancellationToken token)
+        public Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token)
         {
-            //TODO: implement me
-            throw new NotImplementedException();
+            return Task.FromResult((IKeySet<Event>)new EmptyKeySet());
         }
 
         public Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
@@ -42,6 +42,13 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
         {
             await Task.CompletedTask;
             yield break;
+        }
+        
+        private sealed class EmptyKeySet : IKeySet<Event>
+        {
+            public bool Contains(in Event item) => false;
+
+            public bool IsEmpty() => true;
         }
     }
 }

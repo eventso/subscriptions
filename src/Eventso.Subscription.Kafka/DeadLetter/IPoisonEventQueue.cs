@@ -10,7 +10,7 @@ public interface IPoisonEventQueue
     void Assign(TopicPartition topicPartition);
     void Revoke(TopicPartition topicPartition);
 
-    ValueTask<FrozenDictionary<Partition, Guid>> GetKeys(string topic, CancellationToken token);
+    Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token);
 
     Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token);
  

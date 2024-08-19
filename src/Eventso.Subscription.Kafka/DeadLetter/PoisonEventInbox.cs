@@ -15,11 +15,8 @@ public sealed class PoisonEventInbox(
         () => new ThreadSafeConsumer(settings, topic, logger),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
-    public ValueTask<IKeySet<Event>> GetEventKeys(string topic)
-    {
-        //TODO: implement me
-        throw new NotImplementedException();
-    }
+    public Task<IKeySet<Event>> GetEventKeys(string topic, CancellationToken token)
+        => poisonEventQueue.GetKeys(topic, token);
 
     public Task Add(Event @event, string reason, CancellationToken token)
     {

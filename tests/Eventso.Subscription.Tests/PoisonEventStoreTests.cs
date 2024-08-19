@@ -319,7 +319,7 @@ public class PoisonEventStoreTests
         {
             var @event = await scheduler.GetNextRetryTarget(
                 relevantGroupId,
-                new TopicPartition(relevantTopic, 20),
+                relevantTopic,
                 CancellationToken.None);
             
             await using var connection = database.ConnectionFactory.ReadWrite();

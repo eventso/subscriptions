@@ -9,7 +9,7 @@ public sealed class PoisonEventHandler<TEvent>(
 
     public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
-        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic);
+        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic, token);
 
         if (poisonEventKeys.Contains(@event))
         {
@@ -29,7 +29,7 @@ public sealed class PoisonEventHandler<TEvent>(
 
     public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
-        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic);
+        var poisonEventKeys = await poisonEventInbox.GetEventKeys(topic, token);
 
         var firstPoisonEventIndex = events.FindFirstIndexIn(poisonEventKeys);
 
