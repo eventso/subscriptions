@@ -1,6 +1,6 @@
 ﻿namespace Eventso.Subscription.Tests;
 
-public readonly struct TestEvent : IEvent, IEquatable<TestEvent>
+public record TestEvent : IEvent, IEquatable<TestEvent>
 {
     private readonly Guid _key;
     private readonly object _message;
@@ -29,13 +29,4 @@ public readonly struct TestEvent : IEvent, IEquatable<TestEvent>
 
     public IReadOnlyCollection<KeyValuePair<string, object>> GetMetadata()
         => Array.Empty<KeyValuePair<string, object>>();
-
-    public bool Equals(TestEvent other)
-        => _key.Equals(other._key) && Equals(_message, other._message) && BatchNumber == other.BatchNumber;
-
-    public override bool Equals(object? obj)
-        => obj is TestEvent other && Equals(other);
-
-    public override int GetHashCode()
-        => HashCode.Combine(_key, _message, BatchNumber);
 }

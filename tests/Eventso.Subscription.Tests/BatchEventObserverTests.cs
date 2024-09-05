@@ -192,6 +192,8 @@ public sealed class BatchEventObserverTests
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
         batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
+            .ThrowsForAnyArgs(new TestException());
+        batchHandler.Handle(default(IEvent)!, default, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
@@ -253,6 +255,8 @@ public sealed class BatchEventObserverTests
 
         var batchHandler = Substitute.For<IEventHandler<IEvent>>();
         batchHandler.Handle(default(IConvertibleCollection<IEvent>)!, default, default)
+            .ThrowsForAnyArgs(new TestException());
+        batchHandler.Handle(default(IEvent)!, default, default)
             .ThrowsForAnyArgs(new TestException())
             .AndDoes(_ => semaphore.Release());
 
