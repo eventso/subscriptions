@@ -32,15 +32,6 @@ public sealed class DeadLetterQueueController(
         if (configuration == null)
             throw new ArgumentException($"Subscription to '{offset.Topic} not found.'");
 
-        var valueObjectDeserializer = new ValueDeserializer(
-            configuration.GetByTopic(offset.Topic).Serializer,
-            AllHandlingMessageHandlerRegistry.Instance);
-
-        using var consumer = configuration.Settings
-            .CreateBuilder()
-            .SetValueDeserializer(valueObjectDeserializer)
-            .Build();
-        
         var @event = await eventStore.GetEvent(
             offset.GroupId,
             new TopicPartitionOffset(offset.Topic, offset.Partition, offset.Offset),
@@ -50,17 +41,21 @@ public sealed class DeadLetterQueueController(
         foreach (var header in @event.Headers)
             headers.Add(header.Key, header.Data.ToArray());
 
-        var consumedMessage = valueObjectDeserializer.Deserialize(
-            @event.Value.Span,
-            @event.Value.IsEmpty,
-            new SerializationContext(MessageComponentType.Value, offset.Topic, headers));
+        var key = new KeyGuidDeserializer().Deserialize(
+            @event.Key.Span,
+            @event.Key.IsEmpty,
+            new SerializationContext(MessageComponentType.Key, offset.Topic, headers));
+        var consumedMessage = new ValueDeserializer(
+                configuration.GetByTopic(offset.Topic).Serializer,
+                AllHandlingMessageHandlerRegistry.Instance)
+            .Deserialize(
+                @event.Value.Span,
+                @event.Value.IsEmpty,
+                new SerializationContext(MessageComponentType.Value, offset.Topic, headers));
         return new JsonResult(
             new
             {
-                Key = new KeyGuidDeserializer().Deserialize(
-                    @event.Key.Span,
-                    @event.Key.IsEmpty,
-                    new SerializationContext(MessageComponentType.Value, offset.Topic, headers)),
+                Key = key,
                 Value = consumedMessage.Message,
                 Metadata = consumedMessage.GetMetadata(),
                 @event.CreationTimestamp,
