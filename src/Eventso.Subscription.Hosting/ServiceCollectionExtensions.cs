@@ -69,6 +69,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
         services.TryAddSingleton<IPoisonEventQueueRetryingService, PoisonEventQueueRetryingService>();
         services.AddHostedService<PoisonEventQueueRetryingHost>();
+        services.AddHostedService<PoisonEventQueueMetricCollector>();
     }
 
     private static void TryAddSubscriptionServices(IServiceCollection services)

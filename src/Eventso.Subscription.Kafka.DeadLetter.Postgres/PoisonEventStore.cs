@@ -6,6 +6,29 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : IPoisonEventStore
 {
+    public async Task<IReadOnlyDictionary<ConsumingTarget, long>> CountPoisonedEvents(CancellationToken token)
+    {
+        await using var connection = connectionFactory.ReadOnly();
+
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT topic, group_id, COUNT(*)
+            FROM eventso_dlq.poison_events
+            GROUP BY topic, group_id
+            ;
+            """,
+            connection);
+
+        await connection.OpenAsync(token);
+
+        var result = new Dictionary<ConsumingTarget, long>();
+        var reader = await command.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+            result.Add(new ConsumingTarget(reader.GetString(0), reader.GetString(1)), reader.GetInt64(2));
+        
+        return result;
+    }
+
     public async Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken cancellationToken)
     {
         await using var connection = connectionFactory.ReadOnly();

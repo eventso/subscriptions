@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 
@@ -6,6 +7,9 @@ namespace Eventso.Subscription.Hosting;
 internal sealed class DevNullPoisonEventStore : IPoisonEventStore, IPoisonEventRetryScheduler
 {
     public static DevNullPoisonEventStore Instance { get; } = new DevNullPoisonEventStore();
+
+    public Task<IReadOnlyDictionary<ConsumingTarget, long>> CountPoisonedEvents(CancellationToken token)
+        => Task.FromResult((IReadOnlyDictionary<ConsumingTarget, long>)ImmutableDictionary<ConsumingTarget, long>.Empty);
 
     public Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken token)
         => Task.FromResult(0L);

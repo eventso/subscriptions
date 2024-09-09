@@ -4,6 +4,8 @@ namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public interface IPoisonEventStore
 {
+    Task<IReadOnlyDictionary<ConsumingTarget, long>> CountPoisonedEvents(CancellationToken token);
+
     Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken token);
 
     Task<bool> IsKeyPoisoned(string groupId, string topic, byte[] key, CancellationToken token);
