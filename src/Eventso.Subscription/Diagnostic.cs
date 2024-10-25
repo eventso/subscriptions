@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 
 namespace Eventso.Subscription;
@@ -9,8 +10,10 @@ public static class Diagnostic
     public static readonly string PipelineHandle = "pipeline.handle";
     public static readonly string EventHandlerHandle = "eventhandler.handle";
     public static readonly string SourceName = "eventso";
+    public static readonly string MeterName = "eventso.subscription";
 
     public static readonly ActivitySource ActivitySource = new(SourceName);
+    public static readonly Meter Meter = new(MeterName);
 
     public static Activity SetException(this Activity activity, Exception ex)
     {

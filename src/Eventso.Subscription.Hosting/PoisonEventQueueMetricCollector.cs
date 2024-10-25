@@ -6,8 +6,7 @@ namespace Eventso.Subscription.Hosting;
 public sealed class PoisonEventQueueMetricCollector : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(1);
-    private const string MeterName = "eventso.subscription";
-
+    
     private readonly IPoisonEventStore _poisonEventStore;
     private readonly ILogger<PoisonEventQueueMetricCollector> _logger;
 
@@ -19,7 +18,6 @@ public sealed class PoisonEventQueueMetricCollector : BackgroundService
     public PoisonEventQueueMetricCollector(
         IEnumerable<ISubscriptionCollection> subscriptions,
         IPoisonEventStore poisonEventStore,
-        IMeterFactory meterFactory,
         ILogger<PoisonEventQueueMetricCollector> logger)
     {
         _measurements = subscriptions
@@ -32,8 +30,7 @@ public sealed class PoisonEventQueueMetricCollector : BackgroundService
         _poisonEventStore = poisonEventStore;
         _logger = logger;
 
-        var meter = meterFactory.Create(MeterName);
-        meter.CreateObservableGauge("dlq.size", CollectMeasurements);
+        Diagnostic.Meter.CreateObservableGauge("dlq.size", CollectMeasurements);
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

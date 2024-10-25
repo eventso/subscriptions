@@ -7,17 +7,19 @@ public sealed class TopicPoisonKeysCollection(string topic)
 {
     private readonly string _topic = topic;
 
-    private readonly ConcurrentDictionary<Partition, PartitionKeys> _knownPartitions =
+    private readonly ConcurrentDictionary<Partition, PartitionPoisonKeysCollection> _knownPartitions =
         new(concurrencyLevel: 1, capacity: 1);
     
     private long _version = 0;
     
     public void Register(Partition partition, Func<CancellationToken, Task<IReadOnlyCollection<Guid>>> poisonKeysTask)
     {
-        var tokenSource = new CancellationTokenSource();
         _knownPartitions.TryAdd(
-            partition,
-            new PartitionKeys(CreateLoadTask(tokenSource.Token), tokenSource, new ConcurrentDictionary<Guid, ValueTuple>()));
+            partition, 
+            new PartitionPoisonKeysCollection(
+                CreateLoadTask,
+                _topic,
+                partition));
 
         Interlocked.Increment(ref _version);
 
@@ -27,10 +29,8 @@ public sealed class TopicPoisonKeysCollection(string topic)
             
             if (!_knownPartitions.TryGetValue(partition, out var partitionKeys))
                 return;
-            
-            partitionKeys.LoadedKeys.Clear();
-            foreach (var key in keys)
-                partitionKeys.LoadedKeys.TryAdd(key, default);
+
+            partitionKeys.Reset(keys);
 
             Interlocked.Increment(ref _version);
         }
@@ -41,12 +41,7 @@ public sealed class TopicPoisonKeysCollection(string topic)
         if (!_knownPartitions.Remove(partition, out var partitionKeys))
             return;
 
-        partitionKeys.LoadTaskCancellationTokenSource.Cancel();
-        partitionKeys.LoadTaskCancellationTokenSource.Dispose();
-
-        if (partitionKeys.LoadTask.IsFaulted)
-            _ = partitionKeys.LoadTask.Exception;
-
+        partitionKeys.Dispose();
         Interlocked.Increment(ref _version);
     }
 
@@ -55,9 +50,7 @@ public sealed class TopicPoisonKeysCollection(string topic)
         if (!_knownPartitions.TryGetValue(partition, out var partitionKeys))
             throw new Exception($"Partition #{partition} in topic {_topic} is disabled");
 
-        await partitionKeys.LoadTask.WaitAsync(token);
-        partitionKeys.LoadedKeys.TryAdd(key, default);
-
+        await partitionKeys.TryAdd(key, token);
         Interlocked.Increment(ref _version);
     }
 
@@ -66,40 +59,33 @@ public sealed class TopicPoisonKeysCollection(string topic)
         if (!_knownPartitions.TryGetValue(partition, out var partitionKeys))
             throw new Exception($"Partition #{partition} in topic {_topic} is disabled");
 
-        await partitionKeys.LoadTask.WaitAsync(token);
-        partitionKeys.LoadedKeys.Remove(key, out _);
-
+        await partitionKeys.Remove(key, token);
         Interlocked.Increment(ref _version);
     }
 
     public async Task<KeySet> GetKeys(CancellationToken token)
     {
         foreach (var (_, partitionKeys) in _knownPartitions)
-            await partitionKeys.LoadTask.WaitAsync(token);
+            await partitionKeys.WaitForReadiness(token);
 
         return new KeySet(this, Interlocked.Read(ref _version));
     }
 
-    private sealed record PartitionKeys(
-        Task LoadTask,
-        CancellationTokenSource LoadTaskCancellationTokenSource,
-        ConcurrentDictionary<Guid, ValueTuple> LoadedKeys);
-    
-    public sealed record KeySet(TopicPoisonKeysCollection TopicKeysCollection, long OnCreationVersion) : IKeySet<Event>
+    public sealed record KeySet(
+        TopicPoisonKeysCollection TopicKeysCollection,
+        long OnCreationVersion) : IKeySet<Event>
     {
         public ICollection<Partition> GetPartitions()
         {
             CheckVersion();
-
             return TopicKeysCollection._knownPartitions.Keys;
         }
         
         public bool Contains(in Event item)
         {
             CheckVersion();
-
             return TopicKeysCollection._knownPartitions.TryGetValue(item.Partition, out var partitionKeys)
-                ? partitionKeys.LoadedKeys.ContainsKey(item.GetKey())
+                ? partitionKeys.ContainsKey(item.GetKey())
                 : throw new Exception($"Partition #{item.Partition} in topic {TopicKeysCollection._topic} is disabled");
         }
 
@@ -109,10 +95,14 @@ public sealed class TopicPoisonKeysCollection(string topic)
 
             foreach (var (_, partitionKeys) in TopicKeysCollection._knownPartitions)
             {
-                if (partitionKeys.LoadedKeys.Count > 0)
+                if (!partitionKeys.IsEmpty())
+                {
+                    CheckVersion();
                     return false;
+                }
             }
 
+            CheckVersion();
             return true;
         }
 
