@@ -24,11 +24,11 @@ public sealed class MessagePipelineFactory : IMessagePipelineFactory
 
     public IMessagePipelineAction Create(HandlerConfiguration config, bool withDlq)
     {
-        var splitRetryingPipeline = (withDlq ? _defaultShortRetryPipeline : _defaultPipeline);
+        var defaultPipeline = withDlq ? _defaultShortRetryPipeline : _defaultPipeline;
 
         IMessagePipelineAction action = new RetryingAction(
-            config.ResiliencePipeline ?? _defaultPipeline,
-            config.BatchSliceResiliencePipeline ?? splitRetryingPipeline,
+            config.ResiliencePipeline ?? defaultPipeline,
+            config.BatchSliceResiliencePipeline ?? defaultPipeline,
             new MessageHandlingAction(_scopeFactory, config.RunHandlersInParallel));
 
         if (config.LoggingEnabled)
