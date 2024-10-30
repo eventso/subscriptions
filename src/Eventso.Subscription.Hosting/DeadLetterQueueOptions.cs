@@ -1,6 +1,4 @@
-﻿using Polly;
-
-namespace Eventso.Subscription.Hosting;
+﻿namespace Eventso.Subscription.Hosting;
 
 public sealed class DeadLetterQueueOptions
 {

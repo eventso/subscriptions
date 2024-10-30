@@ -1,6 +1,4 @@
-using System.Buffers;
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;

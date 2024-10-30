@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;

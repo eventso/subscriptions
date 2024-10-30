@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 
 namespace Eventso.Subscription.Observing.Batch;

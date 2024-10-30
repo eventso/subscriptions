@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using Confluent.Kafka;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
