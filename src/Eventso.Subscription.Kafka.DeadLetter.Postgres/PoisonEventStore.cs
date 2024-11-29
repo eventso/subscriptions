@@ -59,7 +59,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
          await connection.OpenAsync(token);
 
          var result = await command.ExecuteScalarAsync(token);
-         return result != null && (bool)result;
+         return result is not (null or DBNull) && (bool)result;
     }
 
     public async IAsyncEnumerable<byte[]> GetPoisonedKeys(

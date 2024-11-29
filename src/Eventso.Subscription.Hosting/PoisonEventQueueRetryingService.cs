@@ -34,11 +34,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
         if (_workers.Count == 0)
             return;
 
-        var workerTasks = _workers.Select(r => r.Run(token)).ToArray();
-        await foreach (var _ in AsyncEnumerableEx.Merge(workerTasks).WithCancellation(token))
-        {
-            // do nothing
-        }
+        await Task.WhenAll(_workers.Select(r => r.Run(token)));
     }
 
     private static Worker CreateTopicRetryingService(
@@ -83,8 +79,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
         PoisonEventRetryingService poisonEventRetryingService,
         ILogger<Worker> logger)
     {
-        public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Run(
-            [EnumeratorCancellation] CancellationToken token)
+        public async Task Run(CancellationToken token)
         {
             using var retryScope = logger.BeginScope(
                 new[] { new KeyValuePair<string, string>("eventso_retry_topic", string.Join(",", topics)) });
@@ -92,10 +87,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
             logger.LogInformation("Started event retrying");
 
             await foreach (var toRetry in poisonEventQueue.Peek(token))
-            {
                 await poisonEventRetryingService.Retry(toRetry, token);
-                yield return toRetry;
-            }
 
             logger.LogInformation("Finished event retrying");
         }

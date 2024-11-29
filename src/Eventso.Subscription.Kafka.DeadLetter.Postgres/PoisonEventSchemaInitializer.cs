@@ -16,20 +16,20 @@ internal sealed class PoisonEventSchemaInitializer
             CREATE SCHEMA IF NOT EXISTS eventso_dlq;
 
             CREATE TABLE IF NOT EXISTS eventso_dlq.poison_events (
-                group_id               TEXT         NOT NULL,
-                topic                  TEXT         NOT NULL,
-                partition              INT          NOT NULL,
-                "offset"               BIGINT       NOT NULL,
-                key                    BYTEA        NOT NULL,
-                value                  BYTEA        NULL,
-                creation_timestamp     TIMESTAMP    NOT NULL,
-                header_keys            TEXT[]       NULL,
-                header_values          BYTEA[]      NULL,
-                last_failure_timestamp TIMESTAMP    NOT NULL,
-                last_failure_reason    TEXT         NOT NULL,
-                total_failure_count    INT          NOT NULL,
-                lock_timestamp         TIMESTAMP    NULL,
-                update_timestamp       TIMESTAMP    NOT NULL,
+                group_id               TEXT           NOT NULL,
+                topic                  TEXT           NOT NULL,
+                partition              INT            NOT NULL,
+                "offset"               BIGINT         NOT NULL,
+                key                    BYTEA          NOT NULL,
+                value                  BYTEA          NULL,
+                creation_timestamp     TIMESTAMPTZ    NOT NULL,
+                header_keys            TEXT[]         NULL,
+                header_values          BYTEA[]        NULL,
+                last_failure_timestamp TIMESTAMPTZ    NOT NULL,
+                last_failure_reason    TEXT           NOT NULL,
+                total_failure_count    INT            NOT NULL,
+                lock_timestamp         TIMESTAMPTZ    NULL,
+                update_timestamp       TIMESTAMPTZ    NOT NULL,
                 PRIMARY KEY ("offset", partition, topic, group_id)
             );
 

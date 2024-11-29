@@ -39,6 +39,7 @@ internal sealed class PoisonEventRetryScheduler(
                         pe_heads.total_failure_count <= @maxFailureCount
                         AND pe_heads.last_failure_timestamp < @maxLastFailureTimestamp
                         AND (pe_heads.lock_timestamp IS NULL OR pe_heads.lock_timestamp < @maxLockTimestamp)
+                    ORDER BY pe_heads.lock_timestamp ASC NULLS FIRST, pe_heads.last_failure_timestamp ASC, pe_heads.total_failure_count ASC
                     FOR UPDATE OF pe_heads SKIP LOCKED
                     LIMIT 1
                 )

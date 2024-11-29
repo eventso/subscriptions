@@ -37,12 +37,9 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
         public Task Dequeue(ConsumeResult<byte[], byte[]> @event, CancellationToken token)
             => Task.CompletedTask;
 
-        public async IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek([EnumeratorCancellation] CancellationToken token)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
-        
+        public IAsyncEnumerable<ConsumeResult<byte[], byte[]>> Peek(CancellationToken token)
+            => AsyncEnumerable.Empty<ConsumeResult<byte[], byte[]>>();
+
         private sealed class EmptyKeySet : IKeySet<Event>
         {
             public bool Contains(in Event item) => false;

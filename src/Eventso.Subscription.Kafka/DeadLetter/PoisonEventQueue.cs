@@ -93,8 +93,7 @@ public sealed class PoisonEventQueue(
         while (needToProcess)
         {
             needToProcess = false;
-            var topics = _topicPoisonKeys.Keys.ToArray();
-            foreach (var topic in topics)
+            foreach (var topic in _topicPoisonKeys.Keys)
             {
                 TopicPoisonKeysCollection.KeySet topicKeys;
                 try
