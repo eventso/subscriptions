@@ -42,6 +42,8 @@ internal sealed class BatchHandler<TEvent>(
 
             await SliceBatch(events, token);
 
+            consumer.Acknowledge(allEvents);
+
             logger.LogInformation("Handling sliced batch completed successfully.");
         }
     }
