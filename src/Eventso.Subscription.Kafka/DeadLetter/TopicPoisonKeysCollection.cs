@@ -68,7 +68,7 @@ public sealed class TopicPoisonKeysCollection(string topic)
         foreach (var (_, partitionKeys) in _knownPartitions)
             await partitionKeys.WaitForReadiness(token);
 
-        return new KeySet(this, Interlocked.Read(ref _version));
+        return new KeySet(this, _version);
     }
 
     public sealed record KeySet(
@@ -108,8 +108,7 @@ public sealed class TopicPoisonKeysCollection(string topic)
 
         private void CheckVersion()
         {
-            var currentVersion = Interlocked.Read(ref TopicKeysCollection._version);
-            if (currentVersion != OnCreationVersion)
+            if (TopicKeysCollection._version != OnCreationVersion)
                 throw new Exception($"Key set is outdated for topic {TopicKeysCollection._topic}.");
         }
     }
