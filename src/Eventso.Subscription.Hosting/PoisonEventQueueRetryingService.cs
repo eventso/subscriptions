@@ -61,6 +61,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
             config.SubscriptionConfigurationId);
         var retryingService = new PoisonEventRetryingService(
             config.Settings.Config.GroupId,
+            handlersRegistry,
             valueDeserializer,
             eventHandlers,
             poisonEventQueue,

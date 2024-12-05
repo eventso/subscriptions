@@ -5,6 +5,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventRetryingService(
     string groupId,
+    IMessageHandlersRegistry handlersRegistry,
     IDeserializer<ConsumedMessage> deserializer,
     IReadOnlyDictionary<string, Observing.EventHandler<Event>> eventHandlers,
     IPoisonEventQueue poisonEventQueue,
@@ -17,7 +18,15 @@ public sealed class PoisonEventRetryingService(
 
         try
         {
-            await eventHandlers[@event.Topic].Handle(@event, new HandlingContext(), token);
+            var hasHandler = handlersRegistry.ContainsHandlersFor(@event.GetMessage().GetType(), out var handlerKind);
+            if (!hasHandler)
+                throw new InvalidOperationException("No handler registered for message.");
+
+            if ((handlerKind & HandlerKind.Single) != 0)
+                await HandleSingle(@event, token);
+            else
+                await HandleBatch(@event, token);
+
             logger.RetrySuccessful(groupId, poisonEvent.TopicPartitionOffset);
         }
         catch (Exception exception)
@@ -53,5 +62,15 @@ public sealed class PoisonEventRetryingService(
         };
 
         return new Event(consumeResult);
+    }
+
+    private Task HandleSingle(Event @event, CancellationToken token)
+        => eventHandlers[@event.Topic].Handle(@event, new HandlingContext(), token);
+
+    private async Task HandleBatch(Event @event, CancellationToken token)
+    {
+        using var collection = new PooledList<Event>(1);
+        collection.Add(@event);
+        await eventHandlers[@event.Topic].Handle(collection, new HandlingContext(), token);
     }
 }
