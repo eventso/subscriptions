@@ -60,6 +60,20 @@ public sealed class PoisonEventQueue(
         return keySet;
     }
 
+    public async Task Add(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+    {
+        var alreadyPoisoned = await poisonEventStore.CountPoisonedEvents(groupId, @event.TopicPartitionOffset.Topic, token);
+        if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
+            throw new EventHandlingException(
+                @event.TopicPartitionOffset.Topic,
+                $"Dead letter queue size ({alreadyPoisoned}) exceeds threshold ({maxNumberOfPoisonedEventsInTopic}). " +
+                $"Poison event: {@event.TopicPartitionOffset}. " +
+                $"Error: {failureReason}",
+                null);
+
+        await Enqueue(@event, failureTimestamp, failureReason, token);
+    }
+
     public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
     {
         var key = DeserializeKey(@event.Topic, @event.Message.Headers, @event.Message.Key);
@@ -70,15 +84,6 @@ public sealed class PoisonEventQueue(
             @event.TopicPartitionOffset.Offset,
             key,
             failureReason);
-        
-        var alreadyPoisoned = await poisonEventStore.CountPoisonedEvents(groupId, @event.TopicPartitionOffset.Topic, token);
-        if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
-            throw new EventHandlingException(
-                @event.TopicPartitionOffset.Topic,
-                $"Dead letter queue size ({alreadyPoisoned}) exceeds threshold ({maxNumberOfPoisonedEventsInTopic}). " +
-                $"Poison event: {@event.TopicPartitionOffset}. " +
-                $"Error: {failureReason}",
-                null);
 
         var topicKeys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
 

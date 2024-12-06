@@ -31,6 +31,9 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
             return Task.FromResult((IKeySet<Event>)new EmptyKeySet());
         }
 
+        public Task Add(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+            => Task.FromResult(false);
+
         public Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
             => Task.FromResult(false);
 
