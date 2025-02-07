@@ -18,9 +18,7 @@
 		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
 			<_Parameter1>Eventso.Subscription.Tests</_Parameter1>
 		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-			<_Parameter1>Eventso.Subscription.Kafka</_Parameter1>
-		</AssemblyAttribute>
+		
 	</ItemGroup>
 
 	<ItemGroup>

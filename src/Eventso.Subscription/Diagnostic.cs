@@ -26,7 +26,7 @@ public static class Diagnostic
         return activity;
     }
 
-    internal static RootActivityScope StartRooted(string name, ActivityKind kind = ActivityKind.Internal)
+    public static RootActivityScope StartRooted(string name, ActivityKind kind = ActivityKind.Internal)
     {
         var previous = Activity.Current;
         Activity.Current = null;
@@ -36,7 +36,7 @@ public static class Diagnostic
         return new RootActivityScope(newRoot, previous);
     }
 
-    internal readonly struct RootActivityScope : IDisposable
+    public readonly struct RootActivityScope : IDisposable
     {
         public readonly Activity? Activity;
 

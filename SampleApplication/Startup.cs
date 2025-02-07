@@ -130,10 +130,10 @@ public class Startup
                         {
                             Topic = topic
                         },
-                        new BatchConfiguration() { MaxBatchSize = 3, MaxBufferSize = 5 },
+                        new BatchConfiguration { MaxBatchSize = 3, MaxBufferSize = 5 },
                         new JsonMessageDeserializer<T>());
             },
-            types => types.FromCallingAssembly());
+            types => types.FromApplicationDependencies());
 
         if (enableDlq)
             services.AddPostgresDeadLetterQueue(
