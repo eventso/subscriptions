@@ -16,8 +16,7 @@ public interface IPoisonEventQueue
     // inbox
     Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token);
 
-    // inbox
-    Task Add(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token);
+    Task<bool> IsLimitReached(TopicPartition topicPartition, CancellationToken token);
 
     // queue
     Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token);

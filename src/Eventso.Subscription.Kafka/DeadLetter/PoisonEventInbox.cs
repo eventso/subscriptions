@@ -18,13 +18,21 @@ public sealed class PoisonEventInbox(
     public Task<IKeySet<Event>> GetEventKeys(string topic, CancellationToken token)
         => poisonEventQueue.GetKeys(topic, token);
 
-    public Task Add(Event @event, string reason, CancellationToken token)
+    public async Task Add(Event @event, string reason, CancellationToken token)
     {
         var topicPartitionOffset = @event.GetTopicPartitionOffset();
-        var rawEvent = _deadMessageConsumer.Value.Consume(topicPartitionOffset, token);
-        return poisonEventQueue.Enqueue(rawEvent, DateTime.UtcNow, reason, token);
-    }
 
+        if (await poisonEventQueue.IsLimitReached(topicPartitionOffset.TopicPartition, token))
+            throw new EventHandlingException(
+                topicPartitionOffset.Topic,
+                $"Dead letter queue size exceeds threshold. Poison event: {topicPartitionOffset}. Error: {reason}",
+                null);
+
+        var rawEvent = _deadMessageConsumer.Value.Consume(topicPartitionOffset, token);
+
+        await poisonEventQueue.Enqueue(rawEvent, DateTime.UtcNow, reason, token);
+    }
+    
     public void Dispose()
     {
         if (_deadMessageConsumer.IsValueCreated)
@@ -112,8 +120,8 @@ public sealed class PoisonEventInbox(
 
         public sealed class ByteArrayWrapperDeserializer : IDeserializer<ConsumedMessage>
         {
-            internal static readonly IDeserializer<ConsumedMessage> Instance = new ByteArrayWrapperDeserializer(); 
-        
+            internal static readonly IDeserializer<ConsumedMessage> Instance = new ByteArrayWrapperDeserializer();
+
             public ConsumedMessage Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
             {
                 return new ConsumedMessage(

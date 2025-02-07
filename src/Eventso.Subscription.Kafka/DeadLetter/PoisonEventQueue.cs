@@ -24,22 +24,22 @@ public sealed class PoisonEventQueue(
         var concurrentKeysCollections = _topicPoisonKeys.GetOrAdd(
             topicPartition.Topic,
             static topic => new TopicPoisonKeysCollection(topic));
-        
+
         concurrentKeysCollections.Register(topicPartition.Partition, GetPoisonKeys);
-        
+
         logger.PartitionAssign(groupId, topicPartition.Topic, topicPartition.Partition);
 
         async Task<IReadOnlyCollection<Guid>> GetPoisonKeys(CancellationToken token)
         {
             await Task.Yield();
-            
+
             var poisonedKeys = new List<Guid>();
 
             var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, token);
             await foreach (var key in keysSource)
                 poisonedKeys.Add(DeserializeKey(topicPartition.Topic, [], key)); // note: empty headers here
 
-            logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);     
+            logger.PartitionKeysAcquired(groupId, topicPartition.Topic, topicPartition.Partition);
 
             return poisonedKeys;
         }
@@ -60,23 +60,21 @@ public sealed class PoisonEventQueue(
         return keySet;
     }
 
-    public async Task Add(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+    public async Task<bool> IsLimitReached(TopicPartition topicPartition, CancellationToken token)
     {
-        var alreadyPoisoned = await poisonEventStore.CountPoisonedEvents(groupId, @event.TopicPartitionOffset.Topic, token);
-        if (alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic)
-            throw new EventHandlingException(
-                @event.TopicPartitionOffset.Topic,
-                $"Dead letter queue size ({alreadyPoisoned}) exceeds threshold ({maxNumberOfPoisonedEventsInTopic}). " +
-                $"Poison event: {@event.TopicPartitionOffset}. " +
-                $"Error: {failureReason}",
-                null);
+        var alreadyPoisoned = await poisonEventStore.CountPoisonedEvents(groupId, topicPartition.Topic, token);
 
-        await Enqueue(@event, failureTimestamp, failureReason, token);
+        return alreadyPoisoned >= maxNumberOfPoisonedEventsInTopic;
     }
 
-    public async Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+    public async Task Enqueue(
+        ConsumeResult<byte[], byte[]> @event,
+        DateTime failureTimestamp,
+        string failureReason,
+        CancellationToken token)
     {
         var key = DeserializeKey(@event.Topic, @event.Message.Headers, @event.Message.Key);
+
         logger.Enqueue(
             groupId,
             @event.TopicPartitionOffset.Topic,
@@ -132,6 +130,7 @@ public sealed class PoisonEventQueue(
     public async Task Dequeue(ConsumeResult<byte[], byte[]> @event, CancellationToken token)
     {
         var key = DeserializeKey(@event.Topic, @event.Message.Headers, @event.Message.Key);
+
         logger.Dequeue(
             groupId,
             @event.TopicPartitionOffset.Topic,
@@ -140,7 +139,7 @@ public sealed class PoisonEventQueue(
             key);
 
         var topicKeys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
-        
+
         await poisonEventStore.RemoveEvent(groupId, @event.TopicPartitionOffset, token);
         if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, token))
             return;

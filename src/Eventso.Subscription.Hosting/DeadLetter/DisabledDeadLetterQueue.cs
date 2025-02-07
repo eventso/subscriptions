@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
@@ -27,11 +26,9 @@ public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
         }
 
         public Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token)
-        {
-            return Task.FromResult((IKeySet<Event>)new EmptyKeySet());
-        }
+            => Task.FromResult<IKeySet<Event>>(new EmptyKeySet());
 
-        public Task Add(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
+        public Task<bool> IsLimitReached(TopicPartition topicPartition, CancellationToken token)
             => Task.FromResult(false);
 
         public Task Enqueue(ConsumeResult<byte[], byte[]> @event, DateTime failureTimestamp, string failureReason, CancellationToken token)
