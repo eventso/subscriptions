@@ -1,6 +1,6 @@
 using Eventso.Subscription.Observing.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public interface IPoisonEventInboxFactory<TEvent>
     where TEvent : IEvent

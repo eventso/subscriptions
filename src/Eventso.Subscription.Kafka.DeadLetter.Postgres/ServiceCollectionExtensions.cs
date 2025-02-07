@@ -1,4 +1,5 @@
 using Eventso.Subscription.Hosting;
+using Eventso.Subscription.Hosting.DeadLetter;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

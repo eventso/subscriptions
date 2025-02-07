@@ -1,4 +1,4 @@
-﻿namespace Eventso.Subscription.Hosting;
+﻿namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class DeadLetterQueueOptions
 {

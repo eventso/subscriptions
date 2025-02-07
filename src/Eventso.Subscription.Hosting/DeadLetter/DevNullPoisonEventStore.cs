@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using Confluent.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 internal sealed class DevNullPoisonEventStore : IPoisonEventStore, IPoisonEventRetryScheduler
 {

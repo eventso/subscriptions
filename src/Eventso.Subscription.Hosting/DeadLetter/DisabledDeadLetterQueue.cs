@@ -3,12 +3,12 @@ using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class DisabledDeadLetterQueue : IPoisonEventQueueFactory
 {
     public static DisabledDeadLetterQueue Instance { get; } = new();
-    
+
     public IPoisonEventQueue Create(string groupId, string subscriptionId)
         => DisabledPoisonEventQueue.Instance;
 

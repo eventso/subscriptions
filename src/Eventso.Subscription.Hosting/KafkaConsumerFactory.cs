@@ -1,3 +1,4 @@
+using Eventso.Subscription.Hosting.DeadLetter;
 using Eventso.Subscription.Kafka;
 
 namespace Eventso.Subscription.Hosting;

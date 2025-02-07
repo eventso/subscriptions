@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using System.Diagnostics.Metrics;
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class PoisonEventQueueMetricCollector : BackgroundService
 {

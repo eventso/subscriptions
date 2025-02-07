@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Eventso.Subscription.Hosting;
+using Eventso.Subscription.Hosting.DeadLetter;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Microsoft.AspNetCore.Mvc;
 

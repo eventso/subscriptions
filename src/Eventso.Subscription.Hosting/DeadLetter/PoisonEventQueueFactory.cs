@@ -1,6 +1,6 @@
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class PoisonEventQueueFactory : IPoisonEventQueueFactory
 {
@@ -26,7 +26,7 @@ public sealed class PoisonEventQueueFactory : IPoisonEventQueueFactory
                     loggerFactory.CreateLogger<PoisonEventQueue>()));
 
     }
-    
+
     public IPoisonEventQueue Create(string groupId, string subscriptionId)
     {
         return _poisonEventQueues.TryGetValue((groupId, subscriptionId), out var poisonEventQueue)

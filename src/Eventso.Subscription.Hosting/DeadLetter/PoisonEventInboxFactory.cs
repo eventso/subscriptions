@@ -2,7 +2,7 @@ using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Observing.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class PoisonEventInboxFactory(
     IPoisonEventQueue poisonEventQueue,

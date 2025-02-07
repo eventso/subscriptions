@@ -4,7 +4,7 @@ using Confluent.Kafka;
 using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingService
 {
@@ -73,7 +73,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
             retryingService,
             loggerFactory.CreateLogger<Worker>());
     }
-    
+
     private sealed class Worker(
         string[] topics,
         IPoisonEventQueue poisonEventQueue,

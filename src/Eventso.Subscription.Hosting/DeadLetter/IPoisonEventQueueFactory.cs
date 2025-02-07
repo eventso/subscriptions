@@ -1,6 +1,6 @@
 using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription.Hosting.DeadLetter;
 
 public interface IPoisonEventQueueFactory
 {
