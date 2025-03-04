@@ -63,8 +63,8 @@ internal static partial class KafkaConsumerLog
     [LoggerMessage(
         EventId = 4007,
         Level = LogLevel.Information,
-        Message = "Consumer rebalance. Lost: {TopicPartitionOffsets}")]
-    public static partial void RebalancePartitionsLost(
+        Message = "Consumer closed. Assignment: {topicPartitions}")]
+    public static partial void ConsumerClosed(
         this ILogger<KafkaConsumer> logger,
-        IReadOnlyCollection<TopicPartitionOffset> topicPartitionOffsets);
+        IReadOnlyCollection<TopicPartition> topicPartitions);
 }

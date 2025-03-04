@@ -1,53 +1,17 @@
-using Eventso.Subscription.Hosting.DeadLetter;
-using Eventso.Subscription.Kafka.DeadLetter;
-using Eventso.Subscription.Observing.DeadLetter;
-
 namespace Eventso.Subscription.Hosting;
 
-public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
-    where TEvent : IEvent
+public class ObserverFactory<TEvent>(
+    SubscriptionConfiguration configuration,
+    IMessagePipelineFactory messagePipelineFactory,
+    IMessageHandlersRegistry messageHandlersRegistry,
+    ILoggerFactory loggerFactory) : IObserverFactory<TEvent> where TEvent : IEvent
 {
-    private readonly SubscriptionConfiguration _configuration;
-    private readonly IMessagePipelineFactory _messagePipelineFactory;
-    private readonly IMessageHandlersRegistry _messageHandlersRegistry;
-    private readonly IPoisonEventQueue _poisonEventQueue;
-    private readonly IPoisonEventInboxFactory<TEvent> _poisonEventInboxFactory;
-    private readonly ILoggerFactory _loggerFactory;
-
-    public ObserverFactory(
-        SubscriptionConfiguration configuration,
-        IMessagePipelineFactory messagePipelineFactory,
-        IMessageHandlersRegistry messageHandlersRegistry,
-        IPoisonEventQueue poisonEventQueue,
-        IPoisonEventInboxFactory<TEvent> poisonEventInboxFactory,
-        ILoggerFactory loggerFactory)
-    {
-        _configuration = configuration;
-        _messagePipelineFactory = messagePipelineFactory;
-        _messageHandlersRegistry = messageHandlersRegistry;
-        _poisonEventQueue = poisonEventQueue;
-        _poisonEventInboxFactory = poisonEventInboxFactory;
-        _loggerFactory = loggerFactory;
-    }
-
-
     public IObserver<TEvent> Create(IConsumer<TEvent> consumer, string topic)
     {
-        var topicConfig = _configuration.GetByTopic(topic);
+        var topicConfig = configuration.GetByTopic(topic);
 
-        IEventHandler<TEvent> eventHandler = new Observing.EventHandler<TEvent>(
-            _messageHandlersRegistry,
-            _messagePipelineFactory.Create(topicConfig.HandlerConfig, withDlq: _poisonEventQueue.IsEnabled));
-
-        if (_poisonEventQueue.IsEnabled)
-        {
-            eventHandler = new PoisonEventHandler<TEvent>(
-                topic,
-                _poisonEventInboxFactory.Create(topic),
-                eventHandler);
-        }
-
-        eventHandler = new LoggingScopeEventHandler<TEvent>(eventHandler, topic, _loggerFactory.CreateLogger("EventHandler"));
+        var eventHandler =
+            new LoggingScopeEventHandler<TEvent>(CreateBaseHandler(topicConfig), topic, loggerFactory.CreateLogger("EventHandler"));
 
         var observer = topicConfig.BatchProcessingRequired
             ? CreateBatchEventObserver(consumer, eventHandler, topicConfig)
@@ -62,36 +26,43 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
         return observer;
     }
 
+    protected virtual IEventHandler<TEvent> CreateBaseHandler(TopicSubscriptionConfiguration topicConfiguration)
+    {
+        return new Observing.EventHandler<TEvent>(
+            messageHandlersRegistry,
+            messagePipelineFactory.Create(topicConfiguration.HandlerConfig));
+    }
+
     private BatchEventObserver<TEvent> CreateBatchEventObserver(
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
-        TopicSubscriptionConfiguration configuration)
+        TopicSubscriptionConfiguration topicConfiguration)
     {
         return new BatchEventObserver<TEvent>(
-            configuration.BatchConfiguration!,
-            configuration.BatchConfiguration!.HandlingStrategy switch
+            topicConfiguration.BatchConfiguration!,
+            topicConfiguration.BatchConfiguration!.HandlingStrategy switch
             {
                 BatchHandlingStrategy.SingleType => eventHandler,
                 BatchHandlingStrategy.SingleTypeLastByKey => new SingleTypeLastByKeyEventHandler<TEvent>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinKey => new OrderedWithinKeyEventHandler<TEvent>(eventHandler),
                 BatchHandlingStrategy.OrderedWithinType => new OrderedWithinTypeEventHandler<TEvent>(eventHandler),
-                _ => throw new InvalidOperationException($"Unknown handling strategy: {configuration.BatchConfiguration.HandlingStrategy}")
+                _ => throw new InvalidOperationException($"Unknown handling strategy: {topicConfiguration.BatchConfiguration.HandlingStrategy}")
             },
             consumer,
-            _messageHandlersRegistry,
-            _loggerFactory.CreateLogger<BatchEventObserver<TEvent>>(),
-            configuration.SkipUnknownMessages);
+            messageHandlersRegistry,
+            loggerFactory.CreateLogger<BatchEventObserver<TEvent>>(),
+            topicConfiguration.SkipUnknownMessages);
     }
 
     private IObserver<TEvent> CreateSingleEventObserver(
         IConsumer<TEvent> consumer,
         IEventHandler<TEvent> eventHandler,
-        TopicSubscriptionConfiguration configuration)
+        TopicSubscriptionConfiguration topicConfiguration)
     {
         return new EventObserver<TEvent>(
             eventHandler,
             consumer,
-            _messageHandlersRegistry,
-            configuration.SkipUnknownMessages);
+            messageHandlersRegistry,
+            topicConfiguration.SkipUnknownMessages);
     }
 }

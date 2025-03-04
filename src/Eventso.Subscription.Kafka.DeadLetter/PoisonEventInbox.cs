@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;

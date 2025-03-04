@@ -7,6 +7,7 @@ public interface IPoisonEventQueue
     // manager
     bool IsEnabled { get; }
 
+    //Check case: consumer recreating
     // manager
     void Assign(TopicPartition topicPartition);
     

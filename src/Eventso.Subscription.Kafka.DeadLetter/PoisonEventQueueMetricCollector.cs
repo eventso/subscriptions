@@ -1,8 +1,10 @@
 using System.Collections.Frozen;
 using System.Diagnostics.Metrics;
-using Eventso.Subscription.Kafka.DeadLetter;
+using Eventso.Subscription.Hosting;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace Eventso.Subscription.Hosting.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventQueueMetricCollector : BackgroundService
 {
@@ -11,8 +13,7 @@ public sealed class PoisonEventQueueMetricCollector : BackgroundService
     private readonly IPoisonEventStore _poisonEventStore;
     private readonly ILogger<PoisonEventQueueMetricCollector> _logger;
 
-    private readonly FrozenDictionary<ConsumingTarget, PoisonCounter> _measurements;
-    private readonly object _lockObject = new();
+    private readonly FrozenDictionary<ConsumingTopic, PoisonCounter> _measurements;
 
     private bool _isInitialized = false;
 
@@ -25,7 +26,7 @@ public sealed class PoisonEventQueueMetricCollector : BackgroundService
             .SelectMany(s =>
                 s.SelectMany(ss =>
                     ss.TopicConfigurations.Select(sss =>
-                        new ConsumingTarget(sss.Topic, ss.Settings.Config.GroupId))))
+                        new ConsumingTopic(sss.Topic, ss.Settings.Config.GroupId))))
             .ToFrozenDictionary(s => s, s => new PoisonCounter(s));
 
         _poisonEventStore = poisonEventStore;
@@ -63,12 +64,12 @@ public sealed class PoisonEventQueueMetricCollector : BackgroundService
     private Measurement<long>[] CollectMeasurements()
         => _isInitialized ? _measurements.Select(v => v.Value.ToMeasurement()).ToArray() : [];
 
-    private sealed class PoisonCounter(ConsumingTarget consumingTarget)
+    private sealed class PoisonCounter(ConsumingTopic consumingTopic)
     {
         private readonly KeyValuePair<string, object?>[] _tags = new[]
         {
-            new KeyValuePair<string, object?>("topic", consumingTarget.Topic),
-            new KeyValuePair<string, object?>("group", consumingTarget.GroupId)
+            new KeyValuePair<string, object?>("topic", consumingTopic.Topic),
+            new KeyValuePair<string, object?>("group", consumingTopic.GroupId)
         };
 
         public long Value { get; set; }

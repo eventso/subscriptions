@@ -1,4 +1,7 @@
-namespace Eventso.Subscription.Hosting.DeadLetter;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventQueueRetryingHost(
     IPoisonEventQueueRetryingService queueRetryingService,

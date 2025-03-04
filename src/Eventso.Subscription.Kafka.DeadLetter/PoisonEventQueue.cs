@@ -13,8 +13,7 @@ public sealed class PoisonEventQueue(
     ILogger<PoisonEventQueue> logger)
     : IPoisonEventQueue
 {
-    private readonly ConcurrentDictionary<string, TopicPoisonKeysCollection> _topicPoisonKeys =
-        new ConcurrentDictionary<string, TopicPoisonKeysCollection>(concurrencyLevel: 1, capacity: 1);
+    private readonly ConcurrentDictionary<string, TopicPoisonKeysCollection> _topicPoisonKeys = new(concurrencyLevel: 1, capacity: 1);
 
     public bool IsEnabled => true;
 
@@ -36,6 +35,7 @@ public sealed class PoisonEventQueue(
             var poisonedKeys = new List<Guid>();
 
             var keysSource = poisonEventStore.GetPoisonedKeys(groupId, topicPartition, token);
+
             await foreach (var key in keysSource)
                 poisonedKeys.Add(DeserializeKey(topicPartition.Topic, [], key)); // note: empty headers here
 
@@ -54,11 +54,8 @@ public sealed class PoisonEventQueue(
         logger.PartitionRevoke(groupId, topicPartition.Topic, topicPartition.Partition);
     }
 
-    public async Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token)
-    {
-        var keySet = await GetTopicKeys(topic).GetKeys(token);
-        return keySet;
-    }
+    public async Task<IKeySet<Event>> GetKeys(string topic, CancellationToken token) 
+        => await GetTopicKeys(topic).GetKeys(token);
 
     public async Task<bool> IsLimitReached(TopicPartition topicPartition, CancellationToken token)
     {
@@ -141,6 +138,7 @@ public sealed class PoisonEventQueue(
         var topicKeys = GetTopicKeys(@event.TopicPartitionOffset.TopicPartition.Topic);
 
         await poisonEventStore.RemoveEvent(groupId, @event.TopicPartitionOffset, token);
+
         if (await poisonEventStore.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, token))
             return;
 

@@ -1,7 +1,6 @@
 using System.Collections.Frozen;
 using System.Diagnostics;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka;
@@ -10,7 +9,7 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 {
     private readonly string[] _topics;
     private readonly IObserverFactory<Event> _observerFactory;
-    private readonly IPoisonEventQueue _poisonEventQueue;
+    private readonly IConsumerEventsObserver _eventsObserver;
     private readonly int _maxObserveInterval;
     private readonly ILogger<KafkaConsumer> _logger;
     private readonly IConsumer<Guid, ConsumedMessage> _consumer;
@@ -23,56 +22,42 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         string[] topics,
         IObserverFactory<Event> observerFactory,
         IDeserializer<ConsumedMessage> deserializer,
-        IPoisonEventQueue poisonEventQueue,
+        IConsumerEventsObserver eventsObserver,
         KafkaConsumerSettings settings,
         ILogger<KafkaConsumer> logger)
     {
-        if (deserializer == null) throw new ArgumentNullException(nameof(deserializer));
+        ArgumentNullException.ThrowIfNull(observerFactory, nameof(observerFactory));
+        ArgumentNullException.ThrowIfNull(deserializer, nameof(deserializer));
+        ArgumentNullException.ThrowIfNull(eventsObserver, nameof(eventsObserver));
 
         if (topics.Length == 0 || topics.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Topics are not specified or contains empty value.");
 
         _topics = topics;
-
-        _observerFactory = observerFactory ?? throw new ArgumentNullException(nameof(observerFactory));
-        _poisonEventQueue = poisonEventQueue ?? throw new ArgumentNullException(nameof(poisonEventQueue));
+        _observerFactory = observerFactory;
+        _eventsObserver = eventsObserver;
+        _logger = logger;
 
         _maxObserveInterval = (settings.Config.MaxPollIntervalMs ?? 300000) + 500;
         _observeMaxDelay = settings.PauseAfterObserveDelay
             ?? TimeSpan.FromMilliseconds(settings.Config.SessionTimeoutMs ?? 45000);
 
-        _logger = logger;
-
-        _consumer = BuildConsumer(settings, deserializer);
-
         _autoCommitMode = settings.Config.EnableAutoCommit == true;
 
+        _consumer = BuildConsumer(settings, deserializer);
         _consumer.Subscribe(topics);
     }
 
-    private IConsumer<Guid, ConsumedMessage> BuildConsumer(KafkaConsumerSettings settings, IDeserializer<ConsumedMessage> deserializer)
+    private IConsumer<Guid, ConsumedMessage> BuildConsumer(
+        KafkaConsumerSettings settings,
+        IDeserializer<ConsumedMessage> deserializer)
     {
         return settings.CreateBuilder()
             .SetKeyDeserializer(KeyGuidDeserializer.Instance)
             .SetValueDeserializer(deserializer)
-            .SetPartitionsAssignedHandler((_, assigned) =>
-            {
-                _logger.RebalancePartitionsAssigned(assigned);
-                foreach (var topicPartition in assigned)
-                    _poisonEventQueue.Assign(topicPartition);
-            })
-            .SetPartitionsRevokedHandler((_, revoked) =>
-            {
-                _logger.RebalancePartitionsRevoked(revoked);
-                foreach (var topicPartitionOffset in revoked)
-                    _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
-            })
-            .SetPartitionsLostHandler((_, lost) =>
-            {
-                _logger.RebalancePartitionsLost(lost);
-                foreach (var topicPartitionOffset in lost)
-                    _poisonEventQueue.Revoke(topicPartitionOffset.TopicPartition);
-            })
+            .SetPartitionsAssignedHandler((_, assigned) => _eventsObserver.OnAssign(assigned))
+            .SetPartitionsRevokedHandler((_, revoked) => _eventsObserver.OnRevoke(revoked))
+            .SetPartitionsLostHandler((_, lost) => _eventsObserver.OnRevoke(lost))
             .SetErrorHandler((_, e) =>
                 _logger.ConsumeError(_topics, e.Reason, e.IsFatal, e.IsLocalError, e.IsBrokerError))
             .Build();
@@ -80,6 +65,8 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
 
     public void Close()
     {
+        _eventsObserver.OnClose(_consumer.Assignment);
+
         if (_autoCommitMode)
         {
             try
@@ -94,7 +81,11 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
         _consumer.Close();
     }
 
-    public void Dispose() => _consumer.Dispose();
+    public void Dispose()
+    {
+        _eventsObserver.OnClose(_consumer.Assignment);
+        _consumer.Dispose();
+    }
 
     public async Task Consume(CancellationToken stoppingToken)
     {
@@ -171,15 +162,9 @@ public sealed class KafkaConsumer : ISubscriptionConsumer
             {
                 activity?.SetException(ex);
 
-                if (_poisonEventQueue.IsEnabled)
-                {
-                    // possible offset commit fail will increment retry count as side effect but we can live with it
-                    await _poisonEventQueue.Enqueue(ex.ConsumerRecord, DateTime.UtcNow, ex.Message, token);
+                if (await _eventsObserver.TryHandleSerializationException(ex, token))
                     return null;
-                }
-
-                _logger.SerializationError(ex, ex.ConsumerRecord?.TopicPartitionOffset);
-
+                
                 if (ex.ConsumerRecord != null)
                 {
                     activity?.SetTags(ex.ConsumerRecord);

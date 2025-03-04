@@ -5,7 +5,7 @@ namespace Eventso.Subscription.Kafka;
 
 public sealed class KeyGuidDeserializer : IDeserializer<Guid>
 {
-    internal static readonly IDeserializer<Guid> Instance = new KeyGuidDeserializer(); 
+    public static readonly KeyGuidDeserializer Instance = new(); 
         
     public Guid Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
     {

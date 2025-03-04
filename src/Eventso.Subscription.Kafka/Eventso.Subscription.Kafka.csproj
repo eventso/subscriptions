@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -7,7 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="HashDepot" />
-    <PackageReference Include="System.Collections.Immutable" Condition="'$(TargetFramework)' == 'net6.0'"/>
+    <PackageReference Include="System.Collections.Immutable" Condition="'$(TargetFramework)' == 'net6.0'" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
@@ -28,12 +28,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Update="DeadLetter\PoisonEventQueue.Log.cs">
-	    <DependentUpon>PoisonEventQueue.cs</DependentUpon>
-	  </Compile>
-	  <Compile Update="DeadLetter\PoisonEventRetryingService.Log.cs">
-	    <DependentUpon>PoisonEventRetryingService.cs</DependentUpon>
-	  </Compile>
 	  <Compile Update="KafkaConsumerLog.cs">
 	    <DependentUpon>KafkaConsumer.cs</DependentUpon>
 	  </Compile>

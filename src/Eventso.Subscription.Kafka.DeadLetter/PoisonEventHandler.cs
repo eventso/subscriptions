@@ -1,4 +1,4 @@
-namespace Eventso.Subscription.Observing.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventHandler<TEvent>(
     string topic,

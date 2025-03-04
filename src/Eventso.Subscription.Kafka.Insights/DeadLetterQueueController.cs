@@ -46,13 +46,15 @@ public sealed class DeadLetterQueueController(
             @event.Key.Span,
             @event.Key.IsEmpty,
             new SerializationContext(MessageComponentType.Key, offset.Topic, headers));
+
         var consumedMessage = new ValueDeserializer(
                 configuration.GetByTopic(offset.Topic).Serializer,
-                AllHandlingMessageHandlerRegistry.Instance)
+                new MessageHandlersRegistry())
             .Deserialize(
                 @event.Value.Span,
                 @event.Value.IsEmpty,
                 new SerializationContext(MessageComponentType.Value, offset.Topic, headers));
+        
         return new JsonResult(
             new
             {
@@ -71,6 +73,7 @@ public sealed class DeadLetterQueueController(
     [HttpPost("delete")]
     public Task Delete(GroupTopicPartitionOffset offset, CancellationToken token)
     {
+        //TODO: Mark in db table and delete in bg service on retry
         // assuming that it will called really rare
         // keep in mind that it will remove even not partitions of current consumer (another dlq instance)
         return eventStore.RemoveEvent(
@@ -82,6 +85,7 @@ public sealed class DeadLetterQueueController(
     [HttpPost("retry")]
     public Task Retry(CancellationToken token)
     {
+        //TODO: move time in db
         // will run only on consumers from calling machine
         return queueRetryingService.Run(token);
     }

@@ -6,29 +6,28 @@ namespace Eventso.Subscription.Pipeline;
 public sealed class MessagePipelineFactory : IMessagePipelineFactory
 {
     private readonly IMessageHandlerScopeFactory _scopeFactory;
+    private readonly ResiliencePipeline _resiliencePipeline;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ResiliencePipeline _defaultPipeline;
-    private readonly ResiliencePipeline _defaultShortRetryPipeline;
 
     public MessagePipelineFactory(
         IMessageHandlerScopeFactory scopeFactory,
+        ResiliencePipeline resiliencePipeline,
         ILoggerFactory loggerFactory)
     {
         _scopeFactory = scopeFactory;
+        _resiliencePipeline = resiliencePipeline;
         _loggerFactory = loggerFactory;
 
         var logger = _loggerFactory.CreateLogger<RetryingAction>();
-        _defaultPipeline = DefaultRetryingStrategy.GetDefaultBuilder(logger).Build();
-        _defaultShortRetryPipeline = DefaultRetryingStrategy.GetDefaultShortRetryBuilder(logger).Build();
+        //_defaultPipeline = DefaultRetryingStrategy.GetDefaultBuilder(logger).Build();
+        //_defaultShortRetryPipeline = DefaultRetryingStrategy.GetDefaultShortRetryBuilder(logger).Build();
     }
 
-    public IMessagePipelineAction Create(HandlerConfiguration config, bool withDlq)
+    public IMessagePipelineAction Create(HandlerConfiguration config)
     {
-        var defaultPipeline = withDlq ? _defaultShortRetryPipeline : _defaultPipeline;
-
         IMessagePipelineAction action = new RetryingAction(
-            config.ResiliencePipeline ?? defaultPipeline,
-            config.BatchSliceResiliencePipeline ?? defaultPipeline,
+            config.ResiliencePipeline ?? _resiliencePipeline,
+            config.BatchSliceResiliencePipeline ?? _resiliencePipeline,
             new MessageHandlingAction(_scopeFactory, config.RunHandlersInParallel));
 
         if (config.LoggingEnabled)

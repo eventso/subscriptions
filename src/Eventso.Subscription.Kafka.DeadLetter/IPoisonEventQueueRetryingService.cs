@@ -1,4 +1,4 @@
-namespace Eventso.Subscription.Hosting.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public interface IPoisonEventQueueRetryingService
 {

@@ -2,7 +2,7 @@
 
 namespace Eventso.Subscription.Hosting;
 
-internal sealed class MessageHandlersRegistry : IMessageHandlersRegistry
+public sealed class MessageHandlersRegistry : IMessageHandlersRegistry
 {
     private readonly FrozenDictionary<Type, HandlerKind>? _types;
 

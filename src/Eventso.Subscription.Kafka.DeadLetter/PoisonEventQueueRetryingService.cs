@@ -1,10 +1,8 @@
 using System.Collections.Frozen;
-using System.Runtime.CompilerServices;
-using Confluent.Kafka;
-using Eventso.Subscription.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
+using Eventso.Subscription.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace Eventso.Subscription.Hosting.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingService
 {

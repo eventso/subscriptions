@@ -1,15 +1,14 @@
 using System.Collections.Immutable;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter;
 
-namespace Eventso.Subscription.Hosting.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
-internal sealed class DevNullPoisonEventStore : IPoisonEventStore, IPoisonEventRetryScheduler
+internal sealed class NullPoisonEventStore : IPoisonEventStore, IPoisonEventRetryScheduler
 {
-    public static DevNullPoisonEventStore Instance { get; } = new DevNullPoisonEventStore();
+    public static NullPoisonEventStore Instance { get; } = new NullPoisonEventStore();
 
-    public Task<IReadOnlyDictionary<ConsumingTarget, long>> CountPoisonedEvents(CancellationToken token)
-        => Task.FromResult((IReadOnlyDictionary<ConsumingTarget, long>)ImmutableDictionary<ConsumingTarget, long>.Empty);
+    public Task<IReadOnlyDictionary<ConsumingTopic, long>> CountPoisonedEvents(CancellationToken token)
+        => Task.FromResult((IReadOnlyDictionary<ConsumingTopic, long>)ImmutableDictionary<ConsumingTopic, long>.Empty);
 
     public Task<long> CountPoisonedEvents(string groupId, string topic, CancellationToken token)
         => Task.FromResult(0L);

@@ -26,7 +26,7 @@ public sealed class KafkaController : ControllerBase
 
         var valueObjectDeserializer = new ValueDeserializer(
             configuration.GetByTopic(topic).Serializer,
-            AllHandlingMessageHandlerRegistry.Instance);
+            new MessageHandlersRegistry());
 
         using var consumer = KafkaConsumerFactory.Create(
             configuration.Settings.Config.BootstrapServers,

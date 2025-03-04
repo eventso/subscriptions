@@ -65,6 +65,6 @@ public readonly struct Event : IEvent
         return new[] { offset, resultPair };
     }
 
-    internal TopicPartitionOffset GetTopicPartitionOffset()
+    public TopicPartitionOffset GetTopicPartitionOffset()
         => _consumeResult.TopicPartitionOffset;
 }

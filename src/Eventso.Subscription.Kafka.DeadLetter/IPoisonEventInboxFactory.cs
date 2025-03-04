@@ -1,6 +1,4 @@
-using Eventso.Subscription.Observing.DeadLetter;
-
-namespace Eventso.Subscription.Hosting.DeadLetter;
+namespace Eventso.Subscription.Kafka.DeadLetter;
 
 public interface IPoisonEventInboxFactory<TEvent>
     where TEvent : IEvent

@@ -1,7 +1,6 @@
-using Eventso.Subscription.Hosting.DeadLetter;
-using Eventso.Subscription.Kafka.DeadLetter;
 using Eventso.Subscription.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Scrutor;
 
 namespace Eventso.Subscription.Hosting;
@@ -31,46 +30,7 @@ public static class ServiceCollectionExtensions
                 .AsImplementedInterfaces()
                 .WithLifetime(handlersLifetime));
 
-        // just for DI work
-        services.TryAddSingleton<IPoisonEventQueueFactory>(DisabledDeadLetterQueue.Instance);
-
         return services;
-    }
-
-    public static void AddDevNullDeadLetterQueue(this IServiceCollection services)
-    {
-        services.AddDeadLetterQueue(
-            _ => { },
-            _ => DevNullPoisonEventStore.Instance,
-            (_, _) => DevNullPoisonEventStore.Instance);
-    }
-
-    // TODO make more like MvcBuilder or smth
-    public static void AddDeadLetterQueue(
-        this IServiceCollection services,
-        Action<DeadLetterQueueOptions> configureOptions,
-        Func<IServiceProvider, IPoisonEventStore> provideStore,
-        Func<IServiceProvider, DeadLetterQueueOptions.RetrySchedulingOptions, IPoisonEventRetryScheduler> provideRetryingScheduler)
-    {
-        services.RemoveAll<IPoisonEventQueueFactory>();
-        services.RemoveAll<DeadLetterQueueOptions>();
-        services.RemoveAll<IPoisonEventStore>();
-        services.RemoveAll<IPoisonEventRetryScheduler>();
-        services.RemoveAll<IPoisonEventQueueRetryingService>();
-
-        var options = new DeadLetterQueueOptions();
-        configureOptions(options);
-        services.TryAddSingleton(options);
-
-        services.TryAddSingleton(provideStore);
-        services.TryAddSingleton<IPoisonEventRetryScheduler>(sp =>
-            provideRetryingScheduler(
-                sp,
-                sp.GetRequiredService<DeadLetterQueueOptions>().GetRetrySchedulingOptions()));
-        services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
-        services.TryAddSingleton<IPoisonEventQueueRetryingService, PoisonEventQueueRetryingService>();
-        services.AddHostedService<PoisonEventQueueRetryingHost>();
-        services.AddHostedService<PoisonEventQueueMetricCollector>();
     }
 
     private static void TryAddSubscriptionServices(IServiceCollection services)
@@ -82,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IMessagePipelineFactory>(p =>
             new MessagePipelineFactory(
                 p.GetRequiredService<IMessageHandlerScopeFactory>(),
+                DefaultRetryingStrategy.GetDefaultBuilder(p.GetRequiredService<ILoggerFactory>().CreateLogger<RetryingAction>()).Build(),
                 p.GetRequiredService<ILoggerFactory>()));
         services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));
         services.TryAddSingleton<IConsumerFactory, KafkaConsumerFactory>();
