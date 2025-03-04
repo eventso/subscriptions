@@ -7,7 +7,7 @@ public record KafkaConsumerSettings
     private readonly Func<ConsumerConfig, ConsumerBuilder<Guid, ConsumedMessage>> _builderFactory =
         c => new ConsumerBuilder<Guid, ConsumedMessage>(c);
 
-    public KafkaConsumerSettings()
+    protected KafkaConsumerSettings()
     {
         Config = new ConsumerConfig
         {
@@ -73,6 +73,9 @@ public record KafkaConsumerSettings
         string? groupInstanceId)
         : this()
     {
+        if (string.IsNullOrEmpty(groupId))
+            throw new ArgumentNullException(nameof(groupId), "GroupId should be specified.");
+
         Config.GroupId = groupId;
         Config.AutoOffsetReset = autoOffsetReset;
 
@@ -104,4 +107,7 @@ public record KafkaConsumerSettings
 
         return this with { Config =  config };
     }
+
+    public KafkaConsumerSettings Duplicate()
+        => this with { Config = new ConsumerConfig(new Dictionary<string, string>(Config)) };
 }

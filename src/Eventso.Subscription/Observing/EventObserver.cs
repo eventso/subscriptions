@@ -1,5 +1,3 @@
-using Eventso.Subscription.Configurations;
-
 namespace Eventso.Subscription.Observing;
 
 public sealed class EventObserver<TEvent> : IObserver<TEvent>
@@ -10,87 +8,45 @@ public sealed class EventObserver<TEvent> : IObserver<TEvent>
     private readonly IMessageHandlersRegistry _messageHandlersRegistry;
 
     private readonly bool _skipUnknown;
-    private readonly DeferredAckConfiguration _deferredAckConfig;
-    private readonly List<TEvent> _skipped = new();
-    private readonly Timer _deferredAckTimer;
 
     public EventObserver(
         IEventHandler<TEvent> eventHandler,
         IConsumer<TEvent> consumer,
         IMessageHandlersRegistry messageHandlersRegistry,
-        bool skipUnknown,
-        DeferredAckConfiguration deferredAckConfiguration)
+        bool skipUnknown)
     {
         _eventHandler = eventHandler;
         _consumer = consumer;
         _messageHandlersRegistry = messageHandlersRegistry;
         _skipUnknown = skipUnknown;
-        _deferredAckConfig = deferredAckConfiguration;
-        _deferredAckTimer = new Timer(_ => AckDeferredMessages(isTimeout: true));
     }
 
     public async Task OnEventAppeared(TEvent @event, CancellationToken token)
     {
+        await Handle(@event, token);
+
+        _consumer.Acknowledge(@event);
+    }
+
+    private Task Handle(TEvent @event, CancellationToken token)
+    {
         if (@event.CanSkip(_skipUnknown))
-        {
-            DeferAck(@event);
-            return;
-        }
+            return Task.CompletedTask;
 
         var hasHandler = _messageHandlersRegistry.ContainsHandlersFor(
             @event.GetMessage().GetType(), out var handlerKind);
 
         if (!hasHandler)
-        {
-            DeferAck(@event);
-            return;
-        }
-
-        await Task.Yield();
-        
-        AckDeferredMessages();
+            return Task.CompletedTask;
 
         if ((handlerKind & HandlerKind.Single) == 0)
             throw new InvalidOperationException(
                 $"There is no single message handler for subscription {_consumer.Subscription}");
 
-        await _eventHandler.Handle(@event, token);
-
-        _consumer.Acknowledge(@event);
+        return _eventHandler.Handle(@event, new HandlingContext(), token);
     }
 
     public void Dispose()
-        => _deferredAckTimer.Dispose();
-
-    private void DeferAck(in TEvent skippedMessage)
     {
-        if (_deferredAckConfig.MaxBufferSize <= 1)
-        {
-            _consumer.Acknowledge(skippedMessage);
-            return;
-        }
-
-        lock (_skipped)
-            _skipped.Add(skippedMessage);
-
-        if (_skipped.Count >= _deferredAckConfig.MaxBufferSize)
-            AckDeferredMessages();
-        else
-            _deferredAckTimer.Change(_deferredAckConfig.Timeout, Timeout.InfiniteTimeSpan);
-    }
-
-    private void AckDeferredMessages(bool isTimeout = false)
-    {
-        if (_skipped.Count == 0)
-            return;
-
-        if (!isTimeout)
-            _deferredAckTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-
-        lock (_skipped)
-        {
-            _consumer.Acknowledge(_skipped);
-            _skipped.Clear();
-        }
     }
 }

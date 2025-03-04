@@ -6,7 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Eventso.Subscription.Http;
 
-public sealed class ObserverFactory : IObserverFactory
+public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
+    where TEvent : IEvent
 {
     private readonly SubscriptionConfiguration _configuration;
     private readonly IMessagePipelineFactory _messagePipelineFactory;
@@ -22,12 +23,11 @@ public sealed class ObserverFactory : IObserverFactory
         _messageHandlersRegistry = messageHandlersRegistry;
     }
 
-    public IObserver<TEvent> Create<TEvent>(IConsumer<TEvent> consumer, string topic)
-        where TEvent : IEvent
+    public IObserver<TEvent> Create(IConsumer<TEvent> consumer, string topic)
     {
         var eventHandler = new Observing.EventHandler<TEvent>(
             _messageHandlersRegistry,
-            _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
+            _messagePipelineFactory.Create(_configuration.HandlerConfiguration, withDlq: false));
 
         if (_configuration.BatchProcessingRequired)
         {
@@ -44,8 +44,7 @@ public sealed class ObserverFactory : IObserverFactory
             eventHandler,
             consumer,
             _messageHandlersRegistry,
-            skipUnknown: true,
-            _configuration.DeferredAckConfiguration!);
+            skipUnknown: true);
 
         IEventHandler<TEvent> GetBatchHandler()
         {

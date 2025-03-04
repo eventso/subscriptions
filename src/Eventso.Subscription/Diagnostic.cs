@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 
 namespace Eventso.Subscription;
@@ -9,8 +10,10 @@ public static class Diagnostic
     public static readonly string PipelineHandle = "pipeline.handle";
     public static readonly string EventHandlerHandle = "eventhandler.handle";
     public static readonly string SourceName = "eventso";
+    public static readonly string MeterName = "eventso.subscription";
 
     public static readonly ActivitySource ActivitySource = new(SourceName);
+    public static readonly Meter Meter = new(MeterName);
 
     public static Activity SetException(this Activity activity, Exception ex)
     {
@@ -23,7 +26,7 @@ public static class Diagnostic
         return activity;
     }
 
-    internal static RootActivityScope StartRooted(string name, ActivityKind kind = ActivityKind.Internal)
+    public static RootActivityScope StartRooted(string name, ActivityKind kind = ActivityKind.Internal)
     {
         var previous = Activity.Current;
         Activity.Current = null;
@@ -33,7 +36,7 @@ public static class Diagnostic
         return new RootActivityScope(newRoot, previous);
     }
 
-    internal readonly struct RootActivityScope : IDisposable
+    public readonly struct RootActivityScope : IDisposable
     {
         public readonly Activity? Activity;
 

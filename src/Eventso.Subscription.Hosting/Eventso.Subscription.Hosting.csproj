@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -8,10 +8,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Scrutor" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    <PackageReference Include="System.Interactive.Async" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
     <ProjectReference Include="..\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>

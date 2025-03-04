@@ -4,6 +4,8 @@ namespace Eventso.Subscription.Hosting;
 
 public sealed record SubscriptionConfiguration
 {
+    private readonly Guid _subscriptionConfigurationId;
+    
     public SubscriptionConfiguration(
         KafkaConsumerSettings settings,
         int consumerInstances,
@@ -18,9 +20,12 @@ public sealed record SubscriptionConfiguration
         if (topicConfigurations is null || topicConfigurations.Length == 0)
             throw new ArgumentException("Value cannot be null or empty collection.", nameof(topicConfigurations));
 
+        _subscriptionConfigurationId = Guid.NewGuid();
+        SubscriptionConfigurationId = $"{_subscriptionConfigurationId}-0";
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ConsumerInstances = consumerInstances;
         TopicConfigurations = topicConfigurations;
+
     }
 
     public SubscriptionConfiguration(
@@ -29,6 +34,8 @@ public sealed record SubscriptionConfiguration
         : this(settings, consumerInstances: 1, topics)
     {
     }
+    
+    public string SubscriptionConfigurationId { get; private init; }
 
     public int ConsumerInstances { get; }
 
@@ -61,7 +68,11 @@ public sealed record SubscriptionConfiguration
         {
             foreach (var i in  Enumerable.Range(0, ConsumerInstances))
             {
-                yield return this with { Settings = Settings.GetForInstance(i) };
+                yield return this with
+                {
+                    SubscriptionConfigurationId = $"{_subscriptionConfigurationId}-{i}",
+                    Settings = Settings.GetForInstance(i)
+                };
             }
         }
     }

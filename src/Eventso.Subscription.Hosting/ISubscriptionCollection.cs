@@ -8,7 +8,6 @@ public interface ISubscriptionCollection : IEnumerable<SubscriptionConfiguration
         ConsumerSettings settings,
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
-        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
         TimeSpan? messageObservingDelay = default);

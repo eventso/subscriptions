@@ -34,7 +34,7 @@ public sealed class SubscriptionController : ControllerBase
         var messageBytes = await GetMessageBytes();
         var consumedMessage = deserializer.Deserialize(messageBytes.AsSpan(), topic);
 
-        var observerFactory = new ObserverFactory(
+        var observerFactory = new ObserverFactory<Event>(
             subscriptionConfiguration,
             _messagePipelineFactory,
             _messageHandlersRegistry);

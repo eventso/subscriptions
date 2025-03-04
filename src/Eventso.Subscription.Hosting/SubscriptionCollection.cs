@@ -11,7 +11,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
         ConsumerSettings settings,
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
-        DeferredAckConfiguration? deferredAckConfig = default,
         bool skipUnknownMessages = true,
         int instances = 1,
         TimeSpan? messageObservingDelay = default)
@@ -23,7 +22,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 settings.Topic,
                 serializer,
                 handlerConfig,
-                deferredAckConfig,
                 skipUnknownMessages)
             {
                 ObservingDelay = messageObservingDelay
@@ -111,7 +109,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
             string topic,
             IMessageDeserializer serializer,
             HandlerConfiguration? handlerConfig = default,
-            DeferredAckConfiguration? deferredAckConfig = default,
             bool skipUnknownMessages = true,
             int bufferSize = 10,
             TimeSpan? messageObservingDelay = default)
@@ -120,7 +117,6 @@ public sealed class SubscriptionCollection : ISubscriptionCollection
                 topic,
                 serializer,
                 handlerConfig,
-                deferredAckConfig,
                 skipUnknownMessages,
                 bufferSize: bufferSize)
             {

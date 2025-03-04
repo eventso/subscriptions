@@ -18,7 +18,7 @@ public sealed class SingleTypeLastByKeyEventHandlerTests
             });
 
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -40,7 +40,7 @@ public sealed class SingleTypeLastByKeyEventHandlerTests
             .OrderBy(_ => Guid.NewGuid())
             .ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events

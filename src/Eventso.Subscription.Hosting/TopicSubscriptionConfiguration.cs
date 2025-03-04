@@ -2,13 +2,12 @@ namespace Eventso.Subscription.Hosting;
 
 public sealed class TopicSubscriptionConfiguration
 {
-    private TopicSubscriptionConfiguration(
+    public TopicSubscriptionConfiguration(
         string topic,
         IMessageDeserializer serializer,
-        HandlerConfiguration? handlerConfig,
-        bool skipUnknownMessages,
-        bool enableDeadLetterQueue,
-        int bufferSize)
+        HandlerConfiguration? handlerConfig = default,
+        bool skipUnknownMessages = true,
+        int bufferSize = 0)
     {
         if (string.IsNullOrWhiteSpace(topic))
             throw new ArgumentException("Topic name is not specified.");
@@ -17,29 +16,9 @@ public sealed class TopicSubscriptionConfiguration
 
         Topic = topic;
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        SkipUnknownMessages = skipUnknownMessages;
         HandlerConfig = handlerConfig ?? new HandlerConfiguration();
-        EnableDeadLetterQueue = enableDeadLetterQueue;
+        SkipUnknownMessages = skipUnknownMessages;
         BufferSize = bufferSize;
-    }
-
-    public TopicSubscriptionConfiguration(
-        string topic,
-        IMessageDeserializer serializer,
-        HandlerConfiguration? handlerConfig = default,
-        DeferredAckConfiguration? deferredAckConfiguration = default,
-        bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false,
-        int bufferSize = 0)
-        : this(
-            topic,
-            serializer,
-            handlerConfig,
-            skipUnknownMessages,
-            enableDeadLetterQueue,
-            bufferSize)
-    {
-        DeferredAckConfiguration = deferredAckConfiguration ?? DeferredAckConfiguration.Disabled;
     }
 
     public TopicSubscriptionConfiguration(
@@ -48,14 +27,12 @@ public sealed class TopicSubscriptionConfiguration
         IMessageDeserializer serializer,
         HandlerConfiguration? handlerConfig = default,
         bool skipUnknownMessages = true,
-        bool enableDeadLetterQueue = false,
         int bufferSize = 0)
         : this(
             topic,
             serializer,
             handlerConfig,
             skipUnknownMessages,
-            enableDeadLetterQueue,
             bufferSize)
     {
         batchConfiguration.Validate();
@@ -77,10 +54,6 @@ public sealed class TopicSubscriptionConfiguration
     public HandlerConfiguration HandlerConfig { get; }
 
     public BatchConfiguration? BatchConfiguration { get; }
-
-    public DeferredAckConfiguration? DeferredAckConfiguration { get; }
-
-    public bool EnableDeadLetterQueue { get; }
 
     public int BufferSize { get; }
 }

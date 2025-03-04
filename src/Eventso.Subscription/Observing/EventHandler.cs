@@ -14,7 +14,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         _pipelineAction = pipelineAction;
     }
 
-    public async Task Handle(TEvent @event, CancellationToken cancellationToken)
+    public async Task Handle(TEvent @event, HandlingContext context, CancellationToken token)
     {
         using var activity = Diagnostic.ActivitySource.StartActivity(Diagnostic.EventHandlerHandle)?
             .AddTag("type", @event.GetMessage().GetType())
@@ -24,7 +24,10 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         try
         {
-            await _pipelineAction.Invoke(message, cancellationToken);
+            if (context.IsBatchSlice)
+                await HandleTypedSlice(message, context, token);
+            else
+                await _pipelineAction.Invoke(message, context, token);
         }
         catch (Exception exception)
         {
@@ -33,7 +36,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
         }
     }
 
-    public async Task Handle(IConvertibleCollection<TEvent> events, CancellationToken cancellationToken)
+    public async Task Handle(IConvertibleCollection<TEvent> events, HandlingContext context, CancellationToken token)
     {
         if (events.Count == 0)
             return;
@@ -46,7 +49,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
 
         try
         {
-            await HandleTyped((dynamic)firstMessage, events, cancellationToken);
+            await HandleTyped((dynamic)firstMessage, events, context, token);
         }
         catch (Exception exception)
         {
@@ -58,6 +61,7 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
     private async Task HandleTyped<TMessage>(
         TMessage _,
         IConvertibleCollection<TEvent> events,
+        HandlingContext context,
         CancellationToken token)
         where TMessage : class
     {
@@ -65,10 +69,26 @@ public sealed class EventHandler<TEvent> : IEventHandler<TEvent>
             return;
 
         if ((kind & HandlerKind.Batch) != 0)
-            await _pipelineAction.Invoke(events.Convert(m => (TMessage)m.GetMessage()), token);
+            await _pipelineAction.Invoke(events.Convert(m => (TMessage)m.GetMessage()), context, token);
 
         if ((kind & HandlerKind.Single) != 0)
             foreach (var @event in events)
-                await _pipelineAction.Invoke((TMessage)@event.GetMessage(), token);
+                await _pipelineAction.Invoke((TMessage)@event.GetMessage(), context, token);
+    }
+
+    private async Task HandleTypedSlice<TMessage>(
+        TMessage message,
+        HandlingContext context,
+        CancellationToken token)
+        where TMessage : class
+    {
+        if (!_handlersRegistry.ContainsHandlersFor(typeof(TMessage), out var kind))
+            return;
+
+        if ((kind & HandlerKind.Batch) != 0)
+            await _pipelineAction.Invoke<IReadOnlyCollection<TMessage>>([message], context, token);
+
+        if ((kind & HandlerKind.Single) != 0)
+            await _pipelineAction.Invoke(message, context, token);
     }
 }

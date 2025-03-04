@@ -3,14 +3,17 @@
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<IsPackable>false</IsPackable>
+		<OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Npgsql" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\src\Eventso.Subscription.Hosting\Eventso.Subscription.Hosting.csproj" />
+		<ProjectReference Include="..\src\Eventso.Subscription.Kafka.DeadLetter.Postgres\Eventso.Subscription.Kafka.DeadLetter.Postgres.csproj" />
 		<ProjectReference Include="..\src\Eventso.Subscription.Kafka.Insights\Eventso.Subscription.Kafka.Insights.csproj" />
 		<ProjectReference Include="..\src\Eventso.Subscription.Kafka\Eventso.Subscription.Kafka.csproj" />
 		<ProjectReference Include="..\src\Eventso.Subscription.SpanJson\Eventso.Subscription.SpanJson.csproj" />

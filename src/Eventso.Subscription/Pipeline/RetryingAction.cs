@@ -2,20 +2,22 @@ using Polly;
 
 namespace Eventso.Subscription.Pipeline;
 
-public sealed class RetryingAction : IMessagePipelineAction
+public sealed class RetryingAction(
+    ResiliencePipeline resiliencePipeline,
+    ResiliencePipeline batchSliceResiliencePipeline,
+    IMessagePipelineAction next) : IMessagePipelineAction
 {
-    private readonly IMessagePipelineAction _next;
-    private readonly ResiliencePipeline _resiliencePipeline;
-
-    public RetryingAction(ResiliencePipeline resiliencePipeline, IMessagePipelineAction next)
+    public async Task Invoke<T>(T message, HandlingContext context, CancellationToken token) where T : notnull
     {
-        _next = next ?? throw new ArgumentNullException(nameof(next));
-        _resiliencePipeline = resiliencePipeline ?? throw new ArgumentNullException(nameof(resiliencePipeline));
-    }
-
-    public async Task Invoke<T>(T message, CancellationToken token) where T : notnull
-    {
-        await _resiliencePipeline.ExecuteAsync(
-            static async (p, ct) => await p._next.Invoke(p.message, ct), (_next, message), token);
+        if (context.IsBatchSlice)
+        {
+            await batchSliceResiliencePipeline.ExecuteAsync(
+                static async (p, ct) => await p._next.Invoke(p.message, p.context, ct), (_next: next, context, message), token);
+        }
+        else
+        {
+            await resiliencePipeline.ExecuteAsync(
+                static async (p, ct) => await p._next.Invoke(p.message, p.context, ct), (_next: next, context, message), token);
+        }
     }
 }

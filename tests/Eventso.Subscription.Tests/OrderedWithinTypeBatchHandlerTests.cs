@@ -18,7 +18,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
             });
             
         var action = Substitute.For<IMessagePipelineAction>();
-        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<RedMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -26,7 +26,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<RedMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<BlueMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<BlueMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -34,7 +34,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
                 _handledBatches.Add(c.Arg<IReadOnlyCollection<BlueMessage>>());
             });
 
-        action.Invoke(default(IReadOnlyCollection<GreenMessage>)!, default)
+        action.Invoke(default(IReadOnlyCollection<GreenMessage>)!, default, default)
             .ReturnsForAnyArgs(Task.CompletedTask)
             .AndDoes(c =>
             {
@@ -53,7 +53,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
             .Select(x => new TestEvent(x.k, x.e))
             .ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         _handledEvents.Should().BeEquivalentTo(
             events.Select(x => x.GetMessage()),
@@ -89,7 +89,7 @@ public sealed class OrderedWithinTypeEventHandlerTests
             Create<GreenMessage>(keys[0], 2),
         }.ToConvertibleCollection();
 
-        await _handler.Handle(events, CancellationToken.None);
+        await _handler.Handle(events, default, CancellationToken.None);
 
         for (var i = 0; i < _handledBatches.Count; i++)
         {

@@ -1,6 +1,6 @@
 using Confluent.Kafka;
+using Eventso.Subscription.Kafka;
 using Eventso.Subscription.Kafka.DeadLetter.Postgres;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -20,7 +20,7 @@ public class PoisonEventStoreTests
     {
         await using var database = await Database.Create(); 
 
-        await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
 
         await using var connection = database.ConnectionFactory.ReadWrite();
 
@@ -33,15 +33,18 @@ public class PoisonEventStoreTests
     }
 
     [Fact]
-    public async Task AddSingleToStore_EventsAdded()
+    public async Task AddFirstTime_EventsAdded()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
-        var @event = _fixture.Create<OpeningPoisonEvent>();
+        var reason = _fixture.Create<string>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
-        await store.Add(timestamp, @event, CancellationToken.None);
+        await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         var storedEvents = await GetStoredEvents(database);
         storedEvents.Should().ContainSingle()
@@ -49,179 +52,127 @@ public class PoisonEventStoreTests
             .Should()
             .BeEquivalentTo(
                 new PoisonEventRaw(
+                    groupId,
                     @event.TopicPartitionOffset.Topic,
                     @event.TopicPartitionOffset.Partition.Value,
                     @event.TopicPartitionOffset.Offset.Value,
-                    @event.Key,
-                    @event.Value.ToArray(),
-                    @event.CreationTimestamp,
-                    @event.Headers.Select(h => h.Key).ToArray(),
-                    @event.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
                     timestamp,
-                    @event.FailureReason,
+                    reason,
                     1),
                 o => o.AcceptingCloseDateTimes());
     }
 
     [Fact]
-    public async Task AddBulkToStore_EventsAdded()
+    public async Task AddSecondTime_EventsUpdated()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
-        var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
+        var groupId = _fixture.Create<string>();
+        var firstTimestamp = _fixture.Create<DateTime>();
+        var secondTimestamp = firstTimestamp.AddSeconds(1);
+        var reason = _fixture.Create<string>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
-        await store.Add(timestamp, events, CancellationToken.None);
+        await store.AddEvent(groupId, @event, firstTimestamp, reason, CancellationToken.None);
+        await store.AddEvent(groupId, @event, secondTimestamp, reason, CancellationToken.None);
 
         var storedEvents = await GetStoredEvents(database);
-        events.Select(e => new PoisonEventRaw(
-                e.TopicPartitionOffset.Topic,
-                e.TopicPartitionOffset.Partition.Value,
-                e.TopicPartitionOffset.Offset.Value,
-                e.Key,
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
-                timestamp,
-                e.FailureReason,
-                1))
+        storedEvents.Should().ContainSingle()
+            .Subject
             .Should()
-            .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
+            .BeEquivalentTo(
+                new PoisonEventRaw(
+                    groupId,
+                    @event.TopicPartitionOffset.Topic,
+                    @event.TopicPartitionOffset.Partition.Value,
+                    @event.TopicPartitionOffset.Offset.Value,
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
+                    secondTimestamp,
+                    reason,
+                    2),
+                o => o.AcceptingCloseDateTimes());
     }
 
     [Fact]
-    public async Task AddFailureToStore_FailuresAdded()
+    public async Task AddSame_NoChanges()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
+        var reason = _fixture.Create<string>();
+        var @event = _fixture.Create<ConsumeResult<byte[], byte[]>>();
 
-        var updatedTimestamp = _fixture.Create<DateTime>();
-        var updatedFailure = new OccuredFailure(
-            events.OrderBy(_ => Guid.NewGuid()).First().TopicPartitionOffset,
-            _fixture.Create<string>());
-
-        await store.AddFailure(updatedTimestamp, updatedFailure, CancellationToken.None);
+        await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
+        await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         var storedEvents = await GetStoredEvents(database);
-        events.Select(e => new PoisonEventRaw(
-                e.TopicPartitionOffset.Topic,
-                e.TopicPartitionOffset.Partition.Value,
-                e.TopicPartitionOffset.Offset.Value,
-                e.Key,
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
-                updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? updatedTimestamp : timestamp,
-                updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? updatedFailure.Reason : e.FailureReason,
-                updatedFailure.TopicPartitionOffset == e.TopicPartitionOffset ? 2 : 1))
+        storedEvents.Should().ContainSingle()
+            .Subject
             .Should()
-            .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
-    }
-
-    [Fact]
-    public async Task AddFailuresToStore_FailuresAdded()
-    {
-        await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
-
-        var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>().ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
-
-        var updatedTimestamp = _fixture.Create<DateTime>();
-        var updatedFailures = events
-            .OrderBy(_ => Guid.NewGuid())
-            .Skip(1)
-            .Select(u => new OccuredFailure(u.TopicPartitionOffset, _fixture.Create<string>()))
-            .ToDictionary(f => f.TopicPartitionOffset);
-
-        await store.AddFailures(updatedTimestamp, updatedFailures.Values, CancellationToken.None);
-
-        var storedEvents = await GetStoredEvents(database);
-        events.Select(e => new PoisonEventRaw(
-                e.TopicPartitionOffset.Topic,
-                e.TopicPartitionOffset.Partition.Value,
-                e.TopicPartitionOffset.Offset.Value,
-                e.Key,
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
-                updatedFailures.ContainsKey(e.TopicPartitionOffset) ? updatedTimestamp : timestamp,
-                updatedFailures.TryGetValue(e.TopicPartitionOffset, out var failure) ? failure.Reason : e.FailureReason,
-                updatedFailures.ContainsKey(e.TopicPartitionOffset) ? 2 : 1))
-            .Should()
-            .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
+            .BeEquivalentTo(
+                new PoisonEventRaw(
+                    groupId,
+                    @event.TopicPartitionOffset.Topic,
+                    @event.TopicPartitionOffset.Partition.Value,
+                    @event.TopicPartitionOffset.Offset.Value,
+                    @event.Message.Key.ToArray(),
+                    @event.Message.Value.ToArray(),
+                    @event.Message.Timestamp.UtcDateTime,
+                    @event.Message.Headers.Select(h => h.Key).ToArray(),
+                    @event.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
+                    timestamp,
+                    reason,
+                    1),
+                o => o.AcceptingCloseDateTimes());
     }
 
     [Fact]
     public async Task RemoveSingleFromStore_EventsRemoved()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>(10).ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
+        var reason = _fixture.Create<string>();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(10).ToArray();
+        foreach (var @event in events)
+            await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         var toRemove = events.OrderBy(_ => Guid.NewGuid()).First().TopicPartitionOffset;
 
-        await store.Remove(toRemove, CancellationToken.None);
+        await store.RemoveEvent(groupId, toRemove, CancellationToken.None);
 
         var storedEvents = await GetStoredEvents(database);
         events
             .Where(e => toRemove != e.TopicPartitionOffset)
             .Select(e => new PoisonEventRaw(
+                groupId,
                 e.TopicPartitionOffset.Topic,
                 e.TopicPartitionOffset.Partition.Value,
                 e.TopicPartitionOffset.Offset.Value,
-                e.Key,
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
+                e.Message.Key.ToArray(),
+                e.Message.Value.ToArray(),
+                e.Message.Timestamp.UtcDateTime,
+                e.Message.Headers.Select(h => h.Key).ToArray(),
+                e.Message.Headers.Select(h => h.GetValueBytes()).ToArray(),
                 timestamp,
-                e.FailureReason,
-                1))
-            .Should()
-            .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
-    }
-
-    [Fact]
-    public async Task RemoveBulkFromStore_EventsRemoved()
-    {
-        await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
-
-        var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>(10).ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
-
-        var toRemove = events.OrderBy(_ => Guid.NewGuid()).Take(5).Select(e => e.TopicPartitionOffset).ToArray();
-
-        await store.Remove(toRemove, CancellationToken.None);
-
-        var storedEvents = await GetStoredEvents(database);
-        events
-            .Where(e => !toRemove.Contains(e.TopicPartitionOffset))
-            .Select(e => new PoisonEventRaw(
-                e.TopicPartitionOffset.Topic,
-                e.TopicPartitionOffset.Partition.Value,
-                e.TopicPartitionOffset.Offset.Value,
-                e.Key,
-                e.Value.ToArray(),
-                e.CreationTimestamp,
-                e.Headers.Select(h => h.Key).ToArray(),
-                e.Headers.Select(h => h.Data.ToArray()).ToArray(),
-                timestamp,
-                e.FailureReason,
+                reason,
                 1))
             .Should()
             .BeEquivalentTo(storedEvents, o => o.AcceptingCloseDateTimes());
@@ -231,63 +182,77 @@ public class PoisonEventStoreTests
     public async Task Count_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
+        var reason = _fixture.Create<string>();
         var expectedCount = _fixture.Create<byte>() % 10 + 1;
-        var events = _fixture.CreateMany<OpeningPoisonEvent>(expectedCount * 2).ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(expectedCount * 2).ToArray();
+        foreach (var @event in events)
+            await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         var toRemove = events.OrderBy(_ => Guid.NewGuid()).Take(expectedCount).Select(e => e.TopicPartitionOffset).ToArray();
 
-        await store.Remove(toRemove, CancellationToken.None);
+        foreach (var topicPartitionOffset in toRemove)
+        {
+            await store.RemoveEvent(groupId, topicPartitionOffset, CancellationToken.None);
+        }
 
         var storedEvents = await GetStoredEvents(database);
         storedEvents.Should().HaveCount(expectedCount);
     }
 
     [Fact]
-    public async Task IsKeyStored_MeetsExpected()
+    public async Task IsPoisonedKey_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>(3).ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
+        var reason = _fixture.Create<string>();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(3).ToArray();
+        foreach (var @event in events)
+            await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
         foreach (var @event in events)
         {
-            var isStored = await store.IsStreamStored(@event.TopicPartitionOffset.Topic, @event.Key, CancellationToken.None);
+            var isStored = await store.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, @event.Message.Key, CancellationToken.None);
             isStored.Should().BeTrue();
 
-            var isNotStored = await store.IsStreamStored(@event.TopicPartitionOffset.Topic, Guid.NewGuid(), CancellationToken.None);
+            var isNotStored = await store.IsKeyPoisoned(groupId, @event.TopicPartitionOffset.Topic, _fixture.Create<byte[]>(), CancellationToken.None);
             isNotStored.Should().BeFalse();
         }
     }
 
     [Fact]
-    public async Task GetStoredKeys_MeetsExpected()
+    public async Task GetPoisonedKeys_MeetsExpected()
     {
         await using var database = await Database.Create(); 
-        var store = await PoisonEventStore.Initialize(database.ConnectionFactory);
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
 
+        var groupId = _fixture.Create<string>();
         var timestamp = _fixture.Create<DateTime>();
-        var events = _fixture.CreateMany<OpeningPoisonEvent>(3).ToArray();
-        await store.Add(timestamp, events, CancellationToken.None);
+        var reason = _fixture.Create<string>();
+        var events = _fixture.CreateMany<ConsumeResult<byte[], byte[]>>(10).ToArray();
+        foreach (var @event in events)
+            await store.AddEvent(groupId, @event, timestamp, reason, CancellationToken.None);
 
-        var knownKeys = events.Select(e => new StreamId(e.TopicPartitionOffset.Topic, e.Key)).ToHashSet();
-        var storedKeys = store.GetStoredStreams(
-            knownKeys.Union(_fixture.CreateMany<StreamId>(3)).ToArray(),
-            CancellationToken.None);
-            
-        await foreach (var storedKey in storedKeys)
-            knownKeys.Remove(storedKey).Should().BeTrue();
-        knownKeys.Should().BeEmpty();
+        foreach (var topicPartitionEvents in events.GroupBy(e => e.TopicPartitionOffset.TopicPartition))
+        {
+            var expectedKeys = topicPartitionEvents.Select(e => GetKey(e.Message.Key)).ToArray();
+            await foreach (var keyRaw in store.GetPoisonedKeys(groupId, topicPartitionEvents.Key,
+                               CancellationToken.None))
+                expectedKeys.Should().Contain(GetKey(keyRaw.ToArray()));
+        }
     }
 
     [Fact]
-    public async Task AcquireEventsForRetrying_MeetsExpected()
+    public async Task GetEventForRetrying_MeetsExpected()
     {
         const int maxFailureCount = 10, canBeRetriedFailureCount = 5, cantBeRetriedFailureCount = 15;
         var minIntervalBetweenRetries = TimeSpan.FromMinutes(100);
@@ -300,82 +265,105 @@ public class PoisonEventStoreTests
             cantBeRetriedLockHandleTimestamp = DateTime.UtcNow.AddMinutes(-10);
             
         const string relevantTopic = "topic1", irrelevantTopic = "topic2";
+        const string relevantGroupId = "group1", irrelevantGroupId = "group2";
 
         await using var database = await Database.Create();
-        var store = await PoisonEventStore.Initialize(
+        await PoisonEventSchemaInitializer.Initialize(database.ConnectionFactory, default);
+        var store = new PoisonEventStore(database.ConnectionFactory);
+        var scheduler = new PoisonEventRetryScheduler(
             database.ConnectionFactory,
             maxFailureCount,
             minIntervalBetweenRetries,
             maxLockHandleInterval);
 
-        var firstKey = Guid.NewGuid();
-        var secondKey = Guid.NewGuid();
-        var thirdKey = Guid.NewGuid();
-        var fourthKey = Guid.NewGuid();
-        var fifthKey = Guid.NewGuid();
-        var sixthKey = Guid.NewGuid();
-        var seventhKey = Guid.NewGuid();
+        var reason = _fixture.Create<string>();
+
+        var firstKey = _fixture.CreateMany<byte>(16).ToArray();
+        var secondKey = _fixture.CreateMany<byte>(16).ToArray();
+        var thirdKey = _fixture.CreateMany<byte>(16).ToArray();
+        var fourthKey = _fixture.CreateMany<byte>(16).ToArray();
+        var fifthKey = _fixture.CreateMany<byte>(16).ToArray();
+        var sixthKey = _fixture.CreateMany<byte>(16).ToArray();
+        var seventhKey = _fixture.CreateMany<byte>(16).ToArray();
+        var eighthKey = _fixture.CreateMany<byte>(16).ToArray();
 
         var events = await Task.WhenAll(
-            CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
-            CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(firstKey, new TopicPartitionOffset(relevantTopic, 10, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 2), cantBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(secondKey, new TopicPartitionOffset(relevantTopic, 20, 3), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
-            CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 1), canBeRetriedLastFailureTimestamp, cantBeRetriedFailureCount, null),
-            CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(thirdKey, new TopicPartitionOffset(relevantTopic, 30, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fourthKey, new TopicPartitionOffset(relevantTopic, 40, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, canBeRetriedLockHandleTimestamp),
-            CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(sixthKey, new TopicPartitionOffset(relevantTopic, 60, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 1), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, cantBeRetriedLockHandleTimestamp),
-            CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 2), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null),
-            CreateEvent(seventhKey, new TopicPartitionOffset(relevantTopic, 70, 3), canBeRetriedLastFailureTimestamp, canBeRetriedFailureCount, null));
+            CreateEvent(relevantGroupId, firstKey, new TopicPartitionOffset(relevantTopic, 10, 1), canBeRetriedLastFailureTimestamp, reason, cantBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, firstKey, new TopicPartitionOffset(relevantTopic, 10, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, firstKey, new TopicPartitionOffset(relevantTopic, 10, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, secondKey, new TopicPartitionOffset(relevantTopic, 20, 1), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, secondKey, new TopicPartitionOffset(relevantTopic, 20, 2), cantBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, secondKey, new TopicPartitionOffset(relevantTopic, 20, 3), canBeRetriedLastFailureTimestamp, reason, cantBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, thirdKey, new TopicPartitionOffset(relevantTopic, 30, 1), canBeRetriedLastFailureTimestamp, reason, cantBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, thirdKey, new TopicPartitionOffset(relevantTopic, 30, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, thirdKey, new TopicPartitionOffset(relevantTopic, 30, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fourthKey, new TopicPartitionOffset(relevantTopic, 40, 1), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fourthKey, new TopicPartitionOffset(relevantTopic, 40, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fourthKey, new TopicPartitionOffset(relevantTopic, 40, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 1), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, fifthKey, new TopicPartitionOffset(irrelevantTopic, 50, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, sixthKey, new TopicPartitionOffset(relevantTopic, 20, 4), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, canBeRetriedLockHandleTimestamp),
+            CreateEvent(relevantGroupId, sixthKey, new TopicPartitionOffset(relevantTopic, 20, 5), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, sixthKey, new TopicPartitionOffset(relevantTopic, 20, 6), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, seventhKey, new TopicPartitionOffset(relevantTopic, 70, 1), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, cantBeRetriedLockHandleTimestamp),
+            CreateEvent(relevantGroupId, seventhKey, new TopicPartitionOffset(relevantTopic, 70, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(relevantGroupId, seventhKey, new TopicPartitionOffset(relevantTopic, 70, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(irrelevantGroupId, eighthKey, new TopicPartitionOffset(relevantTopic, 80, 1), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(irrelevantGroupId, eighthKey, new TopicPartitionOffset(relevantTopic, 80, 2), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null),
+            CreateEvent(irrelevantGroupId, eighthKey, new TopicPartitionOffset(relevantTopic, 80, 3), canBeRetriedLastFailureTimestamp, reason, canBeRetriedFailureCount, null));
 
-        var eventsForRetrying = new List<StoredPoisonEvent>();
-        await foreach (var @event in store.AcquireEventsForRetrying(relevantTopic, CancellationToken.None))
+        
+        var eventsForRetrying = new List<ConsumeResult<byte[], byte[]>>();
+        while (true)
+        {
+            var @event = await scheduler.GetNextRetryTarget(
+                relevantGroupId,
+                new TopicPartition(relevantTopic, 20),
+                CancellationToken.None);
+            
+            await using var connection = database.ConnectionFactory.ReadWrite();
+
+            await using var command = new NpgsqlCommand($"SELECT * FROM eventso_dlq.poison_events;", connection);
+            await connection.OpenAsync();
+            
+            if (@event == null)
+                break;
+            
             eventsForRetrying.Add(@event);
+        }
 
         eventsForRetrying
             .Should()
             .BeEquivalentTo(
                 events
-                    .Where(e => (e.Key == secondKey || e.Key == fourthKey || e.Key == sixthKey)
-                                && e.TopicPartitionOffset.Offset.Value == 1)
-                    .Select(e => new StoredPoisonEvent(
-                        e.TopicPartitionOffset.Partition,
-                        e.TopicPartitionOffset.Offset,
-                        e.Key,
-                        e.Value,
-                        e.CreationTimestamp,
-                        e.Headers,
-                        canBeRetriedLastFailureTimestamp,
-                        e.FailureReason,
-                        canBeRetriedFailureCount)),
-                o => o.AcceptingCloseDateTimes().ComparingByteReadOnlyMemoryAsArrays());
+                    .Where(e => (e.Message.Key.SequenceEqual(secondKey) && e.TopicPartitionOffset.Offset == 1)
+                                || (e.Message.Key.SequenceEqual(sixthKey) && e.TopicPartitionOffset.Offset == 4)),
+                o => o.AcceptingCloseDateTimes().ComparingByteReadOnlyMemoryAsArrays().ComparingByMembers<Timestamp>());
 
-        async Task<OpeningPoisonEvent> CreateEvent(
-            Guid key,
+        async Task<ConsumeResult<byte[], byte[]>> CreateEvent(
+            string groupId,
+            byte[] key,
             TopicPartitionOffset topicPartitionOffset,
             DateTime lastFailureTimestamp,
+            string lastFailureReason,
             int totalFailureCount,
             DateTime? lastLockTimestamp)
         {
-            var @event = new OpeningPoisonEvent(
-                topicPartitionOffset,
-                key,
-                _fixture.CreateMany<byte>().ToArray(),
-                _fixture.Create<DateTime>(),
-                Array.Empty<EventHeader>(),
-                _fixture.Create<string>());
-            await store.Add(lastFailureTimestamp, new [] { @event }, CancellationToken.None);
+            var @event = new ConsumeResult<byte[], byte[]>
+            {
+                TopicPartitionOffset = topicPartitionOffset,
+                Message = new Message<byte[], byte[]>
+                {
+                    Key = key,
+                    Value = _fixture.CreateMany<byte>().ToArray(),
+                    Timestamp = new Timestamp(DateTime.SpecifyKind(_fixture.Create<DateTime>(), DateTimeKind.Utc), TimestampType.NotAvailable),
+                    Headers = []
+                },
+                IsPartitionEOF = false
+            };
+            
+            await store.AddEvent(groupId, @event, lastFailureTimestamp, lastFailureReason, CancellationToken.None);
 
             await using var connection = database.ConnectionFactory.ReadWrite();
 
@@ -383,18 +371,24 @@ public class PoisonEventStoreTests
                 @"
 UPDATE eventso_dlq.poison_events pe
 SET
-    total_failure_count = @totalFailureCount,
-    lock_timestamp = @lastLockTimestamp
-WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
+    lock_timestamp = @lastLockTimestamp,
+    total_failure_count = @totalFailureCount
+WHERE group_id = @groupId AND pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offset;",
                 connection)
             {
                 Parameters =
                 {
+                    new NpgsqlParameter<string>("groupId", groupId),
                     new NpgsqlParameter<string>("topic", topicPartitionOffset.Topic),
                     new NpgsqlParameter<int>("partition", topicPartitionOffset.Partition.Value),
                     new NpgsqlParameter<long>("offset", topicPartitionOffset.Offset.Value),
                     new NpgsqlParameter<int>("totalFailureCount", totalFailureCount),
-                    new NpgsqlParameter("lastLockTimestamp", NpgsqlDbType.Timestamp) { NpgsqlValue = lastLockTimestamp != null ? lastLockTimestamp.Value : DBNull.Value }
+                    new NpgsqlParameter("lastLockTimestamp", NpgsqlDbType.Timestamp)
+                    {
+                        NpgsqlValue = lastLockTimestamp != null
+                            ? DateTime.SpecifyKind(lastLockTimestamp.Value, DateTimeKind.Unspecified)
+                            : DBNull.Value
+                    }
                 }
             };
 
@@ -405,6 +399,21 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
             return @event;
         }
     }
+    private sealed record PoisonEventRaw2(
+        string groupId,
+        string topic,
+        int partition,
+        long offset,
+        byte[] key,
+        byte[] value,
+        DateTime creation_timestamp,
+        string[] header_keys,
+        byte[][] header_values,
+        DateTime last_failure_timestamp,
+        string last_failure_reason,
+        int total_failure_count,
+        DateTime? lock_timestamp
+    );
 
     private static async Task<IReadOnlyCollection<PoisonEventRaw>> GetStoredEvents(Database database)
     {
@@ -414,32 +423,37 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
         await connection.OpenAsync();
 
         var storedEvents = new List<PoisonEventRaw>();
-        var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         while (await reader.ReadAsync(CancellationToken.None))
         {
             storedEvents.Add(new PoisonEventRaw(
                 reader.GetFieldValue<string>(0),
-                reader.GetFieldValue<int>(1),
-                reader.GetFieldValue<long>(2),
-                reader.GetGuid(3),
+                reader.GetFieldValue<string>(1),
+                reader.GetFieldValue<int>(2),
+                reader.GetFieldValue<long>(3),
                 reader.GetFieldValue<byte[]>(4),
-                reader.GetDateTime(5),
-                reader.GetFieldValue<string[]>(6),
-                reader.GetFieldValue<byte[][]>(7),
-                reader.GetDateTime(8),
-                reader.GetString(9),
-                reader.GetInt32(10)
+                reader.GetFieldValue<byte[]>(5),
+                reader.GetDateTime(6),
+                reader.GetFieldValue<string[]>(7),
+                reader.GetFieldValue<byte[][]>(8),
+                reader.GetDateTime(9),
+                reader.GetString(10),
+                reader.GetInt32(11)
             ));
         }
 
         return storedEvents;
     }
 
+    private static Guid GetKey(byte[] key)
+        => KeyGuidDeserializer.Instance.Deserialize(key, false, SerializationContext.Empty);
+
     private sealed record PoisonEventRaw(
+        string groupId,
         string topic,
         int partition,
         long offset,
-        Guid key,
+        byte[] key,
         byte[] value,
         DateTime creation_timestamp,
         string[] header_keys,
@@ -448,8 +462,6 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
         string last_failure_reason,
         int total_failure_count
     );
-
-    // to be continued
 
     private sealed class Database : IAsyncDisposable
     {
@@ -487,14 +499,16 @@ WHERE pe.topic = @topic AND pe.partition = @partition AND pe.""offset"" = @offse
         public async ValueTask DisposeAsync()
         {
             await using var connection = new NpgsqlConnection(CreateCommonConnectionString());
-                
-            await using var command = new NpgsqlCommand($@"
-                REVOKE CONNECT ON DATABASE {_databaseName} FROM public;
-                SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{_databaseName}';
-                DROP DATABASE {_databaseName};", connection);
-                
             await connection.OpenAsync();
-            await command.ExecuteNonQueryAsync();
+
+            await using var cleanupCommand = new NpgsqlCommand($@"
+                REVOKE CONNECT ON DATABASE {_databaseName} FROM public;
+                SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{_databaseName}';",
+                connection);
+            await cleanupCommand.ExecuteNonQueryAsync();
+
+            await using var dropCommand = new NpgsqlCommand($"DROP DATABASE {_databaseName};", connection);
+            await dropCommand.ExecuteNonQueryAsync();
         }
 
         private static string CreateCommonConnectionString()

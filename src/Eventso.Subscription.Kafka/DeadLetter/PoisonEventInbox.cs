@@ -1,224 +1,134 @@
-using System.Runtime.InteropServices;
 using Confluent.Kafka;
-using Eventso.Subscription.Kafka.DeadLetter.Store;
 using Eventso.Subscription.Observing.DeadLetter;
 using Microsoft.Extensions.Logging;
 
 namespace Eventso.Subscription.Kafka.DeadLetter;
 
-public sealed class PoisonEventInbox : IPoisonEventInbox<Event>, IPoisonRecordInbox, IDisposable
+public sealed class PoisonEventInbox(
+    IPoisonEventQueue poisonEventQueue,
+    KafkaConsumerSettings settings,
+    string topic,
+    ILogger<PoisonEventInbox> logger)
+    : IPoisonEventInbox<Event>, IDisposable
 {
-    private readonly IPoisonEventStore _eventStore;
-    private readonly IConsumer<byte[], byte[]> _deadMessageConsumer;
+    private readonly Lazy<ThreadSafeConsumer> _deadMessageConsumer = new(
+        () => new ThreadSafeConsumer(settings, topic, logger),
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
-    public PoisonEventInbox(
-        IPoisonEventStore eventStore,
-        ConsumerSettings settings,
-        ILogger<PoisonEventInbox> logger)
+    public Task<IKeySet<Event>> GetEventKeys(string topic, CancellationToken token)
+        => poisonEventQueue.GetKeys(topic, token);
+
+    public async Task Add(Event @event, string reason, CancellationToken token)
     {
-        _eventStore = eventStore;
+        var topicPartitionOffset = @event.GetTopicPartitionOffset();
 
-        if (string.IsNullOrWhiteSpace(settings.Config.BootstrapServers))
-            throw new InvalidOperationException("Brokers are not specified.");
+        if (await poisonEventQueue.IsLimitReached(topicPartitionOffset.TopicPartition, token))
+            throw new EventHandlingException(
+                topicPartitionOffset.Topic,
+                $"Dead letter queue size exceeds threshold. Poison event: {topicPartitionOffset}. Error: {reason}",
+                null);
 
-        if (string.IsNullOrEmpty(settings.Config.GroupId))
-            throw new InvalidOperationException("Group Id is not specified.");
+        var rawEvent = _deadMessageConsumer.Value.Consume(topicPartitionOffset, token);
 
-        var config = new ConsumerConfig(settings.Config.ToDictionary(e => e.Key, e => e.Value))
-        {
-            EnableAutoCommit = false,
-            EnableAutoOffsetStore = false,
-            AutoOffsetReset = AutoOffsetReset.Error,
-            AllowAutoCreateTopics = false,
-            GroupId = settings.Config.GroupId + "_cemetery" // boo!
-        };
-
-        _deadMessageConsumer = new ConsumerBuilder<byte[], byte[]>(config)
-            .SetKeyDeserializer(Deserializers.ByteArray)
-            .SetValueDeserializer(Deserializers.ByteArray)
-            .SetErrorHandler((_, e) => logger.LogError(
-                $"{nameof(PoisonEventInbox)} internal error: Topic: {settings.Topic}, {e.Reason}, Fatal={e.IsFatal}," +
-                $" IsLocal= {e.IsLocalError}, IsBroker={e.IsBrokerError}"))
-            .Build();
+        await poisonEventQueue.Enqueue(rawEvent, DateTime.UtcNow, reason, token);
     }
-
-    public async Task Add(
-        ConsumeResult<byte[], byte[]> consumeResult,
-        string failureReason,
-        CancellationToken token)
-    {
-        await EnsureThreshold(consumeResult.Topic, token);
-        await _eventStore.Add(
-            DateTime.UtcNow,
-            CreateOpeningPoisonEvent(consumeResult, failureReason),
-            token);
-    }
-
-    public async Task Add(PoisonEvent<Event> @event, CancellationToken cancellationToken)
-    {
-        await EnsureThreshold(@event.Event.Topic, cancellationToken);
-        await _eventStore.Add(
-            DateTime.UtcNow,
-            CreateOpeningPoisonEvent(@event, cancellationToken),
-            cancellationToken);
-    }
-
-    public async Task Add(IReadOnlyCollection<PoisonEvent<Event>> events, CancellationToken cancellationToken)
-    {
-        if (events.Count == 0)
-            return;
-
-        var inboxThresholdChecker = new InboxThresholdChecker(this);
-        var openingPoisonEvents = new PooledList<OpeningPoisonEvent>(events.Count);
-        foreach (var @event in events)
-        {
-            await inboxThresholdChecker.EnsureThreshold(@event.Event.Topic, cancellationToken);
-            openingPoisonEvents.Add(CreateOpeningPoisonEvent(@event, cancellationToken));
-        }
-
-        await _eventStore.Add(DateTime.UtcNow, openingPoisonEvents, cancellationToken);
-    }
-
-    public Task<bool> IsPartOfPoisonStream(Event @event, CancellationToken cancellationToken)
-        => _eventStore.IsStreamStored(@event.Topic, @event.GetKey(), cancellationToken);
-
-    public async Task<IPoisonStreamCollection<Event>?> GetPoisonStreams(
-        IReadOnlyCollection<Event> events,
-        CancellationToken cancellationToken)
-    {
-        using var streamIds = new PooledList<StreamId>(events.Count);
-        foreach (var @event in events)
-            streamIds.Add(new StreamId(@event.Topic, @event.GetKey()));
-            
-        HashSet<StreamId>? poisonStreamIds = null;
-        await foreach (var streamId in _eventStore.GetStoredStreams(streamIds, cancellationToken))
-        {
-            poisonStreamIds ??= new HashSet<StreamId>();
-            poisonStreamIds.Add(streamId);
-        }
-
-        return poisonStreamIds != null
-            ? new PoisonStreamCollection(poisonStreamIds)
-            : null;
-    }
-
+    
     public void Dispose()
     {
-        _deadMessageConsumer.Close();
-        _deadMessageConsumer.Dispose();
+        if (_deadMessageConsumer.IsValueCreated)
+            _deadMessageConsumer.Value.Close();
     }
 
-    private OpeningPoisonEvent CreateOpeningPoisonEvent(
-        PoisonEvent<Event> @event,
-        CancellationToken cancellationToken)
+    private sealed class ThreadSafeConsumer
     {
-        var topicPartitionOffset = @event.Event.GetTopicPartitionOffset();
+        private readonly IConsumer<Guid, ConsumedMessage> _deadMessageConsumer;
+        private readonly object _lockObject = new();
 
-        var rawEvent = Consume(topicPartitionOffset, cancellationToken);
-
-        return CreateOpeningPoisonEvent(rawEvent, @event.Reason);
-    }
-
-    private static OpeningPoisonEvent CreateOpeningPoisonEvent(
-        ConsumeResult<byte[], byte[]> poisonRecord,
-        string failureReason)
-    {
-        return new OpeningPoisonEvent(
-            poisonRecord.TopicPartitionOffset,
-            KeyGuidDeserializer.Instance.Deserialize(
-                poisonRecord.Message.Key,
-                poisonRecord.Message.Key.Length == 0,
-                SerializationContext.Empty),
-            poisonRecord.Message.Value,
-            poisonRecord.Message.Timestamp.UtcDateTime,
-            poisonRecord.Message
-                .Headers
-                .Select(c => new EventHeader(c.Key, c.GetValueBytes()))
-                .ToArray(),
-            failureReason);
-    }
-
-    private ConsumeResult<byte[], byte[]> Consume(
-        TopicPartitionOffset topicPartitionOffset,
-        CancellationToken cancellationToken)
-    {
-        try
+        public ThreadSafeConsumer(
+            KafkaConsumerSettings sourceSettings,
+            string topic,
+            ILogger logger)
         {
-            // one per observer (so no concurrency should exist) 
-            _deadMessageConsumer.Assign(topicPartitionOffset);
+            if (string.IsNullOrEmpty(sourceSettings.Config.GroupId))
+                throw new InvalidOperationException("Group Id is not specified.");
 
-            var rawEvent = _deadMessageConsumer.Consume(cancellationToken);
-            if (!rawEvent.TopicPartitionOffset.Equals(topicPartitionOffset))
-                throw new EventHandlingException(
-                    topicPartitionOffset.ToString(),
-                    "Consumed message offset doesn't match requested one.",
-                    null);
+            var settings = sourceSettings.Duplicate();
+            settings.Config.EnableAutoCommit = false;
+            settings.Config.EnableAutoOffsetStore = false;
+            settings.Config.AutoOffsetReset = AutoOffsetReset.Error;
+            settings.Config.AllowAutoCreateTopics = false;
+            settings.Config.GroupId += "_dlq";
 
-            return rawEvent;
-        }
-        finally
-        {
-            _deadMessageConsumer.Unassign();
-        }
-    }
-
-
-    // TODO const -> settings
-    private const int MaxNumberOfPoisonedEventsInTopic = 1000;
-    private async Task EnsureThreshold(string topic, CancellationToken cancellationToken)
-    {
-        var alreadyPoisoned = await _eventStore.Count(topic, cancellationToken);
-        if (alreadyPoisoned >= MaxNumberOfPoisonedEventsInTopic)
-            throw new EventHandlingException(
-                topic,
-                $"Dead letter queue exceeds {MaxNumberOfPoisonedEventsInTopic} size.",
-                null);
-    }
-
-    [StructLayout(LayoutKind.Auto)]
-    private struct InboxThresholdChecker
-    {
-        private readonly PoisonEventInbox _inbox;
-
-        private string? _singleTopic;
-        private List<string>? _topics;
-
-        public InboxThresholdChecker(PoisonEventInbox inbox)
-        {
-            _inbox = inbox;
-            _singleTopic = null;
-            _topics = null;
+            _deadMessageConsumer = settings.CreateBuilder()
+                .SetKeyDeserializer(KeyGuidDeserializer.Instance)
+                .SetValueDeserializer(ByteArrayWrapperDeserializer.Instance)
+                .SetErrorHandler((a, e) => logger.LogError(
+                    "{ErrorSource} internal error: Topic={Topic}, Reason={Reason}, " +
+                    "Fatal={IsFatal}, IsLocal= {IsLocalError}, IsBroker={IsBrokerError}",
+                    nameof(PoisonEventInbox), topic, e.Reason,
+                    e.IsFatal, e.IsLocalError, e.IsBrokerError))
+                .Build();
         }
 
-        public async ValueTask EnsureThreshold(string topic, CancellationToken cancellationToken)
+        public void Close()
         {
-            if (_singleTopic == topic)
-                return;
-
-            if (_topics?.Contains(topic) == true)
-                return;
-
-            await _inbox.EnsureThreshold(topic, cancellationToken);
-
-            if (_singleTopic == null)
+            lock (_lockObject)
             {
-                _singleTopic = topic;
-                return;
+                _deadMessageConsumer.Close();
+                _deadMessageConsumer.Dispose();
             }
-
-            _topics ??= new List<string>(1);
-            _topics.Add(topic);
         }
-    }
-        
-    private sealed class PoisonStreamCollection : IPoisonStreamCollection<Event>
-    {
-        private readonly HashSet<StreamId> _poisonStreamIds;
 
-        public PoisonStreamCollection(HashSet<StreamId> poisonStreamIds)
-            => _poisonStreamIds = poisonStreamIds;
+        public ConsumeResult<byte[], byte[]> Consume(
+            TopicPartitionOffset topicPartitionOffset,
+            CancellationToken cancellationToken)
+        {
+            lock (_lockObject)
+            {
+                try
+                {
+                    // one per observer (so no concurrency should exist) 
+                    _deadMessageConsumer.Assign(topicPartitionOffset);
 
-        public bool IsPartOfPoisonStream(Event @event)
-            => _poisonStreamIds.Contains(new StreamId(@event.Topic, @event.GetKey()));
+                    var rawEvent = _deadMessageConsumer.Consume(cancellationToken);
+                    if (!rawEvent.TopicPartitionOffset.Equals(topicPartitionOffset))
+                        throw new EventHandlingException(
+                            topicPartitionOffset.ToString(),
+                            "Consumed message offset doesn't match requested one.",
+                            null);
+
+                    //TODO: Ask why? just return original one
+                    return new ConsumeResult<byte[], byte[]>
+                    {
+                        Message = new Message<byte[], byte[]>
+                        {
+                            Key = rawEvent.Message.Key.ToByteArray(), // very very dangerous and depends on guid deserialization
+                            Value = (byte[]?)rawEvent.Message.Value.Message ?? [],
+                            Headers = rawEvent.Message.Headers,
+                            Timestamp = rawEvent.Message.Timestamp
+                        },
+                        TopicPartitionOffset = rawEvent.TopicPartitionOffset,
+                        IsPartitionEOF = rawEvent.IsPartitionEOF
+                    };
+                }
+                finally
+                {
+                    _deadMessageConsumer.Unassign();
+                }
+            }
+        }
+
+        public sealed class ByteArrayWrapperDeserializer : IDeserializer<ConsumedMessage>
+        {
+            internal static readonly IDeserializer<ConsumedMessage> Instance = new ByteArrayWrapperDeserializer();
+
+            public ConsumedMessage Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
+            {
+                return new ConsumedMessage(
+                    !isNull ? data.ToArray() : null,
+                    DeserializationStatus.Success,
+                    Array.Empty<KeyValuePair<string, object>>());
+            }
+        }
     }
 }
