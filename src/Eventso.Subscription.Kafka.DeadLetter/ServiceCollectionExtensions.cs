@@ -12,8 +12,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDeadLetterQueue(
         this IServiceCollection services,
         Func<IServiceProvider, DeadLetterQueueOptions> provideOptions,
-        Func<IServiceProvider, IPoisonEventStore> provideStore,
-        Func<IServiceProvider, DeadLetterQueueOptions.RetrySchedulingOptions, IPoisonEventRetryScheduler> provideRetryingScheduler)
+        IDeadLetterStoreRegistration storeRegistration)
     {
         services.RemoveAll<IPoisonEventQueueFactory>();
         services.RemoveAll<DeadLetterQueueOptions>();
@@ -22,17 +21,13 @@ public static class ServiceCollectionExtensions
         services.RemoveAll<IPoisonEventQueueRetryingService>();
         
         services.TryAddSingleton(provideOptions);
-
-        services.TryAddSingleton(provideStore);
-        services.TryAddSingleton<IPoisonEventRetryScheduler>(sp =>
-            provideRetryingScheduler(
-                sp,
-                sp.GetRequiredService<DeadLetterQueueOptions>().GetRetrySchedulingOptions()));
+        
         services.TryAddSingleton<IPoisonEventQueueFactory, PoisonEventQueueFactory>();
         services.TryAddSingleton<IPoisonEventQueueRetryingService, PoisonEventQueueRetryingService>();
         services.AddHostedService<PoisonEventQueueRetryingHost>();
         services.AddHostedService<PoisonEventQueueMetricCollector>();
 
+        storeRegistration.Register(services);
 
         //overrides
         services.RemoveAll<IConsumerFactory>();
@@ -46,5 +41,10 @@ public static class ServiceCollectionExtensions
                 p.GetRequiredService<ILoggerFactory>()));
 
         return services;
+    }
+
+    public interface IDeadLetterStoreRegistration
+    {
+        void Register(IServiceCollection services);
     }
 }

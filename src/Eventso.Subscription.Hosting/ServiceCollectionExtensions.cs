@@ -1,6 +1,5 @@
 using Eventso.Subscription.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using Scrutor;
 
 namespace Eventso.Subscription.Hosting;

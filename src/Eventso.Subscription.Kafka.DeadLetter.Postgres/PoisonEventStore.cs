@@ -6,7 +6,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : IPoisonEventStore
 {
-    public async Task<IReadOnlyDictionary<ConsumingTarget, long>> CountPoisonedEvents(CancellationToken token)
+    public async Task<IReadOnlyDictionary<ConsumingTopic, long>> CountPoisonedEvents(CancellationToken token)
     {
         await using var connection = connectionFactory.ReadOnly();
 
@@ -21,10 +21,11 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
 
         await connection.OpenAsync(token);
 
-        var result = new Dictionary<ConsumingTarget, long>();
-        var reader = await command.ExecuteReaderAsync(token);
+        var result = new Dictionary<ConsumingTopic, long>();
+        await using var reader = await command.ExecuteReaderAsync(token);
+
         while (await reader.ReadAsync(token))
-            result.Add(new ConsumingTarget(reader.GetString(0), reader.GetString(1)), reader.GetInt64(2));
+            result.Add(new ConsumingTopic(reader.GetString(0), reader.GetString(1)), reader.GetInt64(2));
         
         return result;
     }
@@ -42,6 +43,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
         await connection.OpenAsync(cancellationToken);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
+
         return result != null ? (long)result : 0;
     }
 
@@ -59,6 +61,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
          await connection.OpenAsync(token);
 
          var result = await command.ExecuteScalarAsync(token);
+
          return result is not (null or DBNull) && (bool)result;
     }
 
@@ -76,6 +79,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
             WHERE topic = @topic AND partition = @partition AND group_id = @groupId;
             """,
             connection);
+
         command.Parameters.Add(new NpgsqlParameter<string>("topic", topicPartition.Topic));
         command.Parameters.Add(new NpgsqlParameter<int>("partition", topicPartition.Partition.Value));
         command.Parameters.Add(new NpgsqlParameter<string>("groupId", groupId));
@@ -83,6 +87,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
         await connection.OpenAsync(token);
 
         await using var reader = await command.ExecuteReaderAsync(token);
+
         while (await reader.ReadAsync(token))
             yield return reader.GetFieldValue<byte[]>(0);
     }
@@ -107,6 +112,7 @@ internal sealed class PoisonEventStore(IConnectionFactory connectionFactory) : I
         await connection.OpenAsync(token);
 
         await using var reader = await command.ExecuteReaderAsync(token);
+
         while (await reader.ReadAsync(token))
             yield return new TopicPartitionOffset(topic, new Partition(reader.GetInt32(0)), reader.GetInt64(1));
     }

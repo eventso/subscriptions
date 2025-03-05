@@ -5,9 +5,7 @@ namespace Eventso.Subscription.Kafka.DeadLetter.Postgres;
 
 internal sealed class PoisonEventRetryScheduler(
     IConnectionFactory connectionFactory,
-    int maxAllowedFailureCount,
-    TimeSpan minIntervalBetweenRetries,
-    TimeSpan maxLockHandleInterval)
+    DeadLetterQueueOptions options)
     : IPoisonEventRetryScheduler
 {
     public async Task<ConsumeResult<byte[], byte[]>?> GetNextRetryTarget(string groupId, TopicPartition topicPartition, CancellationToken token)
@@ -60,9 +58,9 @@ internal sealed class PoisonEventRetryScheduler(
         command.Parameters.Add(new NpgsqlParameter<string>("topic", topicPartition.Topic));
         command.Parameters.Add(new NpgsqlParameter<int>("partition", topicPartition.Partition));
         command.Parameters.Add(new NpgsqlParameter<string>("groupId", groupId));
-        command.Parameters.Add(new NpgsqlParameter<int>("maxFailureCount", maxAllowedFailureCount));
-        command.Parameters.Add(new NpgsqlParameter<DateTime>("maxLastFailureTimestamp", DateTime.UtcNow - minIntervalBetweenRetries));
-        command.Parameters.Add(new NpgsqlParameter<DateTime>("maxLockTimestamp", DateTime.UtcNow - maxLockHandleInterval));
+        command.Parameters.Add(new NpgsqlParameter<int>("maxFailureCount", options.MaxRetryAttemptCount));
+        command.Parameters.Add(new NpgsqlParameter<DateTime>("maxLastFailureTimestamp", DateTime.UtcNow - options.MinHandlingRetryInterval));
+        command.Parameters.Add(new NpgsqlParameter<DateTime>("maxLockTimestamp", DateTime.UtcNow - options.MaxRetryDuration));
 
         await using var reader = await command.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token))

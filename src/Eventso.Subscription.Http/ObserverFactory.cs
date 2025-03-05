@@ -27,7 +27,7 @@ public sealed class ObserverFactory<TEvent> : IObserverFactory<TEvent>
     {
         var eventHandler = new Observing.EventHandler<TEvent>(
             _messageHandlersRegistry,
-            _messagePipelineFactory.Create(_configuration.HandlerConfiguration, withDlq: false));
+            _messagePipelineFactory.Create(_configuration.HandlerConfiguration));
 
         if (_configuration.BatchProcessingRequired)
         {

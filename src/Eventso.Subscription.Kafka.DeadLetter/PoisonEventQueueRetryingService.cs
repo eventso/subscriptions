@@ -52,7 +52,7 @@ public sealed class PoisonEventQueueRetryingService : IPoisonEventQueueRetryingS
                 // this event handler is crucial to work with both batch and single processing
                 c => new Observing.EventHandler<Event>(
                     handlersRegistry,
-                    messagePipelineFactory.Create(c.HandlerConfig, withDlq: false)));
+                    messagePipelineFactory.Create(c.HandlerConfig)));
 
         var poisonEventQueue = poisonEventQueueFactory.Create(
             config.Settings.Config.GroupId,
