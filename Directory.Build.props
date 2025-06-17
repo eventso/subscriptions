@@ -1,8 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<TargetFrameworks>net6.0;net8.0</TargetFrameworks>
-		<VersionPrefix>0.8.7</VersionPrefix>
-		<Version>0.8.7</Version>
+		<Version>0.8.8</Version>
 		<LangVersion>latest</LangVersion>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<WarningsAsErrors />
