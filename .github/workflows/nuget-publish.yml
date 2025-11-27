@@ -9,21 +9,21 @@ jobs:
     steps:
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET Core @ Latest
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             6.0.x
-            8.0.x         
+            8.0.x
+            10.0.x
         env:
-          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}        
-          
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
       - name: Build solution and generate NuGet package
-        run: 
+        run:
           dotnet build --configuration Release
 
       - name: Push generated package to Nuget.org registry
-        run: dotnet nuget push "**/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{secrets.NUGET_KEY}} --skip-duplicate 
-    
+        run: dotnet nuget push "**/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{secrets.NUGET_KEY}} --skip-duplicate
