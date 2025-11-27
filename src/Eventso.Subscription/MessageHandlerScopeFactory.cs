@@ -1,4 +1,4 @@
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription;
 
 public sealed class MessageHandlerScopeFactory : IMessageHandlerScopeFactory
 {
@@ -15,7 +15,7 @@ public sealed class MessageHandlerScopeFactory : IMessageHandlerScopeFactory
 
         public MessageHandlerScope(IServiceScope scope) => _scope = scope;
 
-        public IEnumerable<IMessageHandler<T>> Resolve<T>() => 
+        public IEnumerable<IMessageHandler<T>> Resolve<T>() =>
             _scope.ServiceProvider.GetServices<IMessageHandler<T>>();
 
         public void Dispose() => _scope.Dispose();
