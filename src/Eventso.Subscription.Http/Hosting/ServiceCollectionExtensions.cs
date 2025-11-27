@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
     private static void TryAddSubscriptionServices(IServiceCollection services)
     {
         services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
-        services.TryAddSingleton<IMessageHandlersRegistry, MessageHandlersRegistry>();
+        services.TryAddSingleton<IMessageHandlersRegistry, IsServiceBasedMessageHandlersRegistry>();
     }
 
     private sealed class IgnoreDuplicateRegistrationStrategy : RegistrationStrategy
@@ -70,7 +70,7 @@ public static class ServiceCollectionExtensions
 
             if (descriptor.ImplementationFactory == null)
                 return null;
-                
+
             var typeArguments = descriptor.ImplementationFactory.GetType().GenericTypeArguments;
             return typeArguments[1];
 

@@ -39,7 +39,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISubscriptionHost>(p => p.GetRequiredService<SubscriptionHost>());
         services.TryAddSingleton<IMessageHandlerScopeFactory, MessageHandlerScopeFactory>();
         services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
-        services.TryAddSingleton<IMessageHandlersRegistry>(s => MessageHandlersRegistry.Create(services));
+        services.TryAddSingleton<IMessageHandlersRegistry, IsServiceBasedMessageHandlersRegistry>();
         services.TryAddSingleton<IConsumerFactory, KafkaConsumerFactory>();
     }
 
