@@ -21,4 +21,4 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
     - name: Test
-      run: dotnet test --no-restore --filter 'FullyQualifiedName!~IntegrationTests'
+      run: dotnet test --configuration Release --no-build --filter 'FullyQualifiedName!~IntegrationTests'
