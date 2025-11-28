@@ -169,7 +169,7 @@ internal sealed class Buffer<TEvent> : IDisposable
         var batch = new Batch(_events, _toBeHandledEventsCount);
 
         ++_version;
-        _events = new PooledList<BufferedEvent>(_maxBatchSize);
+        _events = new PooledList<BufferedEvent>(_maxBufferSize);
         _toBeHandledEventsCount = 0;
 
         await _target.Writer.WriteAsync(batch, _tokenSource.Token);
