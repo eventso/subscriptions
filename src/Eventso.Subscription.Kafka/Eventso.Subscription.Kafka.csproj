@@ -11,9 +11,7 @@
     <ProjectReference Include="..\Eventso.Subscription\Eventso.Subscription.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Eventso.Subscription.Tests</_Parameter1>
-    </AssemblyAttribute>
+    <InternalsVisibleTo Include="Eventso.Subscription.Tests" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Eventso.Subscription.Configurations" />
