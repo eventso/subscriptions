@@ -1,6 +1,6 @@
 ﻿namespace Eventso.Subscription.Tests;
 
-public class IsServiceBasedMessageHandlersRegistryTest
+public class MessageHandlersRegistryTest
 {
     // non-significant "default" required to express "no handlers"
     [Fact]
@@ -22,7 +22,7 @@ public class IsServiceBasedMessageHandlersRegistryTest
                 .AsSelfWithInterfaces()
                 .WithSingletonLifetime()
             )
-            .AddSingleton<IMessageHandlersRegistry, IsServiceBasedMessageHandlersRegistry>()
+            .AddSingleton<IMessageHandlersRegistry, MessageHandlersRegistry>()
             .BuildServiceProvider();
 
         var registry = sp.GetRequiredService<IMessageHandlersRegistry>();
@@ -42,7 +42,7 @@ public class IsServiceBasedMessageHandlersRegistryTest
     {
         var sp = new ServiceCollection()
             .AddSingleton(typeof(IMessageHandler<>), typeof(GenericMsgHandler<>))
-            .AddSingleton<IMessageHandlersRegistry, IsServiceBasedMessageHandlersRegistry>()
+            .AddSingleton<IMessageHandlersRegistry, MessageHandlersRegistry>()
             .BuildServiceProvider();
 
         var registry = sp.GetRequiredService<IMessageHandlersRegistry>();

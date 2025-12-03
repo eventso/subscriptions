@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Eventso.Subscription;
 
-public class IsServiceBasedMessageHandlersRegistry(IServiceProviderIsService isServiceProvider) : IMessageHandlersRegistry
+public class MessageHandlersRegistry(IServiceProviderIsService isServiceProvider) : IMessageHandlersRegistry
 {
     private readonly ConcurrentDictionary<Type, HandlerKind> _lookup = [];
 

@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
     private static void TryAddSubscriptionServices(IServiceCollection services)
     {
         services.TryAddSingleton<IMessagePipelineFactory, MessagePipelineFactory>();
-        services.TryAddSingleton<IMessageHandlersRegistry, IsServiceBasedMessageHandlersRegistry>();
+        services.TryAddSingleton<IMessageHandlersRegistry, MessageHandlersRegistry>();
     }
 
     private sealed class IgnoreDuplicateRegistrationStrategy : RegistrationStrategy
