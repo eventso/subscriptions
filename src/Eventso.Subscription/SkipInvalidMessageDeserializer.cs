@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Eventso.Subscription.Hosting;
+namespace Eventso.Subscription;
 
 public static class SkipInvalidMessageExtensions
 {
